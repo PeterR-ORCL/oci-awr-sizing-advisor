@@ -1,4 +1,4 @@
-"""Day 1 orchestration for parsing Oracle AWR report files."""
+"""Day 2 orchestration for parsing Oracle AWR report files."""
 
 from __future__ import annotations
 
@@ -7,17 +7,19 @@ from pathlib import Path
 from src.models.parse_result import ParseResult
 from src.models.run_metadata import RunMetadata
 from src.parser.awr_file_loader import load_awr_file
+from src.parser.cpu_parser import parse_cpu_section
 from src.parser.awr_section_locator import locate_awr_sections
 from src.parser.metadata_parser import parse_awr_metadata
+from src.parser.sql_parser import parse_sql_section
+from src.parser.waits_parser import parse_waits_section
 
 
 def parse_awr_file(file_path: str | Path) -> ParseResult:
     """Parse an Oracle AWR report file into the canonical Day 1 result.
 
-    The Day 1 orchestrator loads the source file, locates major sections,
-    extracts run-level metadata, and assembles a deterministic
-    ``ParseResult``. Metric collections remain empty placeholders until
-    later parser phases are implemented.
+    The orchestrator loads the source file, locates major sections,
+    extracts run-level metadata, parses currently supported Day 2 metric
+    sections, and assembles a deterministic ``ParseResult``.
 
     Args:
         file_path: Path to the Oracle AWR report file.
@@ -32,25 +34,53 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
     """
 
     loaded_file = load_awr_file(file_path)
+    lines = loaded_file["lines"]
     sections_found = locate_awr_sections(loaded_file["lines"])
 
     metadata_dict, metadata_warnings = parse_awr_metadata(
         file_path=loaded_file["file_path"],
         file_name=loaded_file["file_name"],
-        lines=loaded_file["lines"],
+        lines=lines,
         report_header=sections_found.get("report_header"),
     )
 
     run_metadata = RunMetadata(**metadata_dict)
+    cpu_lines = _slice_section_lines(lines, sections_found.get("cpu"))
+    waits_lines = _slice_section_lines(lines, sections_found.get("waits"))
+    top_sql_lines = _slice_section_lines(lines, sections_found.get("top_sql"))
+
+    cpu_metrics = parse_cpu_section(cpu_lines) if cpu_lines else []
+    wait_events = parse_waits_section(waits_lines) if waits_lines else []
+    top_sql = parse_sql_section(top_sql_lines) if top_sql_lines else []
 
     return ParseResult(
         run_metadata=run_metadata,
         sections_found=sections_found,
-        cpu_metrics=[],
+        cpu_metrics=cpu_metrics,
         io_metrics=[],
-        wait_events=[],
-        top_sql=[],
+        wait_events=wait_events,
+        top_sql=top_sql,
         session_metrics=[],
         parse_warnings=metadata_warnings,
         parse_errors=[],
     )
+
+
+def _slice_section_lines(
+    lines: list[str],
+    section_bounds: dict[str, int | str] | None,
+) -> list[str]:
+    """Return the lines for a detected section using inclusive 1-based bounds."""
+
+    if not section_bounds:
+        return []
+
+    start_line = section_bounds.get("start_line")
+    end_line = section_bounds.get("end_line")
+    if not isinstance(start_line, int) or not isinstance(end_line, int):
+        return []
+
+    if start_line < 1 or end_line < start_line:
+        return []
+
+    return lines[start_line - 1 : end_line]

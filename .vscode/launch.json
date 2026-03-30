@@ -10,6 +10,16 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
+    },
+    {
+      "name": "Inspect AWR Sections",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/inspect_sections.py",
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
     }
   ]
 }

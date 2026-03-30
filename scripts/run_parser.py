@@ -8,7 +8,6 @@ if __name__ == "__main__":
     result = parse_awr_file("data/input/sample_awr_01.out")
 
     print("Run Metadata:")
-
     if is_dataclass(result.run_metadata):
         metadata_dict = asdict(result.run_metadata)
     elif hasattr(result.run_metadata, "to_dict"):
@@ -21,9 +20,26 @@ if __name__ == "__main__":
     for key, value in metadata_dict.items():
         print(f"  {key}: {value}")
 
-    print("\nSections Found:")
-    for section_name, section_info in result.sections_found.items():
-        print(f"  {section_name}: {section_info}")
+    print("\nSection Counts:")
+    print(f"  cpu_metrics: {len(result.cpu_metrics)}")
+    print(f"  wait_events: {len(result.wait_events)}")
+    print(f"  top_sql: {len(result.top_sql)}")
+    print(f"  io_metrics: {len(result.io_metrics)}")
+    print(f"  session_metrics: {len(result.session_metrics)}")
+
+    print("\nSample CPU Metrics:")
+    for row in result.cpu_metrics[:3]:
+        print(f"  {row}")
+
+    print("\nSample Wait Events:")
+    for row in result.wait_events[:3]:
+        print(f"  {row}")
+
+    print(f"  top_sql: {len(result.top_sql)}")
+
+    print("\nSample Top SQL:")
+    for row in result.top_sql[:3]:
+        print(f"  {row}")
 
     print("\nWarnings:")
     if result.parse_warnings:
