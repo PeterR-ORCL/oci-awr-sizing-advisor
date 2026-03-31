@@ -1,5 +1,8 @@
+import os
+
 from src.analysis.ai_narrative_generator import generate_ai_narrative
 from src.analysis.issue_detector import detect_issues
+from src.analysis.ai_provider import generate_ai_response
 from src.analysis.recommendation_engine import generate_recommendations
 from src.parser.awr_parser import parse_awr_file
 
@@ -123,11 +126,18 @@ def normalize_terms(text: str) -> str:
 
 
 if __name__ == "__main__":
+    provider = os.getenv("AI_PROVIDER", "openai")
     result = parse_awr_file("data/input/sample_awr_01.out")
 
     issues = detect_issues(result)
     recommendations = generate_recommendations(issues)
     ai_narrative = generate_ai_narrative(result, issues, recommendations)
+    ai_response = generate_ai_response(
+        provider=provider,
+        system_role=ai_narrative["system_role"],
+        prompt=ai_narrative["prompt"],
+        expected_sections=ai_narrative["expected_sections"],
+    )
     executive_summary = _build_executive_summary(issues)
     executive_summary = normalize_terms(executive_summary)
 
@@ -167,3 +177,11 @@ if __name__ == "__main__":
 
     print("\nPrompt:")
     print(ai_narrative["prompt"])
+
+    print("\nAI Generated Narrative:\n")
+    print("Provider:")
+    print(f"  {ai_response['provider']}\n")
+    print("Model:")
+    print(f"  {ai_response['model']}\n")
+    print("Content:")
+    print(ai_response["content"])
