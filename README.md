@@ -24,6 +24,15 @@ Bridging the gap between **performance engineering and business decision-making*
 
 ---
 
+## Design Principles
+
+- Deterministic analysis is the source of truth
+- AI augments, but does not replace, evidence-based findings
+- Dual AI providers enable flexibility and OCI alignment
+- Historical context (ADB) enables trend-based decisions
+
+---
+
 ## Requirements
 
 - Python 3.10+
@@ -55,7 +64,8 @@ python scripts/run_analysis.py
 The system follows a layered approach:
 
 ```text
-AWR Report (.out)
+AWR Report(s) (.out)
+(single run or batch input)
         ↓
 Parsing Layer (Day 1)
         ↓
@@ -65,7 +75,17 @@ Issue Detection (Day 3)
         ↓
 Recommendation Engine (Day 4)
         ↓
+────────────────────────────────────────────
+Deterministic Truth Layer (Source of Truth)
+────────────────────────────────────────────
+        ↓
+ADB (Day 6 - History / Trends)
+        ↓
 AI Narrative Layer (Day 5 - Next)
+   → OpenAI (advanced reasoning)
+   → OCI Generative AI (Oracle-native AI)
+        ↓
+Agentic Decision Layer (Day 6)
         ↓
 OCI Sizing Guidance (Day 7)
 ```
@@ -166,31 +186,32 @@ This system replaces manual AWR analysis with:
 
 ## Roadmap
 
-### Day 5 — AI Narrative Layer (Next)
-
-Introduce the mandatory AI layer for explanation and synthesis.
+### Day 5 — AI Narrative Layer (In Progress)
 
 Planned capabilities:
 - Generate executive summaries in natural language
 - Explain root causes in business-friendly terms
 - Produce narrative action plans
-- Answer “why this matters” and “what to do next”
+- Support dual providers:
+  - OpenAI (advanced reasoning)
+  - OCI Generative AI (Oracle-native integration)
 
-**Outcome:** The system becomes explainable, conversational, and demo-ready
+**Outcome:** Grounded AI narrative built on deterministic analysis
 
 ---
 
-### Day 6 — Agentic Decision Layer
+### Day 6 — Agentic Decision Layer + ADB Integration
 
 Evolve from recommendations to guided execution planning.
 
 Planned capabilities:
-- Prioritize actions by impact
+- Introduce ADB for historical storage and trend analysis
+- Prioritize actions based on impact
 - Sequence tuning steps
 - Suggest next best actions
 - Enable advisor-style workflows
 
-**Outcome:** The system behaves like a performance advisor, not just a reporting tool
+**Outcome:** Stateful, context-aware performance advisor
 
 ---
 
@@ -200,11 +221,11 @@ Connect performance analysis to OCI infrastructure decisions.
 
 Planned capabilities:
 - Map workload → OCPU, memory, storage guidance
-- Provide initial sizing recommendations
-- Align performance findings with cloud architecture
-- Deliver full demo workflow
+- Use historical trends from ADB
+- Generate OCI-aligned recommendations
+- Deliver full OCI-native demo workflow
 
-**Outcome:** End-to-end pipeline from AWR → analysis → recommendations → OCI sizing
+**Outcome:** End-to-end pipeline from AWR → analysis → recommendations → AI insights → OCI sizing
 
 ---
 
