@@ -217,11 +217,11 @@ A fully agentic system that delivers:
 - OCI sizing guidance
 
 Transforming:
-```bash
+```text
 AWR Report → Manual Analysis → Guesswork
 ```
 into:
-```bash
+```text
 AWR Report → Automated Analysis → Recommendations → AI Insights → OCI Decisions
 ```
 
@@ -247,5 +247,5 @@ data/
 
 ## Status
 
-**Day 4 Complete — Recommendation Engine Delivered**
+**Day 4 Complete — Recommendation Engine Delivered**  
 Next: **Day 5 — AI Narrative Layer**
