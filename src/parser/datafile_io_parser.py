@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 DATAFILE_IO_HEADER = "datafile io stats"
 ROW_PATTERN = re.compile(
     r"^\s*(\d+)\s+([A-Za-z0-9_#$]+)\s+([0-9,]+)\s+([0-9,]+)\s+"
@@ -58,7 +57,15 @@ def parse_datafile_io_stats(lines: list[str]) -> list[dict[str, Any]]:
         write_mb = _to_float(match.group(6))
         avg_read_ms = _to_float(match.group(7))
         avg_write_ms = _to_float(match.group(8))
-        if None in {file_no, reads, writes, read_mb, write_mb, avg_read_ms, avg_write_ms}:
+        if None in {
+            file_no,
+            reads,
+            writes,
+            read_mb,
+            write_mb,
+            avg_read_ms,
+            avg_write_ms,
+        }:
             continue
 
         records.append(

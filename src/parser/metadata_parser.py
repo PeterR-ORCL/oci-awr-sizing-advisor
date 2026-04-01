@@ -12,7 +12,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import re
-from typing import TypedDict
+from typing import TypeAlias, TypedDict
+
+from src.parser.awr_section_locator import AwrSectionLocation
 
 
 class AwrMetadata(TypedDict):
@@ -31,12 +33,7 @@ class AwrMetadata(TypedDict):
     end_snapshot_time: str | None
 
 
-class ReportHeaderBounds(TypedDict, total=False):
-    """Optional report header boundaries from the section locator."""
-
-    start_line: int
-    end_line: int
-    matched_pattern: str
+ReportHeaderBounds: TypeAlias = AwrSectionLocation
 
 
 def parse_awr_metadata(

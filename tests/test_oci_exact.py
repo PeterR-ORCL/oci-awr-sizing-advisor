@@ -34,7 +34,9 @@ message.role = "USER"
 message.content = [content]
 
 chat_request = oci.generative_ai_inference.models.GenericChatRequest()
-chat_request.api_format = oci.generative_ai_inference.models.BaseChatRequest.API_FORMAT_GENERIC
+chat_request.api_format = (
+    oci.generative_ai_inference.models.BaseChatRequest.API_FORMAT_GENERIC
+)
 chat_request.messages = [message]
 chat_request.max_tokens = 300
 chat_request.temperature = 0.2

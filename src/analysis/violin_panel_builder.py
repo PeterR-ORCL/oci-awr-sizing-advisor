@@ -14,12 +14,9 @@ from src.analysis.derived_metric_extractor import (
 )
 from src.models.parse_result import ParseResult
 
-
 MIN_VALID_SAMPLES = 2
 SNAPSHOT_TIME_FORMAT = "%d-%b-%y %H:%M:%S"
-SNAPSHOT_TIME_PATTERN = re.compile(
-    r"(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})"
-)
+SNAPSHOT_TIME_PATTERN = re.compile(r"(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})")
 
 EMPTY_VIOLIN_PANEL = {
     "cpu_pct": [],
@@ -52,14 +49,21 @@ def build_violin_panel_data(
 
     snapshots = _normalize_snapshots(parse_results)
     if len(snapshots) < 2:
-        return _build_single_report_violin_panel(snapshots[0]) if snapshots else dict(EMPTY_VIOLIN_PANEL)
+        return (
+            _build_single_report_violin_panel(snapshots[0])
+            if snapshots
+            else dict(EMPTY_VIOLIN_PANEL)
+        )
 
     return {
         "cpu_pct": _finalize_snapshot_series(
             [_extract_cpu_pct(snapshot) for snapshot in snapshots]
         ),
         "execs_per_sec": _finalize_snapshot_series(
-            [_extract_load_profile_per_second(snapshot, "Executes") for snapshot in snapshots]
+            [
+                _extract_load_profile_per_second(snapshot, "Executes")
+                for snapshot in snapshots
+            ]
         ),
         "read_iops": _finalize_snapshot_series(
             [_extract_read_iops(snapshot) for snapshot in snapshots]
@@ -111,16 +115,24 @@ def _build_single_report_violin_panel(snapshot: ParseResult) -> dict[str, list[f
             _top_sql_rate_samples(snapshot.top_sql, elapsed_seconds, "executions")
         ),
         "read_iops": _finalize_best_effort_series(
-            _datafile_rate_samples_per_row(snapshot.datafile_io_stats, elapsed_seconds, "reads")
+            _datafile_rate_samples_per_row(
+                snapshot.datafile_io_stats, elapsed_seconds, "reads"
+            )
         ),
         "read_mb_per_sec": _finalize_best_effort_series(
-            _datafile_rate_samples_per_row(snapshot.datafile_io_stats, elapsed_seconds, "read_mb")
+            _datafile_rate_samples_per_row(
+                snapshot.datafile_io_stats, elapsed_seconds, "read_mb"
+            )
         ),
         "write_iops": _finalize_best_effort_series(
-            _datafile_rate_samples_per_row(snapshot.datafile_io_stats, elapsed_seconds, "writes")
+            _datafile_rate_samples_per_row(
+                snapshot.datafile_io_stats, elapsed_seconds, "writes"
+            )
         ),
         "write_mb_per_sec": _finalize_best_effort_series(
-            _datafile_rate_samples_per_row(snapshot.datafile_io_stats, elapsed_seconds, "write_mb")
+            _datafile_rate_samples_per_row(
+                snapshot.datafile_io_stats, elapsed_seconds, "write_mb"
+            )
         ),
         "user_io_wait": _finalize_best_effort_series(
             _ash_wait_class_pct_samples(ash_buckets, "User I/O")
@@ -134,20 +146,28 @@ def _build_single_report_violin_panel(snapshot: ParseResult) -> dict[str, list[f
         ),
         "hard_parses_per_sec": [],
         "log_file_sync_ms": _finalize_best_effort_series(
-            _histogram_latency_samples(snapshot.event_histograms.get("log file sync") or [])
+            _histogram_latency_samples(
+                snapshot.event_histograms.get("log file sync") or []
+            )
         ),
     }
 
 
-def _normalize_snapshots(parse_results: ParseResult | list[ParseResult]) -> list[ParseResult]:
+def _normalize_snapshots(
+    parse_results: ParseResult | list[ParseResult],
+) -> list[ParseResult]:
     if isinstance(parse_results, ParseResult):
         snapshots = [parse_results]
     else:
-        snapshots = [snapshot for snapshot in parse_results if isinstance(snapshot, ParseResult)]
+        snapshots = [
+            snapshot for snapshot in parse_results if isinstance(snapshot, ParseResult)
+        ]
 
     return sorted(
         snapshots,
-        key=lambda snapshot: _extract_snapshot_datetime(snapshot.run_metadata.begin_snapshot_time)
+        key=lambda snapshot: _extract_snapshot_datetime(
+            snapshot.run_metadata.begin_snapshot_time
+        )
         or datetime.max,
     )
 
@@ -233,7 +253,9 @@ def _extract_temp_io_pressure(snapshot: ParseResult) -> float | None:
             continue
         row_reads = row.get("reads")
         row_writes = row.get("writes")
-        if not isinstance(row_reads, (int, float)) or not isinstance(row_writes, (int, float)):
+        if not isinstance(row_reads, (int, float)) or not isinstance(
+            row_writes, (int, float)
+        ):
             return None
         return (float(row_reads) + float(row_writes)) / elapsed_seconds
 
@@ -311,9 +333,14 @@ def _top_sql_elapsed_norm_samples(top_sql: list[dict[str, Any]]) -> list[float]:
     return values
 
 
-def _extract_instance_activity_total(snapshot: ParseResult, statistic_name: str) -> float | None:
+def _extract_instance_activity_total(
+    snapshot: ParseResult, statistic_name: str
+) -> float | None:
     for row in snapshot.instance_activity_stats:
-        if str(row.get("statistic_name") or "").strip().lower() != statistic_name.lower():
+        if (
+            str(row.get("statistic_name") or "").strip().lower()
+            != statistic_name.lower()
+        ):
             continue
         value = row.get("total")
         if isinstance(value, (int, float)) and value >= 0:
@@ -326,7 +353,10 @@ def _extract_instance_activity_per_second(
     statistic_name: str,
 ) -> float | None:
     for row in snapshot.instance_activity_stats:
-        if str(row.get("statistic_name") or "").strip().lower() != statistic_name.lower():
+        if (
+            str(row.get("statistic_name") or "").strip().lower()
+            != statistic_name.lower()
+        ):
             continue
         value = row.get("per_second")
         if isinstance(value, (int, float)) and value >= 0:
@@ -380,7 +410,9 @@ def _extract_total_db_time_seconds(snapshot: ParseResult) -> float | None:
     return db_time_per_second * elapsed_seconds
 
 
-def _extract_load_profile_per_second(snapshot: ParseResult, metric_name: str) -> float | None:
+def _extract_load_profile_per_second(
+    snapshot: ParseResult, metric_name: str
+) -> float | None:
     for metric in snapshot.cpu_metrics:
         if str(metric.get("metric_group") or "") != "load_profile":
             continue
@@ -472,7 +504,9 @@ def _histogram_latency_samples(buckets: list[dict[str, Any]]) -> list[float]:
     for bucket in buckets:
         bucket_ms = bucket.get("bucket_ms")
         wait_count = bucket.get("wait_count")
-        if not isinstance(bucket_ms, (int, float)) or not isinstance(wait_count, (int, float)):
+        if not isinstance(bucket_ms, (int, float)) or not isinstance(
+            wait_count, (int, float)
+        ):
             continue
         if bucket_ms < 0 or wait_count <= 0:
             continue
@@ -497,7 +531,11 @@ def _finalize_snapshot_series(
             if allow_sparse:
                 continue
             return []
-        if not isinstance(value, (int, float)) or not isfinite(float(value)) or float(value) < 0:
+        if (
+            not isinstance(value, (int, float))
+            or not isfinite(float(value))
+            or float(value) < 0
+        ):
             if allow_sparse:
                 continue
             return []
@@ -512,7 +550,9 @@ def _finalize_best_effort_series(values: list[float]) -> list[float]:
     cleaned = [
         round(float(value), 6)
         for value in values
-        if isinstance(value, (int, float)) and isfinite(float(value)) and float(value) >= 0
+        if isinstance(value, (int, float))
+        and isfinite(float(value))
+        and float(value) >= 0
     ]
     if len(cleaned) < MIN_VALID_SAMPLES:
         return []

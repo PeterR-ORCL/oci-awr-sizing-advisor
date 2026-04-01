@@ -4,7 +4,6 @@ from typing import Any, Dict, List
 
 from src.models.recommendation import Recommendation
 
-
 RECOMMENDATION_ORDER = (
     "cpu_pressure",
     "sql_concentration",
@@ -21,10 +20,7 @@ class RecommendationWithNextStep(Recommendation):
 def generate_recommendations(
     issues: List[Dict[str, Any]],
 ) -> List[Recommendation]:
-    issue_by_type = {
-        str(issue.get("issue_type") or ""): issue
-        for issue in issues
-    }
+    issue_by_type = {str(issue.get("issue_type") or ""): issue for issue in issues}
     recommendations: List[Recommendation] = []
 
     for issue_type in RECOMMENDATION_ORDER:
@@ -77,9 +73,7 @@ def _build_recommendation(issue: Dict[str, Any]) -> Recommendation | None:
                 "Prioritize the top elapsed-time SQL statements immediately. "
                 "A small number of statements dominate the workload and are the correct first tuning target."
             )
-            rationale = (
-                f"The top 2 SQL statements account for {combined_pct_total} of total elapsed SQL time."
-            )
+            rationale = f"The top 2 SQL statements account for {combined_pct_total} of total elapsed SQL time."
 
         return RecommendationWithNextStep(
             issue_type=issue_type,

@@ -1,17 +1,24 @@
 from src.parser.awr_parser import parse_awr_file
+from src.parser.awr_section_locator import AwrSectionLocation
 
 
 def print_section_preview(
-    name: str, info: dict, lines: list[str], max_lines: int = 40
+    name: str,
+    info: AwrSectionLocation,
+    lines: list[str],
+    max_lines: int = 40,
 ) -> None:
     start = info["start_line"] - 1
     end = min(info["end_line"], start + max_lines)
+    header = (
+        f"START: {info['start_line']}  "
+        f"END: {info['end_line']}  "
+        f"PATTERN: {info['matched_pattern']}"
+    )
 
     print(f"\n{'=' * 80}")
     print(f"SECTION: {name}")
-    print(
-        f"START: {info['start_line']}  END: {info['end_line']}  PATTERN: {info['matched_pattern']}"
-    )
+    print(header)
     print(f"{'-' * 80}")
 
     for i, line in enumerate(lines[start:end], start=info["start_line"]):

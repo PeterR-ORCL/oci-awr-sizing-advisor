@@ -5,12 +5,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
-CACHE_PGA_PATTERN = re.compile(r"^\s*PGA Target\s*:\s*([0-9,]+)G\s+([0-9,]+)G\s*$", re.IGNORECASE)
-ADVISORY_HEADER = "pga target advisory"
-ROW_PATTERN = re.compile(
-    r"^\s*([0-9,]+)\s+([0-9,]+(?:\.\d+)?)\s+([0-9,]+)\s*$"
+CACHE_PGA_PATTERN = re.compile(
+    r"^\s*PGA Target\s*:\s*([0-9,]+)G\s+([0-9,]+)G\s*$", re.IGNORECASE
 )
+ADVISORY_HEADER = "pga target advisory"
+ROW_PATTERN = re.compile(r"^\s*([0-9,]+)\s+([0-9,]+(?:\.\d+)?)\s+([0-9,]+)\s*$")
 
 
 def parse_pga_advisory(lines: list[str]) -> dict[str, Any]:

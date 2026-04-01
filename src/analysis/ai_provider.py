@@ -78,7 +78,7 @@ def _generate_oci_response(
     """Generate an AI narrative using OCI Generative AI."""
 
     config_profile = os.getenv("OCI_CONFIG_PROFILE", "DEFAULT")
-    region = os.getenv("OCI_REGION", "us-phoenix-1")
+    region = os.getenv("OCI_REGION") or config["region"]
     compartment_id = os.getenv("OCI_COMPARTMENT_ID")
     model_id = os.getenv("OCI_MODEL_ID")
 
@@ -89,7 +89,7 @@ def _generate_oci_response(
 
     print(f"Using model: {model_id}")
 
-    config = oci.config.from_file("~/.oci/config", config_profile)
+    config = oci.config.from_file(os.path.expanduser("~/.oci/config"), config_profile)
     endpoint = f"https://inference.generativeai.{region}.oci.oraclecloud.com"
 
     client = oci.generative_ai_inference.GenerativeAiInferenceClient(
@@ -131,7 +131,23 @@ def _generate_oci_response(
     chat_detail.compartment_id = compartment_id
 
     response = client.chat(chat_detail)
-    response_text = response.data.chat_response.choices[0].message.content[0].text
+    if response is None or response.data is None:
+        raise RuntimeError("OCI Generative AI response did not include data.")
+    response_data = response.data
+
+    chat_response = response_data.chat_response
+    if chat_response is None or not chat_response.choices:
+        raise RuntimeError("OCI Generative AI response did not include choices.")
+
+    choice = chat_response.choices[0]
+    message = choice.message
+    if message is None or not message.content:
+        raise RuntimeError("OCI Generative AI response did not include content.")
+
+    first_content = message.content[0]
+    response_text = getattr(first_content, "text", None)
+    if response_text is None:
+        raise RuntimeError("OCI Generative AI response content did not include text.")
 
     return {
         "provider": "oci",

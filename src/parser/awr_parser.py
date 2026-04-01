@@ -8,8 +8,11 @@ from src.models.parse_result import ParseResult
 from src.models.run_metadata import RunMetadata
 from src.parser.awr_file_loader import load_awr_file
 from src.parser.ash_parser import parse_ash_samples
+from src.parser.awr_section_locator import (
+    AwrSectionLocation,
+    locate_awr_sections,
+)
 from src.parser.cpu_parser import parse_cpu_section
-from src.parser.awr_section_locator import locate_awr_sections
 from src.parser.datafile_io_parser import parse_datafile_io_stats
 from src.parser.event_histogram_parser import parse_event_histograms
 from src.parser.instance_activity_parser import parse_instance_activity_stats
@@ -89,7 +92,7 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
 
 def _slice_section_lines(
     lines: list[str],
-    section_bounds: dict[str, int | str] | None,
+    section_bounds: AwrSectionLocation | None,
 ) -> list[str]:
     """Return the lines for a detected section using inclusive 1-based bounds."""
 

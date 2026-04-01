@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 ELAPSED_TIME_HEADER = "sql ordered by elapsed time"
 SQL_TEXT_HEADER = "sql text"
 
@@ -66,7 +65,9 @@ def _parse_elapsed_time_rows(lines: list[str]) -> list[dict[str, Any]]:
         if not in_elapsed_time_section:
             continue
 
-        if normalized_line != ELAPSED_TIME_HEADER and normalized_line.startswith("sql ordered by"):
+        if normalized_line != ELAPSED_TIME_HEADER and normalized_line.startswith(
+            "sql ordered by"
+        ):
             break
 
         if normalized_line == SQL_TEXT_HEADER:

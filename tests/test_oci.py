@@ -53,10 +53,8 @@ def call_oci_genai(prompt: str) -> str:
 
     # Chat details
     chat_detail = oci.generative_ai_inference.models.ChatDetails()
-    chat_detail.serving_mode = (
-        oci.generative_ai_inference.models.OnDemandServingMode(
-            model_id=model_id
-        )
+    chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(
+        model_id=model_id
     )
     chat_detail.chat_request = chat_request
     chat_detail.compartment_id = compartment_id

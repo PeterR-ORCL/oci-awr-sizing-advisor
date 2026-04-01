@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 FOREGROUND_WAITS_HEADER = "foreground wait events"
 BACKGROUND_WAITS_HEADER = "background wait events"
 
@@ -102,10 +101,18 @@ def _parse_wait_event_row(line: str) -> dict[str, Any] | None:
     pct_db_time = _to_float(match.group(5))
     wait_class = match.group(6).strip()
 
-    if not event_name or wait_class in {FOREGROUND_WAITS_HEADER, BACKGROUND_WAITS_HEADER}:
+    if not event_name or wait_class in {
+        FOREGROUND_WAITS_HEADER,
+        BACKGROUND_WAITS_HEADER,
+    }:
         return None
 
-    if waits is None or time_seconds is None or avg_wait_ms is None or pct_db_time is None:
+    if (
+        waits is None
+        or time_seconds is None
+        or avg_wait_ms is None
+        or pct_db_time is None
+    ):
         return None
 
     return {

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 SECTION_HEADER = "tablespace io stats"
 ROW_PATTERN = re.compile(
     r"^\s*([A-Za-z0-9_$#]+)\s+([0-9,]+)\s+([0-9,]+(?:\.\d+)?)\s+([0-9,]+)\s+([0-9,]+(?:\.\d+)?)\s*$"

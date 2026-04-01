@@ -23,7 +23,6 @@ from typing import Any
 
 from src.parser.awr_file_loader import load_awr_file
 
-
 NUMBER_PATTERN = r"([0-9][0-9,]*(?:\.\d+)?)"
 SECTION_DIVIDER_PATTERN = re.compile(r"^\s*~{5,}\s*$")
 BEGIN_SNAP_PATTERN = re.compile(
@@ -61,7 +60,9 @@ TABLESPACE_IO_ROW_PATTERN = re.compile(
 )
 
 
-def parse_awr_metric_files(file_paths: list[str | Path]) -> dict[str, list[dict[str, Any]]]:
+def parse_awr_metric_files(
+    file_paths: list[str | Path],
+) -> dict[str, list[dict[str, Any]]]:
     """Parse one or more raw AWR files into a JSON-serializable result."""
 
     return {
@@ -116,7 +117,11 @@ def _parse_snapshot_metadata(lines: list[str], raw_text: str) -> dict[str, Any]:
     db_header_seen = False
     for line in lines[:200]:
         normalized = _normalize_line(line)
-        if "db name" in normalized and "instance" in normalized and "inst num" in normalized:
+        if (
+            "db name" in normalized
+            and "instance" in normalized
+            and "inst num" in normalized
+        ):
             db_header_seen = True
             continue
         if db_header_seen:
@@ -150,7 +155,9 @@ def _parse_snapshot_metadata(lines: list[str], raw_text: str) -> dict[str, Any]:
     if db_name is None:
         db_name = _search_first_group(raw_text, r"\bDB\s+Name\s*[:=]\s*(\S+)")
     if instance_name is None:
-        instance_name = _search_first_group(raw_text, r"\bInstance\s+Name\s*[:=]\s*(\S+)")
+        instance_name = _search_first_group(
+            raw_text, r"\bInstance\s+Name\s*[:=]\s*(\S+)"
+        )
 
     return {
         "db_name": db_name,
@@ -463,6 +470,8 @@ def _to_int(value: str | None) -> int | None:
 if __name__ == "__main__":
     file_args = [Path(arg) for arg in sys.argv[1:]]
     if not file_args:
-        raise SystemExit("Usage: python -m src.parser.awr_regex_metrics_parser <awr1.out> [awr2.out ...]")
+        raise SystemExit(
+            "Usage: python -m src.parser.awr_regex_metrics_parser <awr1.out> [awr2.out ...]"
+        )
 
     print(json.dumps(parse_awr_metric_files(file_args), indent=2))

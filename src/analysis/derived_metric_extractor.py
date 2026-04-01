@@ -8,11 +8,8 @@ from typing import Any
 
 from src.models.parse_result import ParseResult
 
-
 SNAPSHOT_TIME_FORMAT = "%d-%b-%y %H:%M:%S"
-SNAPSHOT_TIME_PATTERN = re.compile(
-    r"(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})"
-)
+SNAPSHOT_TIME_PATTERN = re.compile(r"(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})")
 
 
 def has_data(value: Any) -> bool:
@@ -29,15 +26,21 @@ def extract_derived_pressure_metrics(snapshot: ParseResult) -> dict[str, Any]:
 
     optimal = _first_non_null(
         _extract_instance_activity_total(snapshot, "workarea executions - optimal"),
-        _coerce_non_negative((snapshot.workarea_histogram or {}).get("optimal_executions")),
+        _coerce_non_negative(
+            (snapshot.workarea_histogram or {}).get("optimal_executions")
+        ),
     )
     onepass = _first_non_null(
         _extract_instance_activity_total(snapshot, "workarea executions - onepass"),
-        _coerce_non_negative((snapshot.workarea_histogram or {}).get("onepass_executions")),
+        _coerce_non_negative(
+            (snapshot.workarea_histogram or {}).get("onepass_executions")
+        ),
     )
     multipass = _first_non_null(
         _extract_instance_activity_total(snapshot, "workarea executions - multipass"),
-        _coerce_non_negative((snapshot.workarea_histogram or {}).get("multipass_executions")),
+        _coerce_non_negative(
+            (snapshot.workarea_histogram or {}).get("multipass_executions")
+        ),
     )
     temp_reads = _extract_instance_activity_total(
         snapshot,
@@ -63,7 +66,9 @@ def extract_derived_pressure_metrics(snapshot: ParseResult) -> dict[str, Any]:
         multipass,
         in_memory_sort_pct,
     )
-    temp_io_pressure = _compute_temp_io_pressure(temp_reads, temp_writes, elapsed_seconds)
+    temp_io_pressure = _compute_temp_io_pressure(
+        temp_reads, temp_writes, elapsed_seconds
+    )
     hard_parses_per_sec = _compute_hard_parses_per_sec(hard_parses, elapsed_seconds)
 
     availability = {
@@ -139,9 +144,14 @@ def _compute_hard_parses_per_sec(
     return float(hard_parses) / float(elapsed_seconds)
 
 
-def _extract_instance_activity_total(snapshot: ParseResult, statistic_name: str) -> float | None:
+def _extract_instance_activity_total(
+    snapshot: ParseResult, statistic_name: str
+) -> float | None:
     for row in snapshot.instance_activity_stats:
-        if str(row.get("statistic_name") or "").strip().lower() != statistic_name.lower():
+        if (
+            str(row.get("statistic_name") or "").strip().lower()
+            != statistic_name.lower()
+        ):
             continue
         value = row.get("total")
         if isinstance(value, (int, float)) and value >= 0:
@@ -167,7 +177,9 @@ def _derive_hard_parses_total(snapshot: ParseResult) -> float | None:
     return None
 
 
-def _extract_instance_efficiency_pct(snapshot: ParseResult, metric_name: str) -> float | None:
+def _extract_instance_efficiency_pct(
+    snapshot: ParseResult, metric_name: str
+) -> float | None:
     for row in snapshot.cpu_metrics:
         if str(row.get("metric_group") or "") != "instance_efficiency":
             continue
@@ -179,7 +191,9 @@ def _extract_instance_efficiency_pct(snapshot: ParseResult, metric_name: str) ->
     return None
 
 
-def _extract_temp_tablespace_io(snapshot: ParseResult) -> tuple[float | None, float | None]:
+def _extract_temp_tablespace_io(
+    snapshot: ParseResult,
+) -> tuple[float | None, float | None]:
     for row in snapshot.tablespace_io_stats:
         if str(row.get("tablespace") or "").upper() != "TEMP":
             continue
@@ -193,7 +207,9 @@ def _extract_temp_tablespace_io(snapshot: ParseResult) -> tuple[float | None, fl
     return None, None
 
 
-def _derive_pga_proxy_from_in_memory_sort(in_memory_sort_pct: float | None) -> float | None:
+def _derive_pga_proxy_from_in_memory_sort(
+    in_memory_sort_pct: float | None,
+) -> float | None:
     if not isinstance(in_memory_sort_pct, (int, float)):
         return None
 

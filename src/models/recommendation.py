@@ -10,5 +10,6 @@ class Recommendation(BaseModel):
     severity: str
     recommendation: str
     rationale: str
+    next_step: str
     actions: List[str]
     evidence: Dict[str, Any]

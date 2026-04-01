@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 SECTION_HEADER = "top event histograms"
 EVENT_HEADER_PATTERN = re.compile(r"^\s*Event:\s+(.+?)\s*$", re.IGNORECASE)
 BUCKET_PATTERN = re.compile(r"^\s*([0-9,]+(?:\.\d+)?)\s+([0-9,]+)\s*$")
@@ -29,7 +28,10 @@ def parse_event_histograms(lines: list[str]) -> dict[str, list[dict[str, Any]]]:
         if not in_section:
             continue
 
-        if normalized_line.startswith("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~") and histograms:
+        if (
+            normalized_line.startswith("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            and histograms
+        ):
             break
 
         if not normalized_line or _is_divider_line(line):

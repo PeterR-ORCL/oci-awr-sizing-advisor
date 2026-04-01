@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 SECTION_HEADER = "instance activity stats"
 ROW_PATTERN = re.compile(
     r"^\s*(.+?)\s+([0-9,]+(?:\.\d+)?)\s+([0-9,]+(?:\.\d+)?)\s+([0-9,]+(?:\.\d+)?)\s*$"

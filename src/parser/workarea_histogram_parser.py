@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 HEADER_PATTERN = re.compile(
     r"optimal.+onepass.+multipass",
     re.IGNORECASE,
@@ -70,7 +69,11 @@ def _parse_histogram_rows(lines: list[str]) -> list[dict[str, Any]]:
         optimal = _parse_int(match.group(2))
         onepass = _parse_int(match.group(3))
         multipass = _parse_int(match.group(4))
-        total = _parse_int(match.group(5)) if match.group(5) else optimal + onepass + multipass
+        total = (
+            _parse_int(match.group(5))
+            if match.group(5)
+            else optimal + onepass + multipass
+        )
 
         if min(optimal, onepass, multipass, total) < 0:
             continue

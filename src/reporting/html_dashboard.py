@@ -9,7 +9,6 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-
 AI_SECTION_ORDER = [
     "Executive Summary",
     "Technical Narrative",
@@ -43,6 +42,96 @@ AI_SECTION_NAMES = [
     "Risk of Being Wrong",
 ]
 
+AI_SECTION_PATTERN = "|".join(re.escape(name) for name in AI_SECTION_NAMES)
+DECISION_PREFIX_PATTERN = (
+    r"^\s*"
+    r"(DO NOT SCALE|SCALE NOW|DEFER SCALING PENDING VALIDATION|"
+    r"INSUFFICIENT DATA TO RECOMMEND(?: SCALING)?)\.\s*"
+)
+DEFAULT_SUMMARY_RATIONALE = (
+    "CPU saturation driven by SQL concentration indicates tuning will unlock "
+    "capacity without scaling."
+)
+DEFAULT_CONFIDENCE_REASON = (
+    "Strong AWR signals, including DB CPU at 64.8%, top SQL concentration at "
+    "26.6%, and dominant wait classes, point clearly to tunable bottlenecks "
+    "rather than infrastructure limits."
+)
+VIOLIN_METRIC_DEFINITIONS = [
+    {
+        "payload_key": "cpu_pct",
+        "container_id": "violinCpuPct",
+        "title": "CPU %",
+        "color": "rgba(255, 107, 107, 0.72)",
+    },
+    {
+        "payload_key": "execs_per_sec",
+        "container_id": "violinExecsPerSec",
+        "title": "Execs/s",
+        "color": "rgba(90, 209, 255, 0.72)",
+    },
+    {
+        "payload_key": "read_iops",
+        "container_id": "violinReadIops",
+        "title": "Read IOPs",
+        "color": "rgba(246, 184, 76, 0.72)",
+    },
+    {
+        "payload_key": "read_mb_per_sec",
+        "container_id": "violinReadMbPerSec",
+        "title": "Read MB/s",
+        "color": "rgba(212, 174, 82, 0.72)",
+    },
+    {
+        "payload_key": "write_iops",
+        "container_id": "violinWriteIops",
+        "title": "Write IOPs",
+        "color": "rgba(127, 179, 213, 0.72)",
+    },
+    {
+        "payload_key": "write_mb_per_sec",
+        "container_id": "violinWriteMbPerSec",
+        "title": "Write MB/s",
+        "color": "rgba(130, 148, 171, 0.72)",
+    },
+    {
+        "payload_key": "user_io_wait",
+        "container_id": "violinUserIoWait",
+        "title": "User I/O Wait",
+        "color": "rgba(255, 159, 67, 0.72)",
+    },
+    {
+        "payload_key": "top_sql_elapsed_norm",
+        "container_id": "violinTopSqlElapsedNorm",
+        "title": "Top SQL Elapsed Time (normalized)",
+        "color": "rgba(186, 104, 200, 0.72)",
+    },
+    {
+        "payload_key": "pga_spill_pressure",
+        "container_id": "violinPgaSpillPressure",
+        "title": "PGA Spill Pressure",
+        "color": "rgba(102, 187, 106, 0.72)",
+    },
+    {
+        "payload_key": "temp_io_pressure",
+        "container_id": "violinTempIoPressure",
+        "title": "Temp I/O Pressure",
+        "color": "rgba(38, 166, 154, 0.72)",
+    },
+    {
+        "payload_key": "hard_parses_per_sec",
+        "container_id": "violinHardParsesPerSec",
+        "title": "Hard Parses/s",
+        "color": "rgba(255, 202, 40, 0.72)",
+    },
+    {
+        "payload_key": "log_file_sync_ms",
+        "container_id": "violinLogFileSyncMs",
+        "title": "Log File Sync Latency",
+        "color": "rgba(239, 83, 80, 0.72)",
+    },
+]
+
 
 def parse_ai_sections(ai_text: str) -> dict[str, str]:
     """Parse the generated AI narrative into named sections."""
@@ -53,9 +142,7 @@ def parse_ai_sections(ai_text: str) -> dict[str, str]:
     section_map = {name: "" for name in AI_SECTION_NAMES}
 
     pattern = re.compile(
-        r"^\s{0,3}(?:#+\s*)?"
-        r"(Executive Summary|Technical Narrative|Root Cause Interpretation|Recommended Action Plan|OCI Sizing Considerations|Confidence Assessment|Risk of Being Wrong)"
-        r"\s*$",
+        r"^\s{0,3}(?:#+\s*)?" rf"({AI_SECTION_PATTERN})" r"\s*$",
         re.MULTILINE,
     )
 
@@ -93,7 +180,8 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
     derived_scalar_metrics = report_data.get("derived_scalar_metrics") or {}
     chart_payload = _build_chart_payload(report_data)
     violin_metric_configs = _build_violin_metric_configs(chart_payload["violin_panel"])
-    # This payload must remain raw JSON in the script tag; HTML escaping breaks JSON.parse().
+    # This payload must remain raw JSON in the script tag.
+    # HTML escaping breaks JSON.parse().
     chart_payload_json = json.dumps(chart_payload, indent=2)
 
     return f"""<!DOCTYPE html>
@@ -138,7 +226,11 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       padding: 28px;
       border: 1px solid var(--line);
       border-radius: 22px;
-      background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
+      background: linear-gradient(
+        135deg,
+        rgba(20, 36, 58, 0.98),
+        rgba(10, 20, 34, 0.96)
+      );
       box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
       margin-bottom: 24px;
     }}
@@ -172,14 +264,22 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
     }}
     .card.primary {{
-      background: linear-gradient(135deg, rgba(24, 42, 66, 0.98), rgba(14, 27, 46, 0.98));
+      background: linear-gradient(
+        135deg,
+        rgba(24, 42, 66, 0.98),
+        rgba(14, 27, 46, 0.98)
+      );
       border-color: rgba(90, 209, 255, 0.38);
     }}
     .card.secondary {{
       background: rgba(12, 22, 36, 0.88);
     }}
     .card.prominent {{
-      background: linear-gradient(135deg, rgba(20, 36, 58, 0.96), rgba(13, 24, 40, 0.96));
+      background: linear-gradient(
+        135deg,
+        rgba(20, 36, 58, 0.96),
+        rgba(13, 24, 40, 0.96)
+      );
       border-color: rgba(90, 209, 255, 0.34);
     }}
     .card h2 {{
@@ -442,7 +542,11 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       font-size: 17px;
     }}
     .violin-panel {{
-      background: linear-gradient(135deg, rgba(18, 31, 50, 0.96), rgba(11, 21, 35, 0.96));
+      background: linear-gradient(
+        135deg,
+        rgba(18, 31, 50, 0.96),
+        rgba(11, 21, 35, 0.96)
+      );
       border-color: rgba(90, 209, 255, 0.28);
     }}
     .violin-grid {{
@@ -535,27 +639,39 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       <section id="ai-summary" class="card primary">
         <div class="section-kicker">AI Advisory Layer</div>
         <h2>Executive Summary</h2>
-        {_render_executive_summary(ai_sections["Executive Summary"], issues, decision_state)}
+        {_render_executive_summary(
+            ai_sections["Executive Summary"],
+            issues,
+            decision_state,
+        )}
       </section>
 
       <section id="ai-technical" class="card primary">
         <h2>Technical Narrative</h2>
-        <div class="narrative">{_render_text_block(ai_sections["Technical Narrative"])}</div>
+        <div class="narrative">
+          {_render_text_block(ai_sections["Technical Narrative"])}
+        </div>
       </section>
 
       <section id="ai-root-cause" class="card primary">
         <h2>Root Cause Interpretation</h2>
-        <div class="narrative">{_render_text_block(ai_sections["Root Cause Interpretation"])}</div>
+        <div class="narrative">
+          {_render_text_block(ai_sections["Root Cause Interpretation"])}
+        </div>
       </section>
 
       <section id="ai-action-plan" class="card primary">
         <h2>Recommended Action Plan</h2>
-        <div class="narrative">{_render_text_block(ai_sections["Recommended Action Plan"])}</div>
+        <div class="narrative">
+          {_render_text_block(ai_sections["Recommended Action Plan"])}
+        </div>
       </section>
 
       <section id="ai-sizing" class="card primary">
         <h2>OCI Sizing Considerations</h2>
-        <div class="narrative">{_render_text_block(ai_sections["OCI Sizing Considerations"])}</div>
+        <div class="narrative">
+          {_render_text_block(ai_sections["OCI Sizing Considerations"])}
+        </div>
       </section>
 
       <section id="ai-confidence" class="card primary">
@@ -572,11 +688,17 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
         <div class="chart-grid">
           <section class="chart-panel">
             <h3>DB Time Breakdown</h3>
-            {_render_chart_container("dbTimeBreakdownChart", chart_payload["db_time_breakdown"])}
+            {_render_chart_container(
+                "dbTimeBreakdownChart",
+                chart_payload["db_time_breakdown"],
+            )}
           </section>
           <section class="chart-panel">
             <h3>Top SQL Contribution (% Elapsed SQL Time)</h3>
-            {_render_chart_container("topSqlContributionChart", chart_payload["top_sql_contribution"])}
+            {_render_chart_container(
+                "topSqlContributionChart",
+                chart_payload["top_sql_contribution"],
+            )}
           </section>
         </div>
       </section>
@@ -692,7 +814,7 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       if (Math.abs(value) >= 10) {{
         return value.toFixed(1);
       }}
-      return value.toFixed(2).replace(/\.?0+$/, '');
+      return value.toFixed(2).replace(/\\.?0+$/, '');
     }}
 
     function buildDoughnutChart() {{
@@ -991,15 +1113,17 @@ def _render_issues(issues: list[dict[str, Any]]) -> str:
         severity_label = escape(severity.upper())
         summary = escape(str(issue.get("summary") or ""))
         issue_type = escape(str(issue.get("issue_type") or ""))
-        parts.append(
-            f"""
+        severity_html = (
+            '<div class="meta"><span class="severity '
+            f'{severity_class}">{severity_label}</span></div>'
+        )
+        parts.append(f"""
             <article class="item">
-              <div class="meta"><span class="severity {severity_class}">{severity_label}</span></div>
+              {severity_html}
               <h3>{issue_type}</h3>
               <p>{summary}</p>
             </article>
-            """
-        )
+            """)
 
     return "".join(parts)
 
@@ -1008,12 +1132,18 @@ def _render_recommendations(recommendations: list[Any]) -> str:
     """Render recommendations section."""
 
     if not recommendations:
-        return '<div class="item"><div class="meta">No recommendations available.</div></div>'
+        return (
+            '<div class="item"><div class="meta">'
+            "No recommendations available."
+            "</div></div>"
+        )
 
     parts: list[str] = []
     for recommendation in recommendations:
         recommendation_dict = _to_dict(recommendation)
-        recommendation_text = escape(str(recommendation_dict.get("recommendation") or ""))
+        recommendation_text = escape(
+            str(recommendation_dict.get("recommendation") or "")
+        )
         rationale = escape(str(recommendation_dict.get("rationale") or ""))
         next_step = escape(str(recommendation_dict.get("next_step") or ""))
         issue_type = escape(str(recommendation_dict.get("issue_type") or ""))
@@ -1022,18 +1152,20 @@ def _render_recommendations(recommendations: list[Any]) -> str:
         severity_label = escape(severity.upper())
         actions = recommendation_dict.get("actions") or []
         actions_html = "".join(f"<li>{escape(str(action))}</li>" for action in actions)
-        parts.append(
-            f"""
+        severity_html = (
+            '<div class="meta"><span class="severity '
+            f'{severity_class}">{severity_label}</span></div>'
+        )
+        parts.append(f"""
             <article class="item">
-              <div class="meta"><span class="severity {severity_class}">{severity_label}</span></div>
+              {severity_html}
               <h3>{issue_type}</h3>
               <p><strong>Recommendation:</strong> {recommendation_text}</p>
               <p><strong>Rationale:</strong> {rationale}</p>
               <p><strong>Next Step:</strong> {next_step}</p>
               {"<ul>" + actions_html + "</ul>" if actions_html else ""}
             </article>
-            """
-        )
+            """)
 
     return "".join(parts)
 
@@ -1065,9 +1197,11 @@ def _render_executive_summary(
     key_signals = _build_key_signal_items(issues)
     signal_items = "".join(f"<li>{escape(item)}</li>" for item in key_signals)
 
+    banner_class = escape(decision_state["css_class"])
+    banner_label = escape(decision_state["label"])
     return f"""
     <div class="executive-summary">
-      <div class="decision-banner {escape(decision_state['css_class'])}">{escape(decision_state['label'])}</div>
+      <div class="decision-banner {banner_class}">{banner_label}</div>
       <p class="rationale">{escape(rationale)}</p>
       <ul class="key-signals">
         {signal_items}
@@ -1104,7 +1238,10 @@ def _render_risk_section(risk_text: str) -> str:
       <ul>
         {main_risk_items}
       </ul>
-      <p class="risk-reduction"><strong>What would reduce this risk:</strong><br>{escape(risk_reduction)}</p>
+      <p class="risk-reduction">
+        <strong>What would reduce this risk:</strong><br>
+        {escape(risk_reduction)}
+      </p>
     </div>
     """
 
@@ -1147,7 +1284,9 @@ def _render_text_block(value: Any) -> str:
     def flush_paragraph() -> None:
         nonlocal paragraph_lines
         if paragraph_lines:
-            paragraph = "<br>".join(_format_inline_markup(line) for line in paragraph_lines)
+            paragraph = "<br>".join(
+                _format_inline_markup(line) for line in paragraph_lines
+            )
             html_parts.append(f"<p>{paragraph}</p>")
             paragraph_lines = []
 
@@ -1351,7 +1490,7 @@ def _ensure_summary_decision(text: str, decision: str) -> str:
 
     cleaned_text = text.strip()
     remainder = re.sub(
-        r"^\s*(DO NOT SCALE|SCALE NOW|DEFER SCALING PENDING VALIDATION|INSUFFICIENT DATA TO RECOMMEND(?: SCALING)?)\.\s*",
+        DECISION_PREFIX_PATTERN,
         "",
         cleaned_text,
         flags=re.IGNORECASE,
@@ -1366,16 +1505,22 @@ def _ensure_section_decision(text: str, decision: str) -> str:
 
     cleaned_text = text.strip()
     if not cleaned_text:
-        return "Scaling becomes appropriate only if the same dominant pressure remains after tuning."
+        return (
+            "Scaling becomes appropriate only if the same dominant pressure "
+            "remains after tuning."
+        )
 
     remainder = re.sub(
-        r"^\s*(DO NOT SCALE|SCALE NOW|DEFER SCALING PENDING VALIDATION|INSUFFICIENT DATA TO RECOMMEND(?: SCALING)?)\.\s*",
+        DECISION_PREFIX_PATTERN,
         "",
         cleaned_text,
         flags=re.IGNORECASE,
     ).strip()
     if not remainder:
-        return "Scaling becomes appropriate only if the same dominant pressure remains after tuning."
+        return (
+            "Scaling becomes appropriate only if the same dominant pressure "
+            "remains after tuning."
+        )
     return remainder
 
 
@@ -1401,31 +1546,30 @@ def _extract_summary_rationale(summary_text: str) -> str:
     """Remove the opening decision phrase and return the rationale."""
 
     cleaned_text = re.sub(
-        r"^\s*(DO NOT SCALE|SCALE NOW|DEFER SCALING PENDING VALIDATION|INSUFFICIENT DATA TO RECOMMEND(?: SCALING)?)\.\s*",
+        DECISION_PREFIX_PATTERN,
         "",
         summary_text.strip(),
         flags=re.IGNORECASE,
     ).strip()
     if not cleaned_text:
-        return "CPU saturation driven by SQL concentration indicates tuning will unlock capacity without scaling."
+        return DEFAULT_SUMMARY_RATIONALE
 
     first_sentence = re.split(r"(?<=[.!?])\s+", cleaned_text, maxsplit=1)[0].strip()
-    return first_sentence or "CPU saturation driven by SQL concentration indicates tuning will unlock capacity without scaling."
+    return first_sentence or DEFAULT_SUMMARY_RATIONALE
 
 
 def _build_key_signal_items(issues: list[dict[str, Any]]) -> list[str]:
     """Build the Executive Summary key-signal list from deterministic issues."""
 
-    issue_by_type = {
-        str(issue.get("issue_type") or ""): issue
-        for issue in issues
-    }
+    issue_by_type = {str(issue.get("issue_type") or ""): issue for issue in issues}
 
     cpu = _safe_float(
         issue_by_type.get("cpu_pressure", {}).get("evidence", {}).get("pct_db_time")
     )
     sql = _safe_float(
-        issue_by_type.get("sql_concentration", {}).get("evidence", {}).get("combined_pct_total")
+        issue_by_type.get("sql_concentration", {})
+        .get("evidence", {})
+        .get("combined_pct_total")
     )
     io = _safe_float(
         issue_by_type.get("io_pressure", {}).get("evidence", {}).get("pct_db_time")
@@ -1442,11 +1586,16 @@ def _extract_confidence_reason(confidence_text: str) -> str:
     """Extract a short confidence justification from the AI text."""
 
     cleaned_text = confidence_text.strip()
-    cleaned_text = re.sub(r"^\s*(High|Medium|Low)\b[:\-]?\s*", "", cleaned_text, flags=re.IGNORECASE)
+    cleaned_text = re.sub(
+        r"^\s*(High|Medium|Low)\b[:\-]?\s*",
+        "",
+        cleaned_text,
+        flags=re.IGNORECASE,
+    )
     cleaned_text = re.sub(r"^\s*[-–—]\s*", "", cleaned_text)
     if cleaned_text:
-        return "Strong AWR signals, including DB CPU at 64.8%, top SQL concentration at 26.6%, and dominant wait classes, point clearly to tunable bottlenecks rather than infrastructure limits."
-    return "Strong AWR signals, including DB CPU at 64.8%, top SQL concentration at 26.6%, and dominant wait classes, point clearly to tunable bottlenecks rather than infrastructure limits."
+        return DEFAULT_CONFIDENCE_REASON
+    return DEFAULT_CONFIDENCE_REASON
 
 
 def _extract_risk_items(risk_text: str) -> tuple[list[str], str]:
@@ -1484,7 +1633,11 @@ def _render_chart_container(canvas_id: str, chart_data: dict[str, Any]) -> str:
 
     values = chart_data.get("values") or []
     if not values:
-        return '<div class="chart-empty">Chart data is not available for this run.</div>'
+        return (
+            '<div class="chart-empty">'
+            "Chart data is not available for this run."
+            "</div>"
+        )
 
     return f'<div class="chart-canvas"><canvas id="{escape(canvas_id)}"></canvas></div>'
 
@@ -1497,77 +1650,75 @@ def _render_violin_panel(violin_metric_configs: list[dict[str, str]]) -> str:
 
     cards = []
     for config in violin_metric_configs:
-        cards.append(
-            f"""
+        cards.append(f"""
           <section class="violin-chart-card">
             <h3>{escape(config["title"])}</h3>
             <div id="{escape(config["container_id"])}" class="violin-chart"></div>
           </section>
-            """
-        )
+            """)
 
-    return """
+    return (
+        """
       <section id="workload-violin-panel" class="card secondary violin-panel">
         <div class="section-kicker">Workload Analysis</div>
         <h2>Workload Distribution — Violin Panel</h2>
         <div class="violin-grid">
-""" + "".join(cards) + """
+"""
+        + "".join(cards)
+        + """
         </div>
       </section>
     """
+    )
 
 
 def _render_scalar_metrics(metrics: dict[str, Any]) -> str:
     """Render scalar-only metrics outside the violin panel."""
 
     metric_specs = [
-        ("PGA Spill Pressure", metrics.get("pga_spill_pressure"), "Scalar fact from spill counters or proxy evidence"),
-        ("Temp I/O Pressure", metrics.get("temp_io_pressure"), "Derived scalar from TEMP I/O rate"),
-        ("Hard Parses/s", metrics.get("hard_parses_per_sec"), "Scalar fact from the parsed hard-parse rate"),
+        (
+            "PGA Spill Pressure",
+            metrics.get("pga_spill_pressure"),
+            "Scalar fact from spill counters or proxy evidence",
+        ),
+        (
+            "Temp I/O Pressure",
+            metrics.get("temp_io_pressure"),
+            "Derived scalar from TEMP I/O rate",
+        ),
+        (
+            "Hard Parses/s",
+            metrics.get("hard_parses_per_sec"),
+            "Scalar fact from the parsed hard-parse rate",
+        ),
     ]
 
     boxes: list[str] = []
     for label, value, note in metric_specs:
-        boxes.append(
-            f"""
+        boxes.append(f"""
             <div class="scalar-box">
               <strong>{escape(label)}</strong>
               <div class="scalar-value">{escape(_format_scalar_metric(value))}</div>
               <div class="scalar-note">{escape(note)}</div>
             </div>
-            """
-        )
+            """)
 
     return (
-        '<p class="scalar-note">These metrics are shown as scalar facts because no real '
-        'multi-sample distribution exists for violin rendering.</p>'
-        + '<div class="scalar-grid">'
-        + "".join(boxes)
-        + "</div>"
+        '<p class="scalar-note">'
+        "These metrics are shown as scalar facts because no real "
+        "multi-sample distribution exists for violin rendering."
+        "</p>" + '<div class="scalar-grid">' + "".join(boxes) + "</div>"
     )
 
 
-def _build_violin_metric_configs(violin_payload: dict[str, list[float]]) -> list[dict[str, str]]:
+def _build_violin_metric_configs(
+    violin_payload: dict[str, list[float]],
+) -> list[dict[str, str]]:
     """Return only violin metrics that have real series data to render."""
-
-    metric_definitions = [
-        {"payload_key": "cpu_pct", "container_id": "violinCpuPct", "title": "CPU %", "color": "rgba(255, 107, 107, 0.72)"},
-        {"payload_key": "execs_per_sec", "container_id": "violinExecsPerSec", "title": "Execs/s", "color": "rgba(90, 209, 255, 0.72)"},
-        {"payload_key": "read_iops", "container_id": "violinReadIops", "title": "Read IOPs", "color": "rgba(246, 184, 76, 0.72)"},
-        {"payload_key": "read_mb_per_sec", "container_id": "violinReadMbPerSec", "title": "Read MB/s", "color": "rgba(212, 174, 82, 0.72)"},
-        {"payload_key": "write_iops", "container_id": "violinWriteIops", "title": "Write IOPs", "color": "rgba(127, 179, 213, 0.72)"},
-        {"payload_key": "write_mb_per_sec", "container_id": "violinWriteMbPerSec", "title": "Write MB/s", "color": "rgba(130, 148, 171, 0.72)"},
-        {"payload_key": "user_io_wait", "container_id": "violinUserIoWait", "title": "User I/O Wait", "color": "rgba(255, 159, 67, 0.72)"},
-        {"payload_key": "top_sql_elapsed_norm", "container_id": "violinTopSqlElapsedNorm", "title": "Top SQL Elapsed Time (normalized)", "color": "rgba(186, 104, 200, 0.72)"},
-        {"payload_key": "pga_spill_pressure", "container_id": "violinPgaSpillPressure", "title": "PGA Spill Pressure", "color": "rgba(102, 187, 106, 0.72)"},
-        {"payload_key": "temp_io_pressure", "container_id": "violinTempIoPressure", "title": "Temp I/O Pressure", "color": "rgba(38, 166, 154, 0.72)"},
-        {"payload_key": "hard_parses_per_sec", "container_id": "violinHardParsesPerSec", "title": "Hard Parses/s", "color": "rgba(255, 202, 40, 0.72)"},
-        {"payload_key": "log_file_sync_ms", "container_id": "violinLogFileSyncMs", "title": "Log File Sync Latency", "color": "rgba(239, 83, 80, 0.72)"},
-    ]
 
     return [
         metric
-        for metric in metric_definitions
+        for metric in VIOLIN_METRIC_DEFINITIONS
         if _has_violin_samples(violin_payload.get(metric["payload_key"]))
     ]
 
@@ -1596,10 +1747,7 @@ def _build_chart_payload(report_data: dict[str, Any]) -> dict[str, dict[str, Any
 def _build_db_time_breakdown(issues: list[dict[str, Any]]) -> dict[str, Any]:
     """Build DB time breakdown chart data from deterministic issues."""
 
-    issue_by_type = {
-        str(issue.get("issue_type") or ""): issue
-        for issue in issues
-    }
+    issue_by_type = {str(issue.get("issue_type") or ""): issue for issue in issues}
 
     cpu = _safe_float(
         issue_by_type.get("cpu_pressure", {}).get("evidence", {}).get("pct_db_time")
@@ -1611,9 +1759,9 @@ def _build_db_time_breakdown(issues: list[dict[str, Any]]) -> dict[str, Any]:
         issue_by_type.get("commit_pressure", {}).get("evidence", {}).get("pct_db_time")
     )
     concurrency = _safe_float(
-        issue_by_type.get("concurrency_pressure", {}).get("evidence", {}).get(
-            "combined_pct_db_time"
-        )
+        issue_by_type.get("concurrency_pressure", {})
+        .get("evidence", {})
+        .get("combined_pct_db_time")
     )
 
     values = [cpu, io, commit, concurrency]
@@ -1680,9 +1828,12 @@ def _build_violin_panel_payload(report_data: dict[str, Any]) -> dict[str, list[f
     # write_iops = physical write requests delta / elapsed seconds
     # write_mb_per_sec = physical write bytes delta / elapsed seconds / 1024 / 1024
     # user_io_wait = User I/O wait per interval (keep consistent units)
-    # top_sql_elapsed_norm = top SQL elapsed time normalized per execution or equivalent normalized interval metric
-    # pga_spill_pressure = onepass + multipass workarea pressure per interval, or equivalent spill signal
-    # temp_io_pressure = temp reads/writes per second or equivalent temp I/O pressure signal
+    # top_sql_elapsed_norm = top SQL elapsed time normalized per execution
+    # or equivalent normalized interval metric
+    # pga_spill_pressure = onepass + multipass workarea pressure
+    # per interval, or equivalent spill signal
+    # temp_io_pressure = temp reads/writes per second or equivalent
+    # temp I/O pressure signal
     # hard_parses_per_sec = hard parses delta / elapsed seconds
     # log_file_sync_ms = average log file sync latency per interval in milliseconds
     full_payload = {
@@ -1712,20 +1863,16 @@ def _build_violin_panel_payload(report_data: dict[str, Any]) -> dict[str, list[f
             or source.get("top_sql_elapsed_normalized")
         ),
         "pga_spill_pressure": _sanitize_numeric_series(
-            source.get("pga_spill_pressure")
-            or source.get("workarea_spill_pressure")
+            source.get("pga_spill_pressure") or source.get("workarea_spill_pressure")
         ),
         "temp_io_pressure": _sanitize_numeric_series(
-            source.get("temp_io_pressure")
-            or source.get("temp_io_per_sec")
+            source.get("temp_io_pressure") or source.get("temp_io_per_sec")
         ),
         "hard_parses_per_sec": _sanitize_numeric_series(
-            source.get("hard_parses_per_sec")
-            or source.get("hard_parse_rate")
+            source.get("hard_parses_per_sec") or source.get("hard_parse_rate")
         ),
         "log_file_sync_ms": _sanitize_numeric_series(
-            source.get("log_file_sync_ms")
-            or source.get("avg_log_file_sync_ms")
+            source.get("log_file_sync_ms") or source.get("avg_log_file_sync_ms")
         ),
     }
 

@@ -5,14 +5,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 LOAD_PROFILE_HEADER = "load profile"
 INSTANCE_EFFICIENCY_HEADER = "instance efficiency percentages"
 HOST_CPU_HEADER = "host cpu"
 
 LOAD_PROFILE_ROW_PATTERN = re.compile(
-    r"^\s*([^:]+):\s+([0-9,]+(?:\.\d+)?)"
-    r"(?:\s+([0-9,]+(?:\.\d+)?))?\s*$"
+    r"^\s*([^:]+):\s+([0-9,]+(?:\.\d+)?)" r"(?:\s+([0-9,]+(?:\.\d+)?))?\s*$"
 )
 PERCENT_PAIR_PATTERN = re.compile(r"([^:]+):\s*([0-9,]+(?:\.\d+)?)")
 HOST_CPU_VALUE_PATTERN = re.compile(

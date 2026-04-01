@@ -24,10 +24,5 @@
 
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
-  },
-
-  "flake8.args": [
-    "--max-line-length=88",
-    "--ignore=E203,W503"
-  ]
+  }
 }

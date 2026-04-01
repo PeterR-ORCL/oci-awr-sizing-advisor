@@ -6,7 +6,6 @@ from typing import Any
 
 from src.models.parse_result import ParseResult
 
-
 KNOWN_CONCURRENCY_EVENTS = {
     "buffer busy waits",
     "cursor: pin s wait on x",
@@ -56,7 +55,9 @@ def _detect_cpu_pressure(wait_events: list[dict[str, Any]]) -> dict[str, Any] | 
         return None
 
     pct_db_time = _to_float(db_cpu_event.get("pct_db_time"))
-    severity = _severity_from_thresholds(pct_db_time, high_threshold=50.0, medium_threshold=30.0)
+    severity = _severity_from_thresholds(
+        pct_db_time, high_threshold=50.0, medium_threshold=30.0
+    )
     if severity is None:
         return None
 
@@ -88,7 +89,9 @@ def _detect_io_pressure(wait_events: list[dict[str, Any]]) -> dict[str, Any] | N
         key=lambda event: _to_float(event.get("pct_db_time")) or 0.0,
     )
     pct_db_time = _to_float(top_user_io_event.get("pct_db_time"))
-    severity = _severity_from_thresholds(pct_db_time, high_threshold=10.0, medium_threshold=5.0)
+    severity = _severity_from_thresholds(
+        pct_db_time, high_threshold=10.0, medium_threshold=5.0
+    )
     if severity is None:
         return None
 
@@ -117,7 +120,9 @@ def _detect_commit_pressure(wait_events: list[dict[str, Any]]) -> dict[str, Any]
         return None
 
     pct_db_time = _to_float(log_file_sync.get("pct_db_time"))
-    severity = _severity_from_thresholds(pct_db_time, high_threshold=5.0, medium_threshold=2.0)
+    severity = _severity_from_thresholds(
+        pct_db_time, high_threshold=5.0, medium_threshold=2.0
+    )
     if severity is None:
         return None
 
@@ -139,15 +144,13 @@ def _detect_concurrency_pressure(
 ) -> dict[str, Any] | None:
     """Detect concurrency pressure from concurrency waits and known events."""
 
-    matching_events = [
-        event
-        for event in wait_events
-        if _is_concurrency_event(event)
-    ]
+    matching_events = [event for event in wait_events if _is_concurrency_event(event)]
     if not matching_events:
         return None
 
-    combined_pct_db_time = sum(_to_float(event.get("pct_db_time")) or 0.0 for event in matching_events)
+    combined_pct_db_time = sum(
+        _to_float(event.get("pct_db_time")) or 0.0 for event in matching_events
+    )
     severity = _severity_from_thresholds(
         combined_pct_db_time,
         high_threshold=3.0,
@@ -193,7 +196,9 @@ def _detect_sql_concentration(top_sql: list[dict[str, Any]]) -> dict[str, Any] |
         return None
 
     top_two_sql = ranked_sql[:2]
-    combined_pct_total = sum(_to_float(sql_record.get("pct_total")) or 0.0 for sql_record in top_two_sql)
+    combined_pct_total = sum(
+        _to_float(sql_record.get("pct_total")) or 0.0 for sql_record in top_two_sql
+    )
     severity = _severity_from_thresholds(
         combined_pct_total,
         high_threshold=20.0,
@@ -228,7 +233,9 @@ def _detect_sql_concentration(top_sql: list[dict[str, Any]]) -> dict[str, Any] |
                 {
                     "sql_id": sql_record.get("sql_id"),
                     "pct_total": _to_float(sql_record.get("pct_total")),
-                    "elapsed_time_seconds": _to_float(sql_record.get("elapsed_time_seconds")),
+                    "elapsed_time_seconds": _to_float(
+                        sql_record.get("elapsed_time_seconds")
+                    ),
                     "module": sql_record.get("module"),
                 }
                 for sql_record in top_two_sql

@@ -237,7 +237,9 @@ def _format_recommendations(recommendations: list[Any]) -> str:
         next_step = recommendation_dict.get("next_step")
         if next_step is not None:
             lines.append(f"  next_step: {_display_value(next_step)}")
-        lines.append(f"  rationale: {_display_value(recommendation_dict.get('rationale'))}")
+        lines.append(
+            f"  rationale: {_display_value(recommendation_dict.get('rationale'))}"
+        )
 
     return "\n".join(lines)
 
@@ -343,7 +345,9 @@ def _normalize_terminology(text: str) -> str:
     normalized_text = normalized_text.replace("user i/o", "User I/O")
     normalized_text = normalized_text.replace("USER I/O", "User I/O")
     normalized_text = normalized_text.replace("User i/o", "User I/O")
-    normalized_text = re.sub(r"\bdb cpu\b", "DB CPU", normalized_text, flags=re.IGNORECASE)
+    normalized_text = re.sub(
+        r"\bdb cpu\b", "DB CPU", normalized_text, flags=re.IGNORECASE
+    )
     normalized_text = re.sub(r"\boci\b", "OCI", normalized_text, flags=re.IGNORECASE)
     normalized_text = re.sub(r"\bsql\b", "SQL", normalized_text, flags=re.IGNORECASE)
     return normalized_text

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 SECTION_HEADER = "appendix b - ash sample"
 ROW_PATTERN = re.compile(
     r"^\s*(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+"
@@ -31,7 +30,10 @@ def parse_ash_samples(lines: list[str]) -> list[dict[str, Any]]:
         if not in_section:
             continue
 
-        if normalized_line.startswith("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~") and seen_header:
+        if (
+            normalized_line.startswith("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            and seen_header
+        ):
             break
 
         if not normalized_line or _is_divider_line(line):
