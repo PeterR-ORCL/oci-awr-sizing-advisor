@@ -14,7 +14,7 @@ LOAD_PROFILE_ROW_PATTERN = re.compile(
     r"^\s*([^:]+):\s+([0-9,]+(?:\.\d+)?)"
     r"(?:\s+([0-9,]+(?:\.\d+)?))?\s*$"
 )
-PERCENT_ROW_PATTERN = re.compile(r"^\s*([^:]+):\s+([0-9,]+(?:\.\d+)?)\s*$")
+PERCENT_PAIR_PATTERN = re.compile(r"([^:]+):\s*([0-9,]+(?:\.\d+)?)")
 HOST_CPU_VALUE_PATTERN = re.compile(
     r"^\s*([0-9]+(?:\.\d+)?)\s+([0-9]+(?:\.\d+)?)\s+([0-9]+(?:\.\d+)?)\s+"
     r"([0-9]+(?:\.\d+)?)\s+([0-9]+(?:\.\d+)?)\s+([0-9]+(?:\.\d+)?)\s+"
@@ -55,7 +55,7 @@ def parse_cpu_section(lines: list[str]) -> list[dict[str, Any]]:
             pending_host_cpu_values = False
             continue
 
-        if normalized_line == INSTANCE_EFFICIENCY_HEADER:
+        if normalized_line.startswith(INSTANCE_EFFICIENCY_HEADER):
             current_group = "instance_efficiency"
             pending_host_cpu_values = False
             continue
@@ -77,9 +77,7 @@ def parse_cpu_section(lines: list[str]) -> list[dict[str, Any]]:
             continue
 
         if current_group == "instance_efficiency":
-            metric = _parse_instance_efficiency_row(line)
-            if metric is not None:
-                metrics.append(metric)
+            metrics.extend(_parse_instance_efficiency_row(line))
             continue
 
         if current_group == "host_cpu":
@@ -119,25 +117,26 @@ def _parse_load_profile_row(line: str) -> dict[str, Any] | None:
     }
 
 
-def _parse_instance_efficiency_row(line: str) -> dict[str, Any] | None:
-    """Parse an Instance Efficiency Percentages row."""
+def _parse_instance_efficiency_row(line: str) -> list[dict[str, Any]]:
+    """Parse one or more Instance Efficiency Percentages pairs from a row."""
 
-    match = PERCENT_ROW_PATTERN.match(line)
-    if not match:
-        return None
+    metrics: list[dict[str, Any]] = []
+    for metric_name, raw_value in PERCENT_PAIR_PATTERN.findall(line):
+        normalized_name = metric_name.strip()
+        metric_value = _to_float(raw_value)
+        if not normalized_name or metric_value is None:
+            continue
+        metrics.append(
+            {
+                "metric_name": normalized_name,
+                "metric_value": metric_value,
+                "metric_unit": "percent",
+                "metric_source_section": "cpu",
+                "metric_group": "instance_efficiency",
+            }
+        )
 
-    metric_name = match.group(1).strip()
-    metric_value = _to_float(match.group(2))
-    if not metric_name or metric_value is None:
-        return None
-
-    return {
-        "metric_name": metric_name,
-        "metric_value": metric_value,
-        "metric_unit": "percent",
-        "metric_source_section": "cpu",
-        "metric_group": "instance_efficiency",
-    }
+    return metrics
 
 
 def _parse_host_cpu_values(line: str) -> list[dict[str, Any]]:

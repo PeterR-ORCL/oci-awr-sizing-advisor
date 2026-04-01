@@ -12,11 +12,13 @@ from src.parser.cpu_parser import parse_cpu_section
 from src.parser.awr_section_locator import locate_awr_sections
 from src.parser.datafile_io_parser import parse_datafile_io_stats
 from src.parser.event_histogram_parser import parse_event_histograms
+from src.parser.instance_activity_parser import parse_instance_activity_stats
 from src.parser.metadata_parser import parse_awr_metadata
 from src.parser.pga_advisory_parser import parse_pga_advisory
 from src.parser.sql_parser import parse_sql_section
 from src.parser.tablespace_io_parser import parse_tablespace_io_stats
 from src.parser.waits_parser import parse_waits_section
+from src.parser.workarea_histogram_parser import parse_workarea_histogram
 
 
 def parse_awr_file(file_path: str | Path) -> ParseResult:
@@ -57,9 +59,11 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
     cpu_metrics = parse_cpu_section(cpu_lines) if cpu_lines else []
     wait_events = parse_waits_section(waits_lines) if waits_lines else []
     top_sql = parse_sql_section(top_sql_lines) if top_sql_lines else []
+    instance_activity_stats = parse_instance_activity_stats(lines)
     datafile_io_stats = parse_datafile_io_stats(lines)
     tablespace_io_stats = parse_tablespace_io_stats(lines)
     pga_advisory = parse_pga_advisory(lines)
+    workarea_histogram = parse_workarea_histogram(lines)
     event_histograms = parse_event_histograms(lines)
     ash_samples = parse_ash_samples(lines)
 
@@ -70,9 +74,11 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
         io_metrics=[],
         wait_events=wait_events,
         top_sql=top_sql,
+        instance_activity_stats=instance_activity_stats,
         datafile_io_stats=datafile_io_stats,
         tablespace_io_stats=tablespace_io_stats,
         pga_advisory=pga_advisory,
+        workarea_histogram=workarea_histogram,
         event_histograms=event_histograms,
         ash_samples=ash_samples,
         session_metrics=[],

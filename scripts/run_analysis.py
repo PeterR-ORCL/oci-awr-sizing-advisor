@@ -5,6 +5,7 @@ from pathlib import Path
 from src.analysis.ai_narrative_generator import generate_ai_narrative
 from src.analysis.issue_detector import detect_issues
 from src.analysis.ai_provider import generate_ai_response
+from src.analysis.derived_metric_extractor import extract_derived_pressure_metrics
 from src.analysis.recommendation_engine import generate_recommendations
 from src.analysis.violin_panel_builder import build_violin_panel_data
 from src.parser.awr_parser import parse_awr_file
@@ -223,6 +224,7 @@ if __name__ == "__main__":
     executive_summary = normalize_terms(executive_summary)
     agentic_decision = _build_agentic_decision(issues)
     oci_guidance = _build_oci_guidance(issues)
+    derived_pressure_metrics = extract_derived_pressure_metrics(result)
     report_data = {
         "title": "OCI AWR Sizing Advisor Dashboard",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -231,6 +233,12 @@ if __name__ == "__main__":
         "recommendations": recommendations,
         "top_sql": result.top_sql,
         "violin_panel": build_violin_panel_data(snapshot_results),
+        "derived_pressure_metrics": derived_pressure_metrics,
+        "derived_scalar_metrics": {
+            "pga_spill_pressure": derived_pressure_metrics["pga_spill_pressure"],
+            "temp_io_pressure": derived_pressure_metrics["temp_io_pressure"],
+            "hard_parses_per_sec": derived_pressure_metrics["hard_parses_per_sec"],
+        },
         "agentic_decision": agentic_decision,
         "oci_guidance": oci_guidance,
         "ai_generated_narrative": ai_response["content"],
@@ -264,6 +272,15 @@ if __name__ == "__main__":
         for action in rec.actions:
             print(f"    - {action}")
         print()
+
+    print("Derived Metric Availability:\n")
+    for line in derived_pressure_metrics["debug_summary"]:
+        print(f"  {line}")
+    print("\nDerived Metric Values:")
+    print(f"  pga_spill_pressure: {derived_pressure_metrics['pga_spill_pressure']}")
+    print(f"  temp_io_pressure: {derived_pressure_metrics['temp_io_pressure']}")
+    print(f"  hard_parses_per_sec: {derived_pressure_metrics['hard_parses_per_sec']}")
+    print(f"  availability: {derived_pressure_metrics['availability']}")
 
     print("AI Narrative Layer:\n")
     print("System Role:")

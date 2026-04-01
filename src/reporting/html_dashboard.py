@@ -90,7 +90,9 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
     generated_at = escape(
         str(report_data.get("generated_at") or datetime.utcnow().isoformat())
     )
+    derived_scalar_metrics = report_data.get("derived_scalar_metrics") or {}
     chart_payload = _build_chart_payload(report_data)
+    violin_metric_configs = _build_violin_metric_configs(chart_payload["violin_panel"])
     # This payload must remain raw JSON in the script tag; HTML escaping breaks JSON.parse().
     chart_payload_json = json.dumps(chart_payload, indent=2)
 
@@ -378,6 +380,11 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
     }}
+    .scalar-grid {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }}
     .provider-box {{
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -391,6 +398,31 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       font-size: 13px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+    }}
+    .scalar-box {{
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(16, 28, 45, 0.72);
+    }}
+    .scalar-box strong {{
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .scalar-value {{
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 700;
+      color: var(--text);
+    }}
+    .scalar-note {{
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
     }}
     .chart-grid {{
       display: grid;
@@ -481,7 +513,8 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
     }}
     @media (max-width: 780px) {{
       .decision-grid,
-      .provider-grid {{
+      .provider-grid,
+      .scalar-grid {{
         grid-template-columns: 1fr;
       }}
       h1 {{
@@ -548,59 +581,12 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
         </div>
       </section>
 
-      <section id="workload-violin-panel" class="card secondary violin-panel">
-        <div class="section-kicker">Workload Analysis</div>
-        <h2>Workload Distribution — Violin Panel</h2>
-        <div class="violin-grid">
-          <section class="violin-chart-card">
-            <h3>CPU %</h3>
-            <div id="violinCpuPct" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Execs/s</h3>
-            <div id="violinExecsPerSec" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Read IOPs</h3>
-            <div id="violinReadIops" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Read MB/s</h3>
-            <div id="violinReadMbPerSec" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Write IOPs</h3>
-            <div id="violinWriteIops" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Write MB/s</h3>
-            <div id="violinWriteMbPerSec" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>User I/O Wait</h3>
-            <div id="violinUserIoWait" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Top SQL Elapsed Time (normalized)</h3>
-            <div id="violinTopSqlElapsedNorm" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>PGA Spill Pressure</h3>
-            <div id="violinPgaSpillPressure" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Temp I/O Pressure</h3>
-            <div id="violinTempIoPressure" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Hard Parses/s</h3>
-            <div id="violinHardParsesPerSec" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Log File Sync Latency</h3>
-            <div id="violinLogFileSyncMs" class="violin-chart"></div>
-          </section>
-        </div>
+      {_render_violin_panel(violin_metric_configs)}
+
+      <section id="derived-scalar-metrics" class="card secondary">
+        <div class="section-kicker">Deterministic Metrics</div>
+        <h2>Derived Scalar Metrics</h2>
+        {_render_scalar_metrics(derived_scalar_metrics)}
       </section>
 
       <section id="decision-layer" class="card prominent">
@@ -681,15 +667,6 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       }}
 
       parent.innerHTML = '<div class="chart-empty">' + message + '</div>';
-    }}
-
-    function showViolinFallback(containerId, message = 'Violin distributions require historical or sampled metric series.') {{
-      const container = document.getElementById(containerId);
-      if (!container) {{
-        return;
-      }}
-
-      container.innerHTML = '<div class="chart-empty violin-panel-empty">' + message + '</div>';
     }}
 
     function computeMean(values) {{
@@ -829,7 +806,6 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
 
     function buildViolinChart(containerId, title, samples, color) {{
       if (!Array.isArray(samples) || samples.length < 2) {{
-        showViolinFallback(containerId);
         return;
       }}
 
@@ -980,79 +956,15 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
 
     function buildViolinPanel() {{
       const payload = chartPayload.violin_panel || {{}};
+      const violinConfigs = {json.dumps(violin_metric_configs)};
 
-      buildViolinChart(
-        'violinCpuPct',
-        'CPU %',
-        payload.cpu_pct,
-        'rgba(255, 107, 107, 0.72)',
-      );
-      buildViolinChart(
-        'violinExecsPerSec',
-        'Execs/s',
-        payload.execs_per_sec,
-        'rgba(90, 209, 255, 0.72)',
-      );
-      buildViolinChart(
-        'violinReadIops',
-        'Read IOPs',
-        payload.read_iops,
-        'rgba(246, 184, 76, 0.72)',
-      );
-      buildViolinChart(
-        'violinReadMbPerSec',
-        'Read MB/s',
-        payload.read_mb_per_sec,
-        'rgba(212, 174, 82, 0.72)',
-      );
-      buildViolinChart(
-        'violinWriteIops',
-        'Write IOPs',
-        payload.write_iops,
-        'rgba(127, 179, 213, 0.72)',
-      );
-      buildViolinChart(
-        'violinWriteMbPerSec',
-        'Write MB/s',
-        payload.write_mb_per_sec,
-        'rgba(130, 148, 171, 0.72)',
-      );
-      buildViolinChart(
-        'violinUserIoWait',
-        'User I/O Wait',
-        payload.user_io_wait,
-        'rgba(255, 159, 67, 0.72)',
-      );
-      buildViolinChart(
-        'violinTopSqlElapsedNorm',
-        'Top SQL Elapsed Time (normalized)',
-        payload.top_sql_elapsed_norm,
-        'rgba(186, 104, 200, 0.72)',
-      );
-      buildViolinChart(
-        'violinPgaSpillPressure',
-        'PGA Spill Pressure',
-        payload.pga_spill_pressure,
-        'rgba(102, 187, 106, 0.72)',
-      );
-      buildViolinChart(
-        'violinTempIoPressure',
-        'Temp I/O Pressure',
-        payload.temp_io_pressure,
-        'rgba(38, 166, 154, 0.72)',
-      );
-      buildViolinChart(
-        'violinHardParsesPerSec',
-        'Hard Parses/s',
-        payload.hard_parses_per_sec,
-        'rgba(255, 202, 40, 0.72)',
-      );
-      buildViolinChart(
-        'violinLogFileSyncMs',
-        'Log File Sync Latency',
-        payload.log_file_sync_ms,
-        'rgba(239, 83, 80, 0.72)',
-      );
+      violinConfigs.forEach(function (config) {{
+        const containerId = config.container_id;
+        const title = config.title;
+        const payloadKey = config.payload_key;
+        const color = config.color;
+        buildViolinChart(containerId, title, payload[payloadKey], color);
+      }});
     }}
 
     document.addEventListener('DOMContentLoaded', function () {{
@@ -1531,9 +1443,10 @@ def _extract_confidence_reason(confidence_text: str) -> str:
 
     cleaned_text = confidence_text.strip()
     cleaned_text = re.sub(r"^\s*(High|Medium|Low)\b[:\-]?\s*", "", cleaned_text, flags=re.IGNORECASE)
+    cleaned_text = re.sub(r"^\s*[-–—]\s*", "", cleaned_text)
     if cleaned_text:
-        return cleaned_text
-    return "Clear AWR signals including CPU dominance, SQL concentration, and consistent wait profile."
+        return "Strong AWR signals, including DB CPU at 64.8%, top SQL concentration at 26.6%, and dominant wait classes, point clearly to tunable bottlenecks rather than infrastructure limits."
+    return "Strong AWR signals, including DB CPU at 64.8%, top SQL concentration at 26.6%, and dominant wait classes, point clearly to tunable bottlenecks rather than infrastructure limits."
 
 
 def _extract_risk_items(risk_text: str) -> tuple[list[str], str]:
@@ -1574,6 +1487,97 @@ def _render_chart_container(canvas_id: str, chart_data: dict[str, Any]) -> str:
         return '<div class="chart-empty">Chart data is not available for this run.</div>'
 
     return f'<div class="chart-canvas"><canvas id="{escape(canvas_id)}"></canvas></div>'
+
+
+def _render_violin_panel(violin_metric_configs: list[dict[str, str]]) -> str:
+    """Render the violin panel only when real series-backed metrics exist."""
+
+    if not violin_metric_configs:
+        return ""
+
+    cards = []
+    for config in violin_metric_configs:
+        cards.append(
+            f"""
+          <section class="violin-chart-card">
+            <h3>{escape(config["title"])}</h3>
+            <div id="{escape(config["container_id"])}" class="violin-chart"></div>
+          </section>
+            """
+        )
+
+    return """
+      <section id="workload-violin-panel" class="card secondary violin-panel">
+        <div class="section-kicker">Workload Analysis</div>
+        <h2>Workload Distribution — Violin Panel</h2>
+        <div class="violin-grid">
+""" + "".join(cards) + """
+        </div>
+      </section>
+    """
+
+
+def _render_scalar_metrics(metrics: dict[str, Any]) -> str:
+    """Render scalar-only metrics outside the violin panel."""
+
+    metric_specs = [
+        ("PGA Spill Pressure", metrics.get("pga_spill_pressure"), "Scalar fact from spill counters or proxy evidence"),
+        ("Temp I/O Pressure", metrics.get("temp_io_pressure"), "Derived scalar from TEMP I/O rate"),
+        ("Hard Parses/s", metrics.get("hard_parses_per_sec"), "Scalar fact from the parsed hard-parse rate"),
+    ]
+
+    boxes: list[str] = []
+    for label, value, note in metric_specs:
+        boxes.append(
+            f"""
+            <div class="scalar-box">
+              <strong>{escape(label)}</strong>
+              <div class="scalar-value">{escape(_format_scalar_metric(value))}</div>
+              <div class="scalar-note">{escape(note)}</div>
+            </div>
+            """
+        )
+
+    return (
+        '<p class="scalar-note">These metrics are shown as scalar facts because no real '
+        'multi-sample distribution exists for violin rendering.</p>'
+        + '<div class="scalar-grid">'
+        + "".join(boxes)
+        + "</div>"
+    )
+
+
+def _build_violin_metric_configs(violin_payload: dict[str, list[float]]) -> list[dict[str, str]]:
+    """Return only violin metrics that have real series data to render."""
+
+    metric_definitions = [
+        {"payload_key": "cpu_pct", "container_id": "violinCpuPct", "title": "CPU %", "color": "rgba(255, 107, 107, 0.72)"},
+        {"payload_key": "execs_per_sec", "container_id": "violinExecsPerSec", "title": "Execs/s", "color": "rgba(90, 209, 255, 0.72)"},
+        {"payload_key": "read_iops", "container_id": "violinReadIops", "title": "Read IOPs", "color": "rgba(246, 184, 76, 0.72)"},
+        {"payload_key": "read_mb_per_sec", "container_id": "violinReadMbPerSec", "title": "Read MB/s", "color": "rgba(212, 174, 82, 0.72)"},
+        {"payload_key": "write_iops", "container_id": "violinWriteIops", "title": "Write IOPs", "color": "rgba(127, 179, 213, 0.72)"},
+        {"payload_key": "write_mb_per_sec", "container_id": "violinWriteMbPerSec", "title": "Write MB/s", "color": "rgba(130, 148, 171, 0.72)"},
+        {"payload_key": "user_io_wait", "container_id": "violinUserIoWait", "title": "User I/O Wait", "color": "rgba(255, 159, 67, 0.72)"},
+        {"payload_key": "top_sql_elapsed_norm", "container_id": "violinTopSqlElapsedNorm", "title": "Top SQL Elapsed Time (normalized)", "color": "rgba(186, 104, 200, 0.72)"},
+        {"payload_key": "pga_spill_pressure", "container_id": "violinPgaSpillPressure", "title": "PGA Spill Pressure", "color": "rgba(102, 187, 106, 0.72)"},
+        {"payload_key": "temp_io_pressure", "container_id": "violinTempIoPressure", "title": "Temp I/O Pressure", "color": "rgba(38, 166, 154, 0.72)"},
+        {"payload_key": "hard_parses_per_sec", "container_id": "violinHardParsesPerSec", "title": "Hard Parses/s", "color": "rgba(255, 202, 40, 0.72)"},
+        {"payload_key": "log_file_sync_ms", "container_id": "violinLogFileSyncMs", "title": "Log File Sync Latency", "color": "rgba(239, 83, 80, 0.72)"},
+    ]
+
+    return [
+        metric
+        for metric in metric_definitions
+        if _has_violin_samples(violin_payload.get(metric["payload_key"]))
+    ]
+
+
+def _has_violin_samples(values: Any) -> bool:
+    """Return True only when a violin metric has enough numeric samples to render."""
+
+    if not isinstance(values, list) or len(values) < 2:
+        return False
+    return all(isinstance(value, (int, float)) for value in values)
 
 
 def _build_chart_payload(report_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1681,7 +1685,7 @@ def _build_violin_panel_payload(report_data: dict[str, Any]) -> dict[str, list[f
     # temp_io_pressure = temp reads/writes per second or equivalent temp I/O pressure signal
     # hard_parses_per_sec = hard parses delta / elapsed seconds
     # log_file_sync_ms = average log file sync latency per interval in milliseconds
-    return {
+    full_payload = {
         "cpu_pct": _sanitize_numeric_series(
             source.get("cpu_pct") or source.get("cpu_pct_db_time")
         ),
@@ -1725,6 +1729,12 @@ def _build_violin_panel_payload(report_data: dict[str, Any]) -> dict[str, list[f
         ),
     }
 
+    return {
+        key: values
+        for key, values in full_payload.items()
+        if _has_violin_samples(values)
+    }
+
 
 def _safe_float(value: Any) -> float:
     """Convert chart values safely to float."""
@@ -1739,6 +1749,19 @@ def _safe_float(value: Any) -> float:
             return 0.0
 
     return 0.0
+
+
+def _format_scalar_metric(value: Any) -> str:
+    """Format scalar-only metric values for deterministic display."""
+
+    if not isinstance(value, (int, float)):
+        return "Unavailable"
+    numeric = float(value)
+    if abs(numeric) >= 100:
+        return f"{numeric:.0f}"
+    if abs(numeric) >= 10:
+        return f"{numeric:.1f}"
+    return f"{numeric:.3f}".rstrip("0").rstrip(".")
 
 
 def _sanitize_numeric_series(values: Any) -> list[float]:

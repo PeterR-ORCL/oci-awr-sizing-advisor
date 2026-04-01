@@ -282,6 +282,11 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
     }
+    .scalar-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
     .provider-box {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -295,6 +300,31 @@
       font-size: 13px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+    }
+    .scalar-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .scalar-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scalar-value {
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .scalar-note {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
     }
     .chart-grid {
       display: grid;
@@ -385,7 +415,8 @@
     }
     @media (max-width: 780px) {
       .decision-grid,
-      .provider-grid {
+      .provider-grid,
+      .scalar-grid {
         grid-template-columns: 1fr;
       }
       h1 {
@@ -399,7 +430,7 @@
     <section class="hero">
       <div class="eyebrow">OCI AWR Sizing Advisor</div>
       <h1>OCI AWR Sizing Advisor Dashboard</h1>
-      <div class="hero-meta">Generated: 2026-04-01T05:12:14.012717+00:00</div>
+      <div class="hero-meta">Generated: 2026-04-01T17:07:01.645667+00:00</div>
     </section>
 
     <div class="grid">
@@ -409,7 +440,7 @@
         
     <div class="executive-summary">
       <div class="decision-banner do-not-scale">DO NOT SCALE</div>
-      <p class="rationale">CPU is saturated at 64.8% of DB time, driven by high SQL concentration where top 2 statements from OrderService consume 26.6% of elapsed SQL time.</p>
+      <p class="rationale">CPU saturation at 64.8% of DB time, driven by high SQL concentration from OrderService (26.6% of elapsed SQL time), indicates tuning opportunities will resolve primary bottlenecks without capacity expansion.</p>
       <ul class="key-signals">
         <li>CPU: 64.8% DB time</li><li>Top SQL concentration: 26.6%</li><li>User I/O: 12.4%</li>
       </ul>
@@ -419,22 +450,22 @@
 
       <section id="ai-technical" class="card primary">
         <h2>Technical Narrative</h2>
-        <div class="narrative">This 1-hour AWR snapshot from FINDB1 on exa19cdb01 shows CPU as the dominant bottleneck at 64.8% of DB time (344.1 DB CPU seconds, 530.7 DB time seconds). User I/O follows at 12.4% via cell single block physical reads, commits at 8.2% via log file sync, and concurrency at 2.6%. SQL concentration is high: top SQL (8f7a1xk3d9abc, SELECT on ORDERS from OrderService) at 14.6% of total, second (b9d2k3l4m5xyz, UPDATE on ORDER_STATUS from OrderService) at 12.0%, third (c7k9d2l8p3abc, INSERT into ORDER_ITEMS from CheckoutService) at 7.6%.</div>
+        <div class="narrative">DB time averaged 530.7s/sec with DB CPU at 344.1s/sec (64.8% of DB time), confirming CPU as the dominant bottleneck limiting throughput. Top 2 SQL statements from OrderService (sql_id=8f7a1xk3d9abc at 14.6% and b9d2k3l4m5xyz at 12.0% of total elapsed time) drive much of this CPU demand via SELECT and UPDATE on ORDERS table. User I/O follows at 12.4% (cell single block physical read), commit waits at 8.2% (log file sync), and concurrency at 2.6%, forming a clear hierarchy of constraints.</div>
       </section>
 
       <section id="ai-root-cause" class="card primary">
         <h2>Root Cause Interpretation</h2>
-        <div class="narrative">CPU saturation stems from concentrated load on few SQL statements, particularly the top two from OrderService accounting for 26.6% of elapsed SQL time. This drives 64.8% DB CPU usage, capping throughput. User I/O (12.4%) arises from physical read demand in these paths, commits (8.2%) from log file sync in transaction flows like the OrderService UPDATE, and concurrency (2.6%) from secondary resource contention.</div>
+        <div class="narrative">CPU pressure stems from saturated DB CPU (64.8% of DB time), amplified by SQL concentration where OrderService statements consume 26.6% of elapsed SQL time. User I/O (12.4%) arises from physical read demand on high-load SQL paths, commit pressure (8.2%) from log file sync in transaction flows like ORDER_STATUS updates, and concurrency (2.6%) from secondary resource contention. These are workload-driven, not capacity limits.</div>
       </section>
 
       <section id="ai-action-plan" class="card primary">
         <h2>Recommended Action Plan</h2>
-        <div class="narrative"><ol><li>Tune top SQL IDs 8f7a1xk3d9abc and b9d2k3l4m5xyz in OrderService to cut CPU (64.8%) and I/O (12.4%) demand.</li><li>Review commit frequency in OrderService transaction flows to shorten log file sync (8.2%).</li><li>Target physical reads in high-I/O SQL and objects.</li><li>Address concurrency (2.6%) on hot objects after primaries. Reinforce tuning over scaling for immediate gains.</li></ol></div>
+        <div class="narrative"><ol><li><strong>Tune top SQL (high priority)</strong>: Target sql_id=8f7a1xk3d9abc and b9d2k3l4m5xyz in OrderService for CPU and I/O reduction; review execution paths on ORDERS and ORDER_STATUS.</li><li><strong>Address CPU demand</strong>: Optimize highest-load SQL and code paths to lower DB CPU from 64.8% of DB time.</li><li><strong>Mitigate I/O</strong>: Eliminate unnecessary physical reads from top SQL objects.</li><li><strong>Reduce commits</strong>: Review commit frequency in OrderService transaction flows to shorten log file sync (8.2%).</li><li><strong>Resolve concurrency</strong>: After primaries, isolate hot objects causing 2.6% waits.</li></ol></div>
       </section>
 
       <section id="ai-sizing" class="card primary">
         <h2>OCI Sizing Considerations</h2>
-        <div class="narrative">Defer scaling until SQL tuning validates CPU and I/O relief. Current evidence shows tuning the concentrated SQL load will address primary constraints without capacity additions.</div>
+        <div class="narrative">Defer all scaling; evidence shows tuning top SQL and CPU paths in OrderService will reclaim capacity. Monitor post-tuning AWR for residual load before considering VM shape adjustments directionally larger only if DB CPU remains &gt;50%.</div>
       </section>
 
       <section id="ai-confidence" class="card primary">
@@ -442,7 +473,7 @@
     <div class="confidence-section high">
       <h2>Confidence Assessment</h2>
       <p><strong>Level:</strong> High</p>
-      <p><strong>Reason:</strong> confidence. Clear AWR metrics (CPU 64.8%, SQL concentration 26.6%, dominant waits) and specific top SQL signals provide strong, deterministic evidence of tunable bottlenecks.</p>
+      <p><strong>Reason:</strong> Strong AWR signals, including DB CPU at 64.8%, top SQL concentration at 26.6%, and dominant wait classes, point clearly to tunable bottlenecks rather than infrastructure limits.</p>
     </div>
     
       </section>
@@ -475,59 +506,83 @@
         </div>
       </section>
 
+      
       <section id="workload-violin-panel" class="card secondary violin-panel">
         <div class="section-kicker">Workload Analysis</div>
         <h2>Workload Distribution — Violin Panel</h2>
         <div class="violin-grid">
+
           <section class="violin-chart-card">
             <h3>CPU %</h3>
             <div id="violinCpuPct" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>Execs/s</h3>
             <div id="violinExecsPerSec" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>Read IOPs</h3>
             <div id="violinReadIops" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>Read MB/s</h3>
             <div id="violinReadMbPerSec" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>Write IOPs</h3>
             <div id="violinWriteIops" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>Write MB/s</h3>
             <div id="violinWriteMbPerSec" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>User I/O Wait</h3>
             <div id="violinUserIoWait" class="violin-chart"></div>
           </section>
+            
           <section class="violin-chart-card">
             <h3>Top SQL Elapsed Time (normalized)</h3>
             <div id="violinTopSqlElapsedNorm" class="violin-chart"></div>
           </section>
-          <section class="violin-chart-card">
-            <h3>PGA Spill Pressure</h3>
-            <div id="violinPgaSpillPressure" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Temp I/O Pressure</h3>
-            <div id="violinTempIoPressure" class="violin-chart"></div>
-          </section>
-          <section class="violin-chart-card">
-            <h3>Hard Parses/s</h3>
-            <div id="violinHardParsesPerSec" class="violin-chart"></div>
-          </section>
+            
           <section class="violin-chart-card">
             <h3>Log File Sync Latency</h3>
             <div id="violinLogFileSyncMs" class="violin-chart"></div>
           </section>
+            
         </div>
+      </section>
+    
+
+      <section id="derived-scalar-metrics" class="card secondary">
+        <div class="section-kicker">Deterministic Metrics</div>
+        <h2>Derived Scalar Metrics</h2>
+        <p class="scalar-note">These metrics are shown as scalar facts because no real multi-sample distribution exists for violin rendering.</p><div class="scalar-grid">
+            <div class="scalar-box">
+              <strong>PGA Spill Pressure</strong>
+              <div class="scalar-value">0</div>
+              <div class="scalar-note">Scalar fact from spill counters or proxy evidence</div>
+            </div>
+            
+            <div class="scalar-box">
+              <strong>Temp I/O Pressure</strong>
+              <div class="scalar-value">86.2</div>
+              <div class="scalar-note">Derived scalar from TEMP I/O rate</div>
+            </div>
+            
+            <div class="scalar-box">
+              <strong>Hard Parses/s</strong>
+              <div class="scalar-value">92.0</div>
+              <div class="scalar-note">Scalar fact from the parsed hard-parse rate</div>
+            </div>
+            </div>
       </section>
 
       <section id="decision-layer" class="card prominent">
@@ -673,7 +728,7 @@
       </section>
     </div>
 
-    <div class="footer">Generated at 2026-04-01T05:12:14.012717+00:00</div>
+    <div class="footer">Generated at 2026-04-01T17:07:01.645667+00:00</div>
   </div>
   <script id="chart-payload" type="application/json">
 {
@@ -952,9 +1007,6 @@
       0.87,
       1.83
     ],
-    "pga_spill_pressure": [],
-    "temp_io_pressure": [],
-    "hard_parses_per_sec": [],
     "log_file_sync_ms": [
       1.0,
       1.0,
@@ -1052,15 +1104,6 @@
       }
 
       parent.innerHTML = '<div class="chart-empty">' + message + '</div>';
-    }
-
-    function showViolinFallback(containerId, message = 'Violin distributions require historical or sampled metric series.') {
-      const container = document.getElementById(containerId);
-      if (!container) {
-        return;
-      }
-
-      container.innerHTML = '<div class="chart-empty violin-panel-empty">' + message + '</div>';
     }
 
     function computeMean(values) {
@@ -1200,7 +1243,6 @@
 
     function buildViolinChart(containerId, title, samples, color) {
       if (!Array.isArray(samples) || samples.length < 2) {
-        showViolinFallback(containerId);
         return;
       }
 
@@ -1351,79 +1393,15 @@
 
     function buildViolinPanel() {
       const payload = chartPayload.violin_panel || {};
+      const violinConfigs = [{"payload_key": "cpu_pct", "container_id": "violinCpuPct", "title": "CPU %", "color": "rgba(255, 107, 107, 0.72)"}, {"payload_key": "execs_per_sec", "container_id": "violinExecsPerSec", "title": "Execs/s", "color": "rgba(90, 209, 255, 0.72)"}, {"payload_key": "read_iops", "container_id": "violinReadIops", "title": "Read IOPs", "color": "rgba(246, 184, 76, 0.72)"}, {"payload_key": "read_mb_per_sec", "container_id": "violinReadMbPerSec", "title": "Read MB/s", "color": "rgba(212, 174, 82, 0.72)"}, {"payload_key": "write_iops", "container_id": "violinWriteIops", "title": "Write IOPs", "color": "rgba(127, 179, 213, 0.72)"}, {"payload_key": "write_mb_per_sec", "container_id": "violinWriteMbPerSec", "title": "Write MB/s", "color": "rgba(130, 148, 171, 0.72)"}, {"payload_key": "user_io_wait", "container_id": "violinUserIoWait", "title": "User I/O Wait", "color": "rgba(255, 159, 67, 0.72)"}, {"payload_key": "top_sql_elapsed_norm", "container_id": "violinTopSqlElapsedNorm", "title": "Top SQL Elapsed Time (normalized)", "color": "rgba(186, 104, 200, 0.72)"}, {"payload_key": "log_file_sync_ms", "container_id": "violinLogFileSyncMs", "title": "Log File Sync Latency", "color": "rgba(239, 83, 80, 0.72)"}];
 
-      buildViolinChart(
-        'violinCpuPct',
-        'CPU %',
-        payload.cpu_pct,
-        'rgba(255, 107, 107, 0.72)',
-      );
-      buildViolinChart(
-        'violinExecsPerSec',
-        'Execs/s',
-        payload.execs_per_sec,
-        'rgba(90, 209, 255, 0.72)',
-      );
-      buildViolinChart(
-        'violinReadIops',
-        'Read IOPs',
-        payload.read_iops,
-        'rgba(246, 184, 76, 0.72)',
-      );
-      buildViolinChart(
-        'violinReadMbPerSec',
-        'Read MB/s',
-        payload.read_mb_per_sec,
-        'rgba(212, 174, 82, 0.72)',
-      );
-      buildViolinChart(
-        'violinWriteIops',
-        'Write IOPs',
-        payload.write_iops,
-        'rgba(127, 179, 213, 0.72)',
-      );
-      buildViolinChart(
-        'violinWriteMbPerSec',
-        'Write MB/s',
-        payload.write_mb_per_sec,
-        'rgba(130, 148, 171, 0.72)',
-      );
-      buildViolinChart(
-        'violinUserIoWait',
-        'User I/O Wait',
-        payload.user_io_wait,
-        'rgba(255, 159, 67, 0.72)',
-      );
-      buildViolinChart(
-        'violinTopSqlElapsedNorm',
-        'Top SQL Elapsed Time (normalized)',
-        payload.top_sql_elapsed_norm,
-        'rgba(186, 104, 200, 0.72)',
-      );
-      buildViolinChart(
-        'violinPgaSpillPressure',
-        'PGA Spill Pressure',
-        payload.pga_spill_pressure,
-        'rgba(102, 187, 106, 0.72)',
-      );
-      buildViolinChart(
-        'violinTempIoPressure',
-        'Temp I/O Pressure',
-        payload.temp_io_pressure,
-        'rgba(38, 166, 154, 0.72)',
-      );
-      buildViolinChart(
-        'violinHardParsesPerSec',
-        'Hard Parses/s',
-        payload.hard_parses_per_sec,
-        'rgba(255, 202, 40, 0.72)',
-      );
-      buildViolinChart(
-        'violinLogFileSyncMs',
-        'Log File Sync Latency',
-        payload.log_file_sync_ms,
-        'rgba(239, 83, 80, 0.72)',
-      );
+      violinConfigs.forEach(function (config) {
+        const containerId = config.container_id;
+        const title = config.title;
+        const payloadKey = config.payload_key;
+        const color = config.color;
+        buildViolinChart(containerId, title, payload[payloadKey], color);
+      });
     }
 
     document.addEventListener('DOMContentLoaded', function () {

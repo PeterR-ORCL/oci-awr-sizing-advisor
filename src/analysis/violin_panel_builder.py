@@ -8,10 +8,14 @@ from datetime import datetime
 from math import isfinite
 from typing import Any
 
+from src.analysis.derived_metric_extractor import (
+    extract_derived_pressure_metrics,
+    has_data,
+)
 from src.models.parse_result import ParseResult
 
 
-MIN_VALID_SAMPLES = 5
+MIN_VALID_SAMPLES = 2
 SNAPSHOT_TIME_FORMAT = "%d-%b-%y %H:%M:%S"
 SNAPSHOT_TIME_PATTERN = re.compile(
     r"(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})"
@@ -41,8 +45,9 @@ def build_violin_panel_data(
     Strict historical mode is used when multiple AWR snapshots are
     available. Best-effort single-report mode is used only when one AWR
     report exists and the report contains repeated, decomposable rows
-    that form technically defensible samples. No filler or interpolated
-    values are generated.
+    that form technically defensible samples. Violin plots require real
+    distributions; scalar metrics must not be expanded into synthetic
+    arrays. No filler or interpolated values are generated.
     """
 
     snapshots = _normalize_snapshots(parse_results)
@@ -75,13 +80,16 @@ def build_violin_panel_data(
             [_extract_top_sql_elapsed_norm(snapshot) for snapshot in snapshots]
         ),
         "pga_spill_pressure": _finalize_snapshot_series(
-            [_extract_pga_spill_pressure(snapshot) for snapshot in snapshots]
+            [_extract_pga_spill_pressure(snapshot) for snapshot in snapshots],
+            allow_sparse=True,
         ),
         "temp_io_pressure": _finalize_snapshot_series(
-            [_extract_temp_io_pressure(snapshot) for snapshot in snapshots]
+            [_extract_temp_io_pressure(snapshot) for snapshot in snapshots],
+            allow_sparse=True,
         ),
         "hard_parses_per_sec": _finalize_snapshot_series(
-            [_extract_load_profile_per_second(snapshot, "Hard parses") for snapshot in snapshots]
+            [_extract_hard_parses_per_sec(snapshot) for snapshot in snapshots],
+            allow_sparse=True,
         ),
         "log_file_sync_ms": _finalize_snapshot_series(
             [_extract_log_file_sync_ms(snapshot) for snapshot in snapshots]
@@ -122,7 +130,7 @@ def _build_single_report_violin_panel(snapshot: ParseResult) -> dict[str, list[f
         ),
         "pga_spill_pressure": [],
         "temp_io_pressure": _finalize_best_effort_series(
-            _temp_io_pressure_samples(snapshot.tablespace_io_stats, elapsed_seconds)
+            _temp_io_pressure_samples(snapshot, elapsed_seconds)
         ),
         "hard_parses_per_sec": [],
         "log_file_sync_ms": _finalize_best_effort_series(
@@ -208,34 +216,14 @@ def _extract_top_sql_elapsed_norm(snapshot: ParseResult) -> float | None:
 
 
 def _extract_pga_spill_pressure(snapshot: ParseResult) -> float | None:
-    # Preferred source would be onepass + multipass executions. When the
-    # report exposes PGA advisory instead, use current-target overalloc
-    # count normalized by total executions as the closest spill signal.
-    advisory = snapshot.pga_advisory or {}
-    rows = advisory.get("rows") or []
-    if not rows:
-        return None
-
-    current_target_mb = advisory.get("current_target_mb")
-    current_row = _pick_current_pga_advisory_row(rows, current_target_mb)
-    if not current_row:
-        return None
-
-    overalloc_count = current_row.get("overalloc_count")
-    total_execs_per_sec = _extract_load_profile_per_second(snapshot, "Executes")
-    elapsed_seconds = _derive_elapsed_seconds(snapshot)
-    if not isinstance(overalloc_count, (int, float)):
-        return None
-    if total_execs_per_sec is None or elapsed_seconds is None or total_execs_per_sec <= 0:
-        return None
-
-    total_execs = total_execs_per_sec * elapsed_seconds
-    if total_execs <= 0:
-        return None
-    return float(overalloc_count) / total_execs
+    return extract_derived_pressure_metrics(snapshot).get("pga_spill_pressure")
 
 
 def _extract_temp_io_pressure(snapshot: ParseResult) -> float | None:
+    metric = extract_derived_pressure_metrics(snapshot).get("temp_io_pressure")
+    if has_data(metric):
+        return metric
+
     elapsed_seconds = _derive_elapsed_seconds(snapshot)
     if elapsed_seconds is None or elapsed_seconds <= 0:
         return None
@@ -243,11 +231,11 @@ def _extract_temp_io_pressure(snapshot: ParseResult) -> float | None:
     for row in snapshot.tablespace_io_stats:
         if str(row.get("tablespace") or "").upper() != "TEMP":
             continue
-        reads = row.get("reads")
-        writes = row.get("writes")
-        if not isinstance(reads, (int, float)) or not isinstance(writes, (int, float)):
+        row_reads = row.get("reads")
+        row_writes = row.get("writes")
+        if not isinstance(row_reads, (int, float)) or not isinstance(row_writes, (int, float)):
             return None
-        return (float(reads) + float(writes)) / elapsed_seconds
+        return (float(row_reads) + float(row_writes)) / elapsed_seconds
 
     return None
 
@@ -323,6 +311,35 @@ def _top_sql_elapsed_norm_samples(top_sql: list[dict[str, Any]]) -> list[float]:
     return values
 
 
+def _extract_instance_activity_total(snapshot: ParseResult, statistic_name: str) -> float | None:
+    for row in snapshot.instance_activity_stats:
+        if str(row.get("statistic_name") or "").strip().lower() != statistic_name.lower():
+            continue
+        value = row.get("total")
+        if isinstance(value, (int, float)) and value >= 0:
+            return float(value)
+    return None
+
+
+def _extract_instance_activity_per_second(
+    snapshot: ParseResult,
+    statistic_name: str,
+) -> float | None:
+    for row in snapshot.instance_activity_stats:
+        if str(row.get("statistic_name") or "").strip().lower() != statistic_name.lower():
+            continue
+        value = row.get("per_second")
+        if isinstance(value, (int, float)) and value >= 0:
+            return float(value)
+    return None
+
+
+def _coerce_non_negative(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and value >= 0:
+        return float(value)
+    return None
+
+
 def _extract_datafile_rate(snapshot: ParseResult, field_name: str) -> float | None:
     elapsed_seconds = _derive_elapsed_seconds(snapshot)
     if elapsed_seconds is None or elapsed_seconds <= 0:
@@ -375,20 +392,11 @@ def _extract_load_profile_per_second(snapshot: ParseResult, metric_name: str) ->
     return None
 
 
-def _pick_current_pga_advisory_row(
-    rows: list[dict[str, Any]],
-    current_target_mb: Any,
-) -> dict[str, Any] | None:
-    if not rows:
-        return None
-
-    if isinstance(current_target_mb, (int, float)):
-        return min(
-            rows,
-            key=lambda row: abs(float(row.get("target_mb") or 0.0) - float(current_target_mb)),
-        )
-
-    return rows[0]
+def _extract_hard_parses_per_sec(snapshot: ParseResult) -> float | None:
+    metric = extract_derived_pressure_metrics(snapshot).get("hard_parses_per_sec")
+    if has_data(metric):
+        return metric
+    return None
 
 
 def _derive_elapsed_seconds(snapshot: ParseResult) -> float | None:
@@ -418,14 +426,25 @@ def _extract_snapshot_datetime(value: Any) -> datetime | None:
 
 
 def _temp_io_pressure_samples(
-    tablespace_io_stats: list[dict[str, Any]],
+    snapshot: ParseResult,
     elapsed_seconds: float | None,
 ) -> list[float]:
     if not elapsed_seconds or elapsed_seconds <= 0:
         return []
 
+    direct_reads = _extract_instance_activity_total(
+        snapshot,
+        "physical reads direct temporary tablespace",
+    )
+    direct_writes = _extract_instance_activity_total(
+        snapshot,
+        "physical writes direct temporary tablespace",
+    )
+    if direct_reads is not None and direct_writes is not None:
+        return [(direct_reads + direct_writes) / elapsed_seconds]
+
     values: list[float] = []
-    for row in tablespace_io_stats:
+    for row in snapshot.tablespace_io_stats:
         if str(row.get("tablespace") or "").upper() != "TEMP":
             continue
         reads = row.get("reads")
@@ -462,7 +481,10 @@ def _histogram_latency_samples(buckets: list[dict[str, Any]]) -> list[float]:
     return values
 
 
-def _finalize_snapshot_series(values: list[float | None]) -> list[float]:
+def _finalize_snapshot_series(
+    values: list[float | None],
+    allow_sparse: bool = False,
+) -> list[float]:
     # Snapshot-series violins should represent one real normalized value
     # per AWR snapshot. If any snapshot is missing or invalid, keep the
     # series empty rather than synthesize or interpolate.
@@ -472,11 +494,17 @@ def _finalize_snapshot_series(values: list[float | None]) -> list[float]:
     cleaned: list[float] = []
     for value in values:
         if value is None:
+            if allow_sparse:
+                continue
             return []
         if not isinstance(value, (int, float)) or not isfinite(float(value)) or float(value) < 0:
+            if allow_sparse:
+                continue
             return []
         cleaned.append(round(float(value), 6))
 
+    if len(cleaned) < MIN_VALID_SAMPLES:
+        return []
     return cleaned
 
 

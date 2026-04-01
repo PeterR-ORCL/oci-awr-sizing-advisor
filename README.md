@@ -4,7 +4,7 @@
 
 The OCI AWR Sizing Advisor is an **agentic AI system** that transforms Oracle AWR reports into **actionable performance insights and OCI sizing guidance**.
 
-The system progresses from raw AWR parsing to deterministic analysis, and ultimately to **recommendations, narrative insights, and infrastructure decisions**.
+The system progresses from raw AWR parsing to deterministic analysis, and ultimately to **recommendations, narrative insights, and infrastructure decisions**. It **analytical honesty**: no fabricated metrics, no synthetic distributions, and no misleading visualizations.
 
 It is designed to replace manual AWR interpretation with a **repeatable, explainable, and automation-ready workflow**.
 
@@ -31,6 +31,9 @@ Bridging the gap between **performance engineering and business decision-making*
 - Dual AI providers enable flexibility and OCI alignment
 - AI is stateless by design; state and history are introduced explicitly via ADB
 - Historical context (ADB) enables trend-based decisions
+- No synthetic data: distributions are only shown when real multi-sample data exists
+- Scalar metrics are never expanded into artificial distributions
+- Visualization reflects data fidelity, not presentation convenience
 
 ---
 
@@ -220,7 +223,7 @@ The system now generates senior DBA-grade recommendations with clear execution g
 
 ## Day 5 — AI Narrative Layer (Completed)
 
-The AI layer generates a structured, executive-ready narrative based strictly on deterministic findings.
+The AI layer generates a structured, executive-ready advisory output grounded in deterministic findings and contributes to decision framing.
 
 ### Capabilities
 
@@ -238,11 +241,29 @@ The AI layer generates a structured, executive-ready narrative based strictly on
   - No arbitrary sizing values
 
 - Produces structured output sections:
-  - Executive Summary
+  - Executive Summary (includes decision)
   - Technical Narrative
   - Root Cause Interpretation
   - Recommended Action Plan
   - OCI Sizing Considerations
+  - Confidence Assessment
+  - Risk of Being Wrong
+
+---
+
+### Decision Framework
+
+The system now produces an explicit decision (e.g., **DO NOT SCALE**, **DEFER**, **INSUFFICIENT DATA**).
+
+Decision strength is influenced by confidence:
+
+- High confidence → definitive recommendation
+- Medium confidence → cautious / deferred recommendation
+- Low confidence → insufficient evidence to act
+
+This ensures decisions reflect both:
+- deterministic evidence
+- quality and completeness of available data
 
 ---
 
@@ -256,7 +277,7 @@ The project now generates an interactive HTML dashboard that presents determinis
 - Deterministic evidence cards
 - Decision layer with recommended execution posture
 - Interactive performance charts
-- Violin-based workload distribution panel
+- Violin-based workload distribution panel (real distributions only, no synthetic expansion)
 
 #### Current visualizations
 
@@ -282,6 +303,19 @@ The project now generates an interactive HTML dashboard that presents determinis
 - Temp I/O Pressure
 - Hard Parses/s
 
+#### Derived Scalar Metrics
+
+Metrics without sufficient distribution data are surfaced as scalar facts:
+
+- PGA Spill Pressure
+- Temp I/O Pressure
+- Hard Parses/s
+
+These are:
+- Extracted or derived from AWR evidence
+- Not visualized as distributions
+- Shown separately to preserve analytical integrity
+
 #### Violin chart semantics
 
 Each violin chart currently shows:
@@ -293,6 +327,16 @@ Each violin chart currently shows:
 - Min annotation
 
 This provides a distribution-based view of workload behavior rather than relying only on averages.
+
+#### Important Constraint
+
+Violin charts are rendered only when real multi-sample distributions exist.
+
+- No synthetic expansion of scalar values
+- No interpolated or heuristic-generated series
+- Metrics with insufficient data are omitted from the violin panel
+
+This guarantees that all visualizations reflect actual workload behavior.
 
 ---
 
@@ -346,6 +390,7 @@ This system provides:
 - Distribution-based workload visualization with violin charts
 - Visual comparison of CPU, I/O, SQL, and latency behavior
 - Stable dual-provider AI dashboard output (OCI + OpenAI-ready design)
+- Strict analytical honesty (no fabricated distributions or synthetic metrics)
 
 This is not:
 - A report generator
@@ -445,6 +490,7 @@ Current state:
 - AI narrative layer working
 - Interactive HTML dashboard working
 - Violin workload panel working for core metrics
-- Remaining parser work: PGA Spill Pressure, Temp I/O Pressure, Hard Parses/s  
+- Scalar extraction implemented for PGA Spill Pressure, Temp I/O Pressure, Hard Parses/s
+- Distribution support pending multi-AWR / historical data (Day 6)
 
 Next: **Day 6 — ADB (History / Trends), Agentic Decision Layer, and remaining violin metric extraction**

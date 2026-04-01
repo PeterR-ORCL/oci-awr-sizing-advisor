@@ -4,5 +4,6 @@ __pycache__/
 data/output/
 .env
 .DS_Store
-.DS_Store
 awr_dashboard-Fixed.html
+awr_dashboard.html
+!examples/*.html
