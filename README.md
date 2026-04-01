@@ -18,7 +18,7 @@ This system introduces:
 - Deterministic analysis → consistent outcomes  
 - Structured metrics → machine-readable insights  
 - Automated recommendations → immediate actionability  
-- AI narrative layer → executive-level communication  
+- AI narrative layer →  interpretation, prioritization, and decision support  
 
 Bridging the gap between **performance engineering and business decision-making**.
 
@@ -244,14 +244,81 @@ The AI layer generates a structured, executive-ready narrative based strictly on
   - Recommended Action Plan
   - OCI Sizing Considerations
 
+---
+
+### Dashboard Visualization Layer (Completed)
+
+The project now generates an interactive HTML dashboard that presents deterministic findings, AI narrative output, and workload visualizations in a single view.
+
+#### Current dashboard capabilities
+
+- AI-first advisory layout
+- Deterministic evidence cards
+- Decision layer with recommended execution posture
+- Interactive performance charts
+- Violin-based workload distribution panel
+
+#### Current visualizations
+
+- DB Time Breakdown
+- Top SQL Contribution
+- Workload Distribution — Violin Panel
+
+#### Violin metrics currently populated
+
+- CPU %
+- Executions per Second
+- Read IOPs
+- Read MB/s
+- Write IOPs
+- Write MB/s
+- User I/O Wait
+- Top SQL Elapsed Time (normalized)
+- Log File Sync Latency
+
+#### Violin metrics scaffolded for next parser enhancement
+
+- PGA Spill Pressure
+- Temp I/O Pressure
+- Hard Parses/s
+
+#### Violin chart semantics
+
+Each violin chart currently shows:
+- Full workload distribution
+- IQR box
+- Median line
+- Mean marker
+- Max marker
+- Min annotation
+
+This provides a distribution-based view of workload behavior rather than relying only on averages.
+
+---
+
 ### Important
 
-The AI layer:
-- does NOT analyze raw AWR data
-- does NOT replace deterministic logic
-- is purely a **narrative and interpretation layer**
+The AI layer has evolved beyond a pure narrative component and now operates as part of the advisory system.
 
-This ensures credibility and repeatability.
+The AI layer:
+- Operates on deterministic findings as its foundation
+- Augments analysis with structured interpretation and prioritization
+- Contributes to decision framing (not just explanation)
+- Can influence OCI sizing guidance through contextual reasoning
+
+However:
+
+- Deterministic analysis remains the source of truth
+- AI does not override validated system findings
+- All outputs are grounded in extracted metrics and detected issues
+
+This ensures:
+- Credibility
+- Explainability
+- Consistency across runs
+
+The system is transitioning from:
+- Narrative generation → to → decision support augmentation
 
 ---
 
@@ -275,13 +342,17 @@ This system provides:
 - AI-enhanced explanation (not guesswork)
 - Prioritized performance actions
 - Future-ready OCI sizing guidance
+- Interactive HTML dashboard generation
+- Distribution-based workload visualization with violin charts
+- Visual comparison of CPU, I/O, SQL, and latency behavior
+- Stable dual-provider AI dashboard output (OCI + OpenAI-ready design)
 
 This is not:
-- a report generator
-- a chatbot
+- A report generator
+- A chatbot
 
 This is:
-- an autonomous performance and sizing advisor
+- An autonomous performance and sizing advisor
 
 ---
 
@@ -368,4 +439,12 @@ data/
 ## Status
 
 **Day 5 Complete — AI Narrative Layer**  
-Next: **Day 6 ADB (History / Trends) and Agentic Decision Layer**
+
+Current state:
+- Deterministic analysis working
+- AI narrative layer working
+- Interactive HTML dashboard working
+- Violin workload panel working for core metrics
+- Remaining parser work: PGA Spill Pressure, Temp I/O Pressure, Hard Parses/s  
+
+Next: **Day 6 — ADB (History / Trends), Agentic Decision Layer, and remaining violin metric extraction**

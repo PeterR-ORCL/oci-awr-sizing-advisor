@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCI AWR Sizing Advisor Dashboard</title>
+  <style>
+    :root {
+      --bg: #08111d;
+      --panel: #0f1b2d;
+      --panel-soft: rgba(15, 27, 45, 0.95);
+      --panel-strong: #14243a;
+      --text: #e8eef7;
+      --muted: #9fb0c7;
+      --line: #233754;
+      --accent: #5ad1ff;
+      --accent-soft: rgba(90, 209, 255, 0.12);
+      --high: #ff6b6b;
+      --medium: #f6b84c;
+      --low: #7fb3d5;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(90, 209, 255, 0.10), transparent 28%),
+        linear-gradient(180deg, #08111d 0%, #07101a 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+      margin-bottom: 24px;
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+    .hero-meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .card {
+      grid-column: span 12;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+    .card.primary {
+      background: linear-gradient(135deg, rgba(24, 42, 66, 0.98), rgba(14, 27, 46, 0.98));
+      border-color: rgba(90, 209, 255, 0.38);
+    }
+    .card.secondary {
+      background: rgba(12, 22, 36, 0.88);
+    }
+    .card.prominent {
+      background: linear-gradient(135deg, rgba(20, 36, 58, 0.96), rgba(13, 24, 40, 0.96));
+      border-color: rgba(90, 209, 255, 0.34);
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 21px;
+    }
+    .decision-banner {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(90, 209, 255, 0.36);
+      background: rgba(90, 209, 255, 0.12);
+      color: #ecf9ff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .decision-banner.do-not-scale {
+      border-color: rgba(127, 179, 213, 0.40);
+      background: rgba(127, 179, 213, 0.16);
+      color: #eef7ff;
+    }
+    .decision-banner.scale-now {
+      border-color: rgba(255, 107, 107, 0.40);
+      background: rgba(255, 107, 107, 0.16);
+      color: #fff2f2;
+    }
+    .decision-banner.defer {
+      border-color: rgba(246, 184, 76, 0.40);
+      background: rgba(246, 184, 76, 0.16);
+      color: #fff7ea;
+    }
+    .decision-banner.insufficient {
+      border-color: rgba(159, 176, 199, 0.40);
+      background: rgba(159, 176, 199, 0.14);
+      color: #eef3f8;
+    }
+    .card p {
+      margin: 0;
+    }
+    .section-kicker {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .narrative {
+      color: var(--text);
+    }
+    .narrative > p,
+    .narrative > ol,
+    .narrative > ul,
+    .narrative > div {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+    .narrative > :last-child {
+      margin-bottom: 0;
+    }
+    .executive-summary {
+      display: grid;
+      gap: 12px;
+    }
+    .executive-summary .decision-banner {
+      margin-bottom: 0;
+      width: fit-content;
+    }
+    .executive-summary .rationale {
+      color: var(--text);
+    }
+    .executive-summary .key-signals {
+      margin-top: 0;
+    }
+    .confidence-section {
+      display: grid;
+      gap: 10px;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .confidence-section.high {
+      background: #ffe5e5;
+      color: #341516;
+    }
+    .confidence-section.medium {
+      background: #fff9e6;
+      color: #3b2f13;
+    }
+    .confidence-section.low {
+      background: #f0f0f0;
+      color: #252525;
+    }
+    .confidence-section h2,
+    .confidence-section p {
+      margin: 0;
+    }
+    .risk-section {
+      display: grid;
+      gap: 10px;
+    }
+    .risk-section h2,
+    .risk-section p {
+      margin: 0;
+    }
+    .risk-section ul {
+      margin-top: 0;
+    }
+    .subgrid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .half {
+      grid-column: span 12;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 13px 14px;
+      background: rgba(20, 36, 58, 0.7);
+    }
+    .item h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .severity {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .severity.high {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.24);
+      border: 1px solid rgba(255, 107, 107, 0.36);
+    }
+    .severity.medium {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.24);
+      border: 1px solid rgba(246, 184, 76, 0.36);
+    }
+    .severity.low {
+      color: #eff7ff;
+      background: rgba(127, 179, 213, 0.16);
+      border: 1px solid rgba(127, 179, 213, 0.36);
+    }
+    ul, ol {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+    li {
+      margin: 4px 0;
+    }
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .decision-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(11, 21, 35, 0.65);
+    }
+    .decision-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .evidence-pane {
+      grid-column: span 12;
+    }
+    .evidence-pane h3 {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .provider-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: var(--accent-soft);
+    }
+    .provider-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .chart-panel {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(20, 36, 58, 0.62);
+      min-height: 320px;
+    }
+    .chart-panel h3 {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+    .chart-canvas {
+      position: relative;
+      height: 240px;
+    }
+    .chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      border: 1px dashed rgba(159, 176, 199, 0.22);
+      border-radius: 12px;
+      background: rgba(11, 21, 35, 0.45);
+    }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+    @media (min-width: 900px) {
+      .half {
+        grid-column: span 6;
+      }
+      .chart-panel {
+        grid-column: span 6;
+      }
+    }
+    @media (max-width: 780px) {
+      .decision-grid,
+      .provider-grid {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">OCI AWR Sizing Advisor</div>
+      <h1>OCI AWR Sizing Advisor Dashboard</h1>
+      <div class="hero-meta">Generated: 2026-04-01T03:47:19.087700+00:00</div>
+    </section>
+
+    <div class="grid">
+      <section id="ai-summary" class="card primary">
+        <div class="section-kicker">AI Advisory Layer</div>
+        <h2>Executive Summary</h2>
+        
+    <div class="executive-summary">
+      <div class="decision-banner do-not-scale">DO NOT SCALE</div>
+      <p class="rationale">CPU dominates at 64.8% of DB time with high SQL concentration (top 2 OrderService statements at 26.6% of elapsed SQL time), indicating clear tuning opportunities before capacity expansion.</p>
+      <ul class="key-signals">
+        <li>CPU: 64.8% DB time</li><li>Top SQL concentration: 26.6%</li><li>User I/O: 12.4%</li>
+      </ul>
+    </div>
+    
+      </section>
+
+      <section id="ai-technical" class="card primary">
+        <h2>Technical Narrative</h2>
+        <div class="narrative">This 1-hour AWR snapshot from FINDB1 on exa19cdb01 shows CPU as the primary bottleneck at 64.8% of DB time (344.1 DB CPU seconds per second), capping throughput. User I/O follows at 12.4% (cell single block physical reads), commits at 8.2% (log file sync), and concurrency at 2.6%. SQL workload concentrates heavily: top SQL (8f7a1xk3d9abc, SELECT on ORDERS from OrderService) at 14.6% of total elapsed time, second (b9d2k3l4m5xyz, UPDATE on ORDER_STATUS from OrderService) at 12.0%, and third (c7k9d2l8p3abc, INSERT into ORDER_ITEMS from CheckoutService) at 7.6%. DB time averages 530.7 seconds per second (0.88 per transaction), underscoring saturation.</div>
+      </section>
+
+      <section id="ai-root-cause" class="card primary">
+        <h2>Root Cause Interpretation</h2>
+        <div class="narrative">CPU saturation stems from high-demand execution paths in concentrated SQL, particularly OrderService statements driving 26.6% of elapsed time. These amplify User I/O via physical reads (12.4% DB time) and commits (8.2% DB time) through frequent single-block reads, updates, and syncs. Concurrency (2.6%) is secondary, likely from shared objects in these paths. No evidence of storage or network limits as primary causes; workload inefficiencies dominate.</div>
+      </section>
+
+      <section id="ai-action-plan" class="card primary">
+        <h2>Recommended Action Plan</h2>
+        <div class="narrative"><ol><li>Tune top OrderService SQLs (IDs 8f7a1xk3d9abc, b9d2k3l4m5xyz) to cut CPU (64.8% DB time) and related I/O/commits—these drive 26.6% of elapsed time for fastest gains.</li><li>Review commit frequency in application transaction flows to shorten log file sync (8.2% DB time).</li><li>Optimize physical read paths in high-I/O SQL/objects (cell single block reads at 12.4% DB time).</li><li>Address concurrency (2.6% DB time) on hot objects after primaries, via execution path isolation.</li></ol></div>
+      </section>
+
+      <section id="ai-sizing" class="card primary">
+        <h2>OCI Sizing Considerations</h2>
+        <div class="narrative">Defer scaling; validate tuning of CPU/SQL first, as current Exadata host shows workload-driven limits resolvable without capacity. Monitor post-tuning DB CPU under 50% before reassessing directional OCI BM.Standard shapes for CPU relief if residuals persist.</div>
+      </section>
+
+      <section id="ai-confidence" class="card primary">
+        
+    <div class="confidence-section high">
+      <h2>Confidence Assessment</h2>
+      <p><strong>Level:</strong> High</p>
+      <p><strong>Reason:</strong> Detailed AWR metrics pinpoint CPU/SQL dominance with specific top SQLs and wait breakdowns, enabling targeted tuning over scaling.</p>
+    </div>
+    
+      </section>
+
+      <section id="ai-risk" class="card primary">
+        
+    <div class="risk-section">
+      <h2>Risk of Being Wrong</h2>
+      <p><strong>Main Risks:</strong></p>
+      <ul>
+        <li>Limited time window</li><li>Missing workload variability</li><li>Incomplete SQL execution plans</li>
+      </ul>
+      <p class="risk-reduction"><strong>What would reduce this risk:</strong><br>Additional AWR intervals, ASH data, and SQL plan history.</p>
+    </div>
+    
+      </section>
+
+      <section id="performance-charts" class="card secondary">
+        <div class="section-kicker">Visual Signals</div>
+        <h2>Performance Charts</h2>
+        <div class="chart-grid">
+          <section class="chart-panel">
+            <h3>DB Time Breakdown</h3>
+            <div class="chart-canvas"><canvas id="dbTimeBreakdownChart"></canvas></div>
+          </section>
+          <section class="chart-panel">
+            <h3>Top SQL Contribution (% Elapsed SQL Time)</h3>
+            <div class="chart-canvas"><canvas id="topSqlContributionChart"></canvas></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="decision-layer" class="card prominent">
+        <div class="section-kicker">Decision Layer</div>
+        <h2>Agentic Decision</h2>
+        <div class="decision-grid">
+          
+    <div class="decision-box">
+      <strong>Primary Decision</strong>
+      <div>Start with CPU-heavy SQL in OrderService. Tune the top CPU-consuming and top elapsed-time SQL paths first.</div>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Execution Plan</strong>
+      <ol><li>Tune the highest CPU-consuming SQL and execution paths first.</li><li>Prioritize the top elapsed-time OrderService SQL statements immediately.</li><li>Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.</li><li>Tighten commit frequency and commit-processing behavior in the application flow.</li><li>Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.</li></ol>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Defer / Do Not Do</strong>
+      <ol><li>Do not scale now.</li><li>Do not treat storage as the first remedy.</li><li>Do not prioritize concurrency ahead of CPU, SQL concentration, User I/O, or commit latency.</li></ol>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Scaling Posture</strong>
+      <div>DO NOT SCALE</div>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Confidence Level</strong>
+      <div>High</div>
+    </div>
+    
+        </div>
+      </section>
+
+      <section id="supporting-evidence" class="card secondary">
+        <div class="section-kicker">Deterministic Layer</div>
+        <h2>Supporting Evidence</h2>
+        <div class="subgrid">
+          <section class="half evidence-pane">
+            <h3>Key Issues</h3>
+            <div class="stack">
+              
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>cpu_pressure</h3>
+              <p>CPU is the dominant bottleneck, consuming 64.8% of total DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>sql_concentration</h3>
+              <p>SQL concentration is high, with the top 2 SQL statements from module &#x27;OrderService&#x27; accounting for 26.6% of total elapsed SQL time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>io_pressure</h3>
+              <p>User I/O is a significant contributor, with &#x27;cell single block physical read&#x27; accounting for 12.4% of DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>commit_pressure</h3>
+              <p>Commit latency is material, with log file sync consuming 8.2% of DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity medium">MEDIUM</span></div>
+              <h3>concurrency_pressure</h3>
+              <p>Concurrency waits are present but secondary, accounting for 2.6% of DB time.</p>
+            </article>
+            
+            </div>
+          </section>
+
+          <section class="half evidence-pane">
+            <h3>Deterministic Recommendations</h3>
+            <div class="stack">
+              
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>cpu_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce CPU demand immediately by tuning the highest-load SQL and execution paths. CPU saturation is limiting throughput and must be treated as the primary performance constraint.</p>
+              <p><strong>Rationale:</strong> DB CPU is consuming 64.8% of total DB time, which shows CPU is saturated enough to cap workload throughput.</p>
+              <p><strong>Next Step:</strong> Start with the SQL statements and code paths consuming the most DB CPU.</p>
+              <ul><li>Tune the top CPU-consuming SQL statements first and remove avoidable row processing.</li><li>Validate execution plans and eliminate inefficient plan regressions on the busiest statements.</li><li>Reduce unnecessary parse, execute, and fetch activity in the highest-volume application paths.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>sql_concentration</h3>
+              <p><strong>Recommendation:</strong> Prioritize SQL tuning in module &#x27;OrderService&#x27; immediately. A small number of statements are dominating the workload and will deliver the fastest performance gain.</p>
+              <p><strong>Rationale:</strong> The top 2 SQL statements from module &#x27;OrderService&#x27; account for 26.6% of total elapsed SQL time.</p>
+              <p><strong>Next Step:</strong> Start with the top elapsed-time SQL IDs and the module that owns the highest elapsed-time share.</p>
+              <ul><li>Review execution plans for the top elapsed-time SQL IDs first.</li><li>Tune the dominant statements before spending time on lower-impact workload areas.</li><li>Stabilize plan quality and remove inefficient access paths, joins, or repeated executions.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>io_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce physical read demand by correcting SQL and access paths before escalating storage as the primary cause. The first priority is to remove unnecessary I/O from the workload itself.</p>
+              <p><strong>Rationale:</strong> &#x27;cell single block physical read&#x27; is consuming 12.4% of DB time, which makes User I/O a material performance constraint driven by read demand.</p>
+              <p><strong>Next Step:</strong> Start with the SQL statements and objects responsible for the highest physical read demand.</p>
+              <ul><li>Tune the SQL statements driving the highest physical read volume first.</li><li>Validate indexing, join strategy, and access path quality for the hottest objects.</li><li>Review storage latency only after SQL and object access patterns have been validated.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>commit_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce commit frequency and tighten redo path performance immediately. Commit processing is gating throughput and must be shortened at the application and redo layers.</p>
+              <p><strong>Rationale:</strong> log file sync is consuming 8.2% of DB time, which shows commit processing is materially gating workload throughput.</p>
+              <p><strong>Next Step:</strong> Start by reviewing commit frequency in the application transaction flow.</p>
+              <ul><li>Review commit frequency in the application flow and batch small transactions where appropriate.</li><li>Validate redo log sizing, switch behavior, and redo device latency.</li><li>Remove unnecessary commit calls inside tight execution loops.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity medium">MEDIUM</span></div>
+              <h3>concurrency_pressure</h3>
+              <p><strong>Recommendation:</strong> Address concurrency after the primary bottlenecks are underway. It is a secondary constraint, but the current contention still warrants targeted cleanup.</p>
+              <p><strong>Rationale:</strong> Concurrency-related waits are consuming 2.6% of DB time, which indicates measurable contention on shared database resources.</p>
+              <p><strong>Next Step:</strong> Start by isolating the specific hot objects or execution paths that sessions are colliding on.</p>
+              <ul><li>Identify the specific objects, SQL statements, or code paths behind the dominant concurrency waits.</li><li>Reduce hotspot access patterns and shorten high-contention transaction paths.</li><li>Validate whether latch, cursor, or block-level contention is the primary driver.</li></ul>
+            </article>
+            
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="provider-metadata" class="card secondary">
+        <h2>Provider Metadata</h2>
+        <div class="provider-grid">
+          <div class="provider-box">
+            <strong>Provider</strong>
+            <div>oci</div>
+          </div>
+          <div class="provider-box">
+            <strong>Model</strong>
+            <div>Grok 4.1</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">Generated at 2026-04-01T03:47:19.087700+00:00</div>
+  </div>
+  <script id="chart-payload" type="application/json">{&quot;db_time_breakdown&quot;: {&quot;labels&quot;: [&quot;CPU&quot;, &quot;User I/O&quot;, &quot;Commit&quot;, &quot;Concurrency&quot;, &quot;Other&quot;], &quot;values&quot;: [64.8, 12.4, 8.2, 2.6, 12.0], &quot;colors&quot;: [&quot;rgba(255, 107, 107, 0.72)&quot;, &quot;rgba(246, 184, 76, 0.72)&quot;, &quot;rgba(212, 174, 82, 0.72)&quot;, &quot;rgba(127, 179, 213, 0.72)&quot;, &quot;rgba(130, 148, 171, 0.58)&quot;]}, &quot;top_sql_contribution&quot;: {&quot;labels&quot;: [&quot;8f7a1xk3d9abc&quot;, &quot;b9d2k3l4m5xyz&quot;, &quot;c7k9d2l8p3abc&quot;], &quot;values&quot;: [14.6, 12.0, 7.6], &quot;colors&quot;: [&quot;rgba(255, 107, 107, 0.68)&quot;, &quot;rgba(246, 184, 76, 0.68)&quot;, &quot;rgba(127, 179, 213, 0.68)&quot;]}}</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const chartPayloadElement = document.getElementById('chart-payload');
+    const chartPayload = chartPayloadElement ? JSON.parse(chartPayloadElement.textContent) : {};
+
+    const chartTextColor = '#d9e4f2';
+    const chartMutedColor = 'rgba(159, 176, 199, 0.28)';
+
+    function buildDoughnutChart() {
+      const payload = chartPayload.db_time_breakdown;
+      if (!payload || !payload.labels || !payload.values || !payload.values.length) {
+        return;
+      }
+
+      const ctx = document.getElementById('dbTimeBreakdownChart');
+      if (!ctx) {
+        return;
+      }
+
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderColor: '#0f1b2d',
+            borderWidth: 2,
+            hoverOffset: 4,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: chartTextColor,
+                boxWidth: 12,
+                padding: 16,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function buildBarChart() {
+      const payload = chartPayload.top_sql_contribution;
+      if (!payload || !payload.labels || !payload.values || !payload.values.length) {
+        return;
+      }
+
+      const ctx = document.getElementById('topSqlContributionChart');
+      if (!ctx) {
+        return;
+      }
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderRadius: 8,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false,
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                display: false,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                color: chartMutedColor,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    buildDoughnutChart();
+    buildBarChart();
+  </script>
+</body>
+</html>

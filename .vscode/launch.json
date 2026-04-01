@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Analysis (Day 3)",
+      "name": "Run Analysis",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/run_analysis.py",

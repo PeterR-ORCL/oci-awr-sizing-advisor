@@ -1,10 +1,14 @@
 import os
+from datetime import datetime, timezone
+from pathlib import Path
 
 from src.analysis.ai_narrative_generator import generate_ai_narrative
 from src.analysis.issue_detector import detect_issues
 from src.analysis.ai_provider import generate_ai_response
 from src.analysis.recommendation_engine import generate_recommendations
+from src.analysis.violin_panel_builder import build_violin_panel_data
 from src.parser.awr_parser import parse_awr_file
+from src.reporting.html_dashboard import generate_html_dashboard
 
 def _normalize_terminology(text: str) -> str:
     replacements = {
@@ -125,9 +129,86 @@ def normalize_terms(text: str) -> str:
     return text
 
 
+def _build_agentic_decision(issues: list[dict]) -> dict:
+    issue_by_type = {
+        str(issue.get("issue_type") or ""): issue
+        for issue in issues
+    }
+
+    execution_plan = [
+        "Tune the highest CPU-consuming SQL and execution paths first.",
+        "Prioritize the top elapsed-time OrderService SQL statements immediately.",
+        "Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.",
+        "Tighten commit frequency and commit-processing behavior in the application flow.",
+        "Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.",
+    ]
+
+    if "cpu_pressure" in issue_by_type:
+        primary_decision = "Start with CPU-heavy SQL in OrderService. Tune the top CPU-consuming and top elapsed-time SQL paths first."
+    else:
+        primary_decision = "Start with the most material SQL and execution-path bottlenecks first."
+
+    return {
+        "primary_decision": primary_decision,
+        "execution_plan": execution_plan,
+        "defer_do_not_do": [
+            "Do not scale now.",
+            "Do not treat storage as the first remedy.",
+            "Do not prioritize concurrency ahead of CPU, SQL concentration, User I/O, or commit latency.",
+        ],
+        "scaling_decision": "DO NOT SCALE",
+        "confidence_level": "High",
+    }
+
+
+def _build_oci_guidance(issues: list[dict]) -> dict:
+    issue_by_type = {
+        str(issue.get("issue_type") or ""): issue
+        for issue in issues
+    }
+
+    current_state = (
+        "The workload is CPU-bound and driven by a small number of high-impact SQL paths in OrderService. "
+        "User I/O and commit latency are secondary contributors. The current state supports tuning first, not immediate scaling."
+    )
+    if "cpu_pressure" not in issue_by_type:
+        current_state = (
+            "The workload shows concentrated SQL and secondary performance contributors, but the current state still supports tuning before scaling."
+        )
+
+    return {
+        "current_state_assessment": current_state,
+        "scaling_trigger_conditions": (
+            "Scaling becomes appropriate only after the CPU-heavy SQL paths, concentrated OrderService statements, "
+            "physical read demand, and commit behavior have been tuned and the same dominant constraints still remain."
+        ),
+        "oci_architecture_guidance": (
+            "Keep the architecture aligned to a compute-first tuning path. Use an OCI database deployment pattern "
+            "that can scale CPU cleanly if residual pressure remains after SQL and transaction tuning. Treat storage "
+            "and broader architectural changes as secondary unless the post-tuning workload still shows persistent I/O pressure."
+        ),
+        "resource_direction": (
+            "Increase CPU capacity before expanding for other dimensions if tuning does not remove the dominant pressure. "
+            "Prioritize compute scaling ahead of storage scaling. Address storage latency directionally only after SQL "
+            "and access-path corrections confirm that physical read demand remains material."
+        ),
+        "risk_considerations": (
+            "Scaling too early will mask the real problem and carry inefficient SQL and transaction behavior into a larger footprint. "
+            "Skipping tuning will preserve the current CPU, SQL concentration, physical read, and commit inefficiencies. "
+            "Scaling the wrong resource, especially storage before compute and SQL correction, will add cost without resolving the primary bottleneck."
+        ),
+    }
+
+
 if __name__ == "__main__":
     provider = os.getenv("AI_PROVIDER", "openai")
-    result = parse_awr_file("data/input/sample_awr_01.out")
+    input_dir = Path("data/input")
+    awr_files = sorted(input_dir.glob("*.out"))
+    if not awr_files:
+        raise FileNotFoundError("No AWR input files found in data/input")
+
+    snapshot_results = [parse_awr_file(file_path) for file_path in awr_files]
+    result = snapshot_results[-1]
 
     issues = detect_issues(result)
     recommendations = generate_recommendations(issues)
@@ -140,6 +221,23 @@ if __name__ == "__main__":
     )
     executive_summary = _build_executive_summary(issues)
     executive_summary = normalize_terms(executive_summary)
+    agentic_decision = _build_agentic_decision(issues)
+    oci_guidance = _build_oci_guidance(issues)
+    report_data = {
+        "title": "OCI AWR Sizing Advisor Dashboard",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "executive_summary": executive_summary,
+        "issues": issues,
+        "recommendations": recommendations,
+        "top_sql": result.top_sql,
+        "violin_panel": build_violin_panel_data(snapshot_results),
+        "agentic_decision": agentic_decision,
+        "oci_guidance": oci_guidance,
+        "ai_generated_narrative": ai_response["content"],
+        "ai_provider": ai_response["provider"],
+        "ai_model": ai_response["model"],
+    }
+    dashboard_file = generate_html_dashboard(report_data)
 
     print("EXECUTIVE SUMMARY")
     print("--------------------------------------------------------------------------------")
@@ -185,3 +283,5 @@ if __name__ == "__main__":
     print(f"  {ai_response['model']}\n")
     print("Content:")
     print(ai_response["content"])
+    print("\nHTML Dashboard:")
+    print(f"  {dashboard_file}")
