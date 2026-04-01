@@ -7,10 +7,15 @@ from pathlib import Path
 from src.models.parse_result import ParseResult
 from src.models.run_metadata import RunMetadata
 from src.parser.awr_file_loader import load_awr_file
+from src.parser.ash_parser import parse_ash_samples
 from src.parser.cpu_parser import parse_cpu_section
 from src.parser.awr_section_locator import locate_awr_sections
+from src.parser.datafile_io_parser import parse_datafile_io_stats
+from src.parser.event_histogram_parser import parse_event_histograms
 from src.parser.metadata_parser import parse_awr_metadata
+from src.parser.pga_advisory_parser import parse_pga_advisory
 from src.parser.sql_parser import parse_sql_section
+from src.parser.tablespace_io_parser import parse_tablespace_io_stats
 from src.parser.waits_parser import parse_waits_section
 
 
@@ -52,6 +57,11 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
     cpu_metrics = parse_cpu_section(cpu_lines) if cpu_lines else []
     wait_events = parse_waits_section(waits_lines) if waits_lines else []
     top_sql = parse_sql_section(top_sql_lines) if top_sql_lines else []
+    datafile_io_stats = parse_datafile_io_stats(lines)
+    tablespace_io_stats = parse_tablespace_io_stats(lines)
+    pga_advisory = parse_pga_advisory(lines)
+    event_histograms = parse_event_histograms(lines)
+    ash_samples = parse_ash_samples(lines)
 
     return ParseResult(
         run_metadata=run_metadata,
@@ -60,6 +70,11 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
         io_metrics=[],
         wait_events=wait_events,
         top_sql=top_sql,
+        datafile_io_stats=datafile_io_stats,
+        tablespace_io_stats=tablespace_io_stats,
+        pga_advisory=pga_advisory,
+        event_histograms=event_histograms,
+        ash_samples=ash_samples,
         session_metrics=[],
         parse_warnings=metadata_warnings,
         parse_errors=[],

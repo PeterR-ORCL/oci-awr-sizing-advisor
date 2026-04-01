@@ -29,6 +29,8 @@ EXPECTED_SECTIONS = [
     "Root Cause Interpretation",
     "Recommended Action Plan",
     "OCI Sizing Considerations",
+    "Confidence Assessment",
+    "Risk of Being Wrong",
 ]
 
 
@@ -100,6 +102,18 @@ def _build_response_objectives() -> str:
             "- Explain why the deterministic recommendations matter to workload performance.",
             "- Reinforce tuning before scaling when supported by the evidence.",
             "- Include OCI sizing considerations only as directional guidance, not fixed sizing numbers.",
+            "- In the Executive Summary, the first sentence must state the decision outcome using one of these exact phrases when appropriate: DO NOT SCALE, DEFER SCALING PENDING VALIDATION, INSUFFICIENT DATA TO RECOMMEND SCALING, SCALE NOW.",
+            '- Format the first sentence like this: "DO NOT SCALE. <reason>" when that decision applies.',
+            "- Keep the decision in the first 1–2 sentences only.",
+            "- The Executive Summary must include the decision, 1–2 key metrics explaining why, and a clear next action.",
+            "- Make decision strength consistent with confidence: High confidence supports decisive language such as DO NOT SCALE or SCALE NOW; Medium confidence supports DEFER SCALING PENDING VALIDATION; Low confidence supports INSUFFICIENT DATA TO RECOMMEND.",
+            "- Keep the OCI Sizing Considerations section consistent with the confidence-adjusted decision.",
+            "- Keep the Recommended Action Plan tone consistent with the confidence-adjusted decision.",
+            "- Base Confidence Assessment only on deterministic evidence such as AWR metrics, SQL concentration, wait events, and observed signals. Do not use speculation.",
+            "- Format Confidence Assessment as High, Medium, or Low followed by a short justification.",
+            "- If the decision would otherwise be DO NOT SCALE but confidence is not High, use DEFER SCALING PENDING VALIDATION instead.",
+            "- If confidence is Low, use INSUFFICIENT DATA TO RECOMMEND SCALING.",
+            "- Also produce Confidence Assessment and Risk of Being Wrong sections grounded only in the deterministic evidence.",
         ]
     )
 
@@ -112,12 +126,23 @@ def _format_required_output_sections() -> str:
             "Produce a response using exactly these section headings:",
             *(f"- {section}" for section in EXPECTED_SECTIONS),
             "",
+            "Also produce these additional sections:",
+            "Confidence Assessment:",
+            "State how confident you are in the advisory conclusion based only on the deterministic evidence.",
+            "Use clear levels such as High, Medium, or Low, and briefly justify the confidence.",
+            "",
+            "Risk of Being Wrong:",
+            "State the main ways this recommendation could be wrong or incomplete if important evidence is missing.",
+            "Be explicit about why the recommendation could be wrong, what assumptions were made, and what evidence is missing.",
+            "End with a final sentence in this form: Additional data that would reduce this risk: ...",
+            "",
             "Response formatting and content rules:",
             "- Avoid markdown tables.",
             "- Avoid excessive bullets.",
             "- Avoid unsupported root-cause claims.",
             "- Avoid specific numeric sizing values unless those values are explicitly present in the deterministic inputs.",
             "- Keep the response concise and suitable for both executives and DBAs.",
+            "- Do not omit any required section; if evidence is limited, state that limitation explicitly.",
         ]
     )
 

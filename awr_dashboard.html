@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCI AWR Sizing Advisor Dashboard</title>
+  <style>
+    :root {
+      --bg: #08111d;
+      --panel: #0f1b2d;
+      --panel-soft: rgba(15, 27, 45, 0.95);
+      --panel-strong: #14243a;
+      --text: #e8eef7;
+      --muted: #9fb0c7;
+      --line: #233754;
+      --accent: #5ad1ff;
+      --accent-soft: rgba(90, 209, 255, 0.12);
+      --high: #ff6b6b;
+      --medium: #f6b84c;
+      --low: #7fb3d5;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(90, 209, 255, 0.10), transparent 28%),
+        linear-gradient(180deg, #08111d 0%, #07101a 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+      margin-bottom: 24px;
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+    .hero-meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .card {
+      grid-column: span 12;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+    .card.primary {
+      background: linear-gradient(135deg, rgba(24, 42, 66, 0.98), rgba(14, 27, 46, 0.98));
+      border-color: rgba(90, 209, 255, 0.38);
+    }
+    .card.secondary {
+      background: rgba(12, 22, 36, 0.88);
+    }
+    .card.prominent {
+      background: linear-gradient(135deg, rgba(20, 36, 58, 0.96), rgba(13, 24, 40, 0.96));
+      border-color: rgba(90, 209, 255, 0.34);
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 21px;
+    }
+    .decision-banner {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(90, 209, 255, 0.36);
+      background: rgba(90, 209, 255, 0.12);
+      color: #ecf9ff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .decision-banner.do-not-scale {
+      border-color: rgba(127, 179, 213, 0.40);
+      background: rgba(127, 179, 213, 0.16);
+      color: #eef7ff;
+    }
+    .decision-banner.scale-now {
+      border-color: rgba(255, 107, 107, 0.40);
+      background: rgba(255, 107, 107, 0.16);
+      color: #fff2f2;
+    }
+    .decision-banner.defer {
+      border-color: rgba(246, 184, 76, 0.40);
+      background: rgba(246, 184, 76, 0.16);
+      color: #fff7ea;
+    }
+    .decision-banner.insufficient {
+      border-color: rgba(159, 176, 199, 0.40);
+      background: rgba(159, 176, 199, 0.14);
+      color: #eef3f8;
+    }
+    .card p {
+      margin: 0;
+    }
+    .section-kicker {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .narrative {
+      color: var(--text);
+    }
+    .narrative > p,
+    .narrative > ol,
+    .narrative > ul,
+    .narrative > div {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+    .narrative > :last-child {
+      margin-bottom: 0;
+    }
+    .executive-summary {
+      display: grid;
+      gap: 12px;
+    }
+    .executive-summary .decision-banner {
+      margin-bottom: 0;
+      width: fit-content;
+    }
+    .executive-summary .rationale {
+      color: var(--text);
+    }
+    .executive-summary .key-signals {
+      margin-top: 0;
+    }
+    .confidence-section {
+      display: grid;
+      gap: 10px;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .confidence-section.high {
+      background: #ffe5e5;
+      color: #341516;
+    }
+    .confidence-section.medium {
+      background: #fff9e6;
+      color: #3b2f13;
+    }
+    .confidence-section.low {
+      background: #f0f0f0;
+      color: #252525;
+    }
+    .confidence-section h2,
+    .confidence-section p {
+      margin: 0;
+    }
+    .risk-section {
+      display: grid;
+      gap: 10px;
+    }
+    .risk-section h2,
+    .risk-section p {
+      margin: 0;
+    }
+    .risk-section ul {
+      margin-top: 0;
+    }
+    .subgrid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .half {
+      grid-column: span 12;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 13px 14px;
+      background: rgba(20, 36, 58, 0.7);
+    }
+    .item h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .severity {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .severity.high {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.24);
+      border: 1px solid rgba(255, 107, 107, 0.36);
+    }
+    .severity.medium {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.24);
+      border: 1px solid rgba(246, 184, 76, 0.36);
+    }
+    .severity.low {
+      color: #eff7ff;
+      background: rgba(127, 179, 213, 0.16);
+      border: 1px solid rgba(127, 179, 213, 0.36);
+    }
+    ul, ol {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+    li {
+      margin: 4px 0;
+    }
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .decision-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(11, 21, 35, 0.65);
+    }
+    .decision-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .evidence-pane {
+      grid-column: span 12;
+    }
+    .evidence-pane h3 {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .provider-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: var(--accent-soft);
+    }
+    .provider-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .chart-panel {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(20, 36, 58, 0.62);
+      min-height: 320px;
+    }
+    .chart-panel h3 {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+    .violin-panel {
+      background: linear-gradient(135deg, rgba(18, 31, 50, 0.96), rgba(11, 21, 35, 0.96));
+      border-color: rgba(90, 209, 255, 0.28);
+    }
+    .violin-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .violin-chart-card {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(16, 28, 45, 0.72);
+      min-height: 320px;
+    }
+    .violin-chart-card h3 {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+    .violin-chart {
+      height: 260px;
+    }
+    .violin-panel-empty {
+      min-height: 180px;
+    }
+    .chart-canvas {
+      position: relative;
+      height: 240px;
+    }
+    .chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      border: 1px dashed rgba(159, 176, 199, 0.22);
+      border-radius: 12px;
+      background: rgba(11, 21, 35, 0.45);
+    }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+    @media (min-width: 700px) {
+      .violin-chart-card {
+        grid-column: span 6;
+      }
+    }
+    @media (min-width: 900px) {
+      .half {
+        grid-column: span 6;
+      }
+      .chart-panel {
+        grid-column: span 6;
+      }
+      .violin-chart-card {
+        grid-column: span 4;
+      }
+    }
+    @media (min-width: 1200px) {
+      .violin-chart-card {
+        grid-column: span 3;
+      }
+    }
+    @media (max-width: 780px) {
+      .decision-grid,
+      .provider-grid {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">OCI AWR Sizing Advisor</div>
+      <h1>OCI AWR Sizing Advisor Dashboard</h1>
+      <div class="hero-meta">Generated: 2026-04-01T05:12:14.012717+00:00</div>
+    </section>
+
+    <div class="grid">
+      <section id="ai-summary" class="card primary">
+        <div class="section-kicker">AI Advisory Layer</div>
+        <h2>Executive Summary</h2>
+        
+    <div class="executive-summary">
+      <div class="decision-banner do-not-scale">DO NOT SCALE</div>
+      <p class="rationale">CPU is saturated at 64.8% of DB time, driven by high SQL concentration where top 2 statements from OrderService consume 26.6% of elapsed SQL time.</p>
+      <ul class="key-signals">
+        <li>CPU: 64.8% DB time</li><li>Top SQL concentration: 26.6%</li><li>User I/O: 12.4%</li>
+      </ul>
+    </div>
+    
+      </section>
+
+      <section id="ai-technical" class="card primary">
+        <h2>Technical Narrative</h2>
+        <div class="narrative">This 1-hour AWR snapshot from FINDB1 on exa19cdb01 shows CPU as the dominant bottleneck at 64.8% of DB time (344.1 DB CPU seconds, 530.7 DB time seconds). User I/O follows at 12.4% via cell single block physical reads, commits at 8.2% via log file sync, and concurrency at 2.6%. SQL concentration is high: top SQL (8f7a1xk3d9abc, SELECT on ORDERS from OrderService) at 14.6% of total, second (b9d2k3l4m5xyz, UPDATE on ORDER_STATUS from OrderService) at 12.0%, third (c7k9d2l8p3abc, INSERT into ORDER_ITEMS from CheckoutService) at 7.6%.</div>
+      </section>
+
+      <section id="ai-root-cause" class="card primary">
+        <h2>Root Cause Interpretation</h2>
+        <div class="narrative">CPU saturation stems from concentrated load on few SQL statements, particularly the top two from OrderService accounting for 26.6% of elapsed SQL time. This drives 64.8% DB CPU usage, capping throughput. User I/O (12.4%) arises from physical read demand in these paths, commits (8.2%) from log file sync in transaction flows like the OrderService UPDATE, and concurrency (2.6%) from secondary resource contention.</div>
+      </section>
+
+      <section id="ai-action-plan" class="card primary">
+        <h2>Recommended Action Plan</h2>
+        <div class="narrative"><ol><li>Tune top SQL IDs 8f7a1xk3d9abc and b9d2k3l4m5xyz in OrderService to cut CPU (64.8%) and I/O (12.4%) demand.</li><li>Review commit frequency in OrderService transaction flows to shorten log file sync (8.2%).</li><li>Target physical reads in high-I/O SQL and objects.</li><li>Address concurrency (2.6%) on hot objects after primaries. Reinforce tuning over scaling for immediate gains.</li></ol></div>
+      </section>
+
+      <section id="ai-sizing" class="card primary">
+        <h2>OCI Sizing Considerations</h2>
+        <div class="narrative">Defer scaling until SQL tuning validates CPU and I/O relief. Current evidence shows tuning the concentrated SQL load will address primary constraints without capacity additions.</div>
+      </section>
+
+      <section id="ai-confidence" class="card primary">
+        
+    <div class="confidence-section high">
+      <h2>Confidence Assessment</h2>
+      <p><strong>Level:</strong> High</p>
+      <p><strong>Reason:</strong> confidence. Clear AWR metrics (CPU 64.8%, SQL concentration 26.6%, dominant waits) and specific top SQL signals provide strong, deterministic evidence of tunable bottlenecks.</p>
+    </div>
+    
+      </section>
+
+      <section id="ai-risk" class="card primary">
+        
+    <div class="risk-section">
+      <h2>Risk of Being Wrong</h2>
+      <p><strong>Main Risks:</strong></p>
+      <ul>
+        <li>Limited time window</li><li>Missing workload variability</li><li>Incomplete SQL execution plans</li>
+      </ul>
+      <p class="risk-reduction"><strong>What would reduce this risk:</strong><br>Additional AWR intervals, ASH data, and SQL plan history.</p>
+    </div>
+    
+      </section>
+
+      <section id="performance-charts" class="card secondary">
+        <div class="section-kicker">Visual Signals</div>
+        <h2>Performance Charts</h2>
+        <div class="chart-grid">
+          <section class="chart-panel">
+            <h3>DB Time Breakdown</h3>
+            <div class="chart-canvas"><canvas id="dbTimeBreakdownChart"></canvas></div>
+          </section>
+          <section class="chart-panel">
+            <h3>Top SQL Contribution (% Elapsed SQL Time)</h3>
+            <div class="chart-canvas"><canvas id="topSqlContributionChart"></canvas></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="workload-violin-panel" class="card secondary violin-panel">
+        <div class="section-kicker">Workload Analysis</div>
+        <h2>Workload Distribution — Violin Panel</h2>
+        <div class="violin-grid">
+          <section class="violin-chart-card">
+            <h3>CPU %</h3>
+            <div id="violinCpuPct" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Execs/s</h3>
+            <div id="violinExecsPerSec" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Read IOPs</h3>
+            <div id="violinReadIops" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Read MB/s</h3>
+            <div id="violinReadMbPerSec" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Write IOPs</h3>
+            <div id="violinWriteIops" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Write MB/s</h3>
+            <div id="violinWriteMbPerSec" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>User I/O Wait</h3>
+            <div id="violinUserIoWait" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Top SQL Elapsed Time (normalized)</h3>
+            <div id="violinTopSqlElapsedNorm" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>PGA Spill Pressure</h3>
+            <div id="violinPgaSpillPressure" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Temp I/O Pressure</h3>
+            <div id="violinTempIoPressure" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Hard Parses/s</h3>
+            <div id="violinHardParsesPerSec" class="violin-chart"></div>
+          </section>
+          <section class="violin-chart-card">
+            <h3>Log File Sync Latency</h3>
+            <div id="violinLogFileSyncMs" class="violin-chart"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="decision-layer" class="card prominent">
+        <div class="section-kicker">Decision Layer</div>
+        <h2>Agentic Decision</h2>
+        <div class="decision-grid">
+          
+    <div class="decision-box">
+      <strong>Primary Decision</strong>
+      <div>Start with CPU-heavy SQL in OrderService. Tune the top CPU-consuming and top elapsed-time SQL paths first.</div>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Execution Plan</strong>
+      <ol><li>Tune the highest CPU-consuming SQL and execution paths first.</li><li>Prioritize the top elapsed-time OrderService SQL statements immediately.</li><li>Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.</li><li>Tighten commit frequency and commit-processing behavior in the application flow.</li><li>Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.</li></ol>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Defer / Do Not Do</strong>
+      <ol><li>Do not scale now.</li><li>Do not treat storage as the first remedy.</li><li>Do not prioritize concurrency ahead of CPU, SQL concentration, User I/O, or commit latency.</li></ol>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Scaling Posture</strong>
+      <div>DO NOT SCALE</div>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Confidence Level</strong>
+      <div>High</div>
+    </div>
+    
+        </div>
+      </section>
+
+      <section id="supporting-evidence" class="card secondary">
+        <div class="section-kicker">Deterministic Layer</div>
+        <h2>Supporting Evidence</h2>
+        <div class="subgrid">
+          <section class="half evidence-pane">
+            <h3>Key Issues</h3>
+            <div class="stack">
+              
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>cpu_pressure</h3>
+              <p>CPU is the dominant bottleneck, consuming 64.8% of total DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>sql_concentration</h3>
+              <p>SQL concentration is high, with the top 2 SQL statements from module &#x27;OrderService&#x27; accounting for 26.6% of total elapsed SQL time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>io_pressure</h3>
+              <p>User I/O is a significant contributor, with &#x27;cell single block physical read&#x27; accounting for 12.4% of DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>commit_pressure</h3>
+              <p>Commit latency is material, with log file sync consuming 8.2% of DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity medium">MEDIUM</span></div>
+              <h3>concurrency_pressure</h3>
+              <p>Concurrency waits are present but secondary, accounting for 2.6% of DB time.</p>
+            </article>
+            
+            </div>
+          </section>
+
+          <section class="half evidence-pane">
+            <h3>Deterministic Recommendations</h3>
+            <div class="stack">
+              
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>cpu_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce CPU demand immediately by tuning the highest-load SQL and execution paths. CPU saturation is limiting throughput and must be treated as the primary performance constraint.</p>
+              <p><strong>Rationale:</strong> DB CPU is consuming 64.8% of total DB time, which shows CPU is saturated enough to cap workload throughput.</p>
+              <p><strong>Next Step:</strong> Start with the SQL statements and code paths consuming the most DB CPU.</p>
+              <ul><li>Tune the top CPU-consuming SQL statements first and remove avoidable row processing.</li><li>Validate execution plans and eliminate inefficient plan regressions on the busiest statements.</li><li>Reduce unnecessary parse, execute, and fetch activity in the highest-volume application paths.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>sql_concentration</h3>
+              <p><strong>Recommendation:</strong> Prioritize SQL tuning in module &#x27;OrderService&#x27; immediately. A small number of statements are dominating the workload and will deliver the fastest performance gain.</p>
+              <p><strong>Rationale:</strong> The top 2 SQL statements from module &#x27;OrderService&#x27; account for 26.6% of total elapsed SQL time.</p>
+              <p><strong>Next Step:</strong> Start with the top elapsed-time SQL IDs and the module that owns the highest elapsed-time share.</p>
+              <ul><li>Review execution plans for the top elapsed-time SQL IDs first.</li><li>Tune the dominant statements before spending time on lower-impact workload areas.</li><li>Stabilize plan quality and remove inefficient access paths, joins, or repeated executions.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>io_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce physical read demand by correcting SQL and access paths before escalating storage as the primary cause. The first priority is to remove unnecessary I/O from the workload itself.</p>
+              <p><strong>Rationale:</strong> &#x27;cell single block physical read&#x27; is consuming 12.4% of DB time, which makes User I/O a material performance constraint driven by read demand.</p>
+              <p><strong>Next Step:</strong> Start with the SQL statements and objects responsible for the highest physical read demand.</p>
+              <ul><li>Tune the SQL statements driving the highest physical read volume first.</li><li>Validate indexing, join strategy, and access path quality for the hottest objects.</li><li>Review storage latency only after SQL and object access patterns have been validated.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>commit_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce commit frequency and tighten redo path performance immediately. Commit processing is gating throughput and must be shortened at the application and redo layers.</p>
+              <p><strong>Rationale:</strong> log file sync is consuming 8.2% of DB time, which shows commit processing is materially gating workload throughput.</p>
+              <p><strong>Next Step:</strong> Start by reviewing commit frequency in the application transaction flow.</p>
+              <ul><li>Review commit frequency in the application flow and batch small transactions where appropriate.</li><li>Validate redo log sizing, switch behavior, and redo device latency.</li><li>Remove unnecessary commit calls inside tight execution loops.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity medium">MEDIUM</span></div>
+              <h3>concurrency_pressure</h3>
+              <p><strong>Recommendation:</strong> Address concurrency after the primary bottlenecks are underway. It is a secondary constraint, but the current contention still warrants targeted cleanup.</p>
+              <p><strong>Rationale:</strong> Concurrency-related waits are consuming 2.6% of DB time, which indicates measurable contention on shared database resources.</p>
+              <p><strong>Next Step:</strong> Start by isolating the specific hot objects or execution paths that sessions are colliding on.</p>
+              <ul><li>Identify the specific objects, SQL statements, or code paths behind the dominant concurrency waits.</li><li>Reduce hotspot access patterns and shorten high-contention transaction paths.</li><li>Validate whether latch, cursor, or block-level contention is the primary driver.</li></ul>
+            </article>
+            
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="provider-metadata" class="card secondary">
+        <h2>Provider Metadata</h2>
+        <div class="provider-grid">
+          <div class="provider-box">
+            <strong>Provider</strong>
+            <div>oci</div>
+          </div>
+          <div class="provider-box">
+            <strong>Model</strong>
+            <div>Grok 4.1</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">Generated at 2026-04-01T05:12:14.012717+00:00</div>
+  </div>
+  <script id="chart-payload" type="application/json">
+{
+  "db_time_breakdown": {
+    "labels": [
+      "CPU",
+      "User I/O",
+      "Commit",
+      "Concurrency",
+      "Other"
+    ],
+    "values": [
+      64.8,
+      12.4,
+      8.2,
+      2.6,
+      12.0
+    ],
+    "colors": [
+      "rgba(255, 107, 107, 0.72)",
+      "rgba(246, 184, 76, 0.72)",
+      "rgba(212, 174, 82, 0.72)",
+      "rgba(127, 179, 213, 0.72)",
+      "rgba(130, 148, 171, 0.58)"
+    ]
+  },
+  "top_sql_contribution": {
+    "labels": [
+      "8f7a1xk3d9abc",
+      "b9d2k3l4m5xyz",
+      "c7k9d2l8p3abc"
+    ],
+    "values": [
+      14.6,
+      12.0,
+      7.6
+    ],
+    "colors": [
+      "rgba(255, 107, 107, 0.68)",
+      "rgba(246, 184, 76, 0.68)",
+      "rgba(127, 179, 213, 0.68)"
+    ]
+  },
+  "violin_panel": {
+    "cpu_pct": [
+      12.5,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      25.0,
+      11.111,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      33.333
+    ],
+    "execs_per_sec": [
+      1417.286,
+      1230.839,
+      462.644,
+      345.669,
+      1083.947,
+      61.142,
+      47.283,
+      308.028,
+      259.223,
+      117.25
+    ],
+    "read_iops": [
+      256.447,
+      276.784,
+      297.12,
+      317.457,
+      337.793,
+      358.129,
+      378.466,
+      398.802,
+      419.139,
+      439.475,
+      459.811,
+      480.148,
+      500.484,
+      520.821,
+      541.157,
+      561.493,
+      581.83,
+      602.166,
+      622.503,
+      642.839
+    ],
+    "read_mb_per_sec": [
+      2.003,
+      2.162,
+      2.321,
+      2.48,
+      2.639,
+      2.798,
+      2.957,
+      3.116,
+      3.275,
+      3.433,
+      3.592,
+      3.751,
+      3.91,
+      4.069,
+      4.228,
+      4.387,
+      4.546,
+      4.704,
+      4.863,
+      5.022
+    ],
+    "write_iops": [
+      93.921,
+      101.732,
+      109.542,
+      117.352,
+      125.162,
+      132.973,
+      140.783,
+      148.593,
+      156.404,
+      164.214,
+      172.024,
+      179.834,
+      187.645,
+      195.455,
+      203.265,
+      211.076,
+      218.886,
+      226.696,
+      234.506,
+      242.317
+    ],
+    "write_mb_per_sec": [
+      0.734,
+      0.795,
+      0.856,
+      0.917,
+      0.978,
+      1.039,
+      1.1,
+      1.161,
+      1.222,
+      1.283,
+      1.344,
+      1.405,
+      1.466,
+      1.527,
+      1.588,
+      1.649,
+      1.71,
+      1.771,
+      1.832,
+      1.893
+    ],
+    "user_io_wait": [
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      12.5,
+      22.222,
+      25.0,
+      22.222,
+      12.5,
+      22.222,
+      22.222,
+      0.0
+    ],
+    "top_sql_elapsed_norm": [
+      0.91,
+      0.86,
+      1.45,
+      1.52,
+      0.4,
+      5.85,
+      6.53,
+      0.87,
+      0.87,
+      1.83
+    ],
+    "pga_spill_pressure": [],
+    "temp_io_pressure": [],
+    "hard_parses_per_sec": [],
+    "log_file_sync_ms": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      4.0,
+      4.0,
+      8.0,
+      16.0
+    ]
+  }
+}
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script>
+    const chartPayloadElement = document.getElementById('chart-payload');
+    let chartPayload = {};
+    try {
+      if (chartPayloadElement) {
+        chartPayload = JSON.parse(chartPayloadElement.textContent.trim());
+      }
+    } catch (e) {
+      console.error("Chart payload invalid", e);
+    }
+
+    const chartTextColor = '#d9e4f2';
+    const chartMutedColor = 'rgba(159, 176, 199, 0.28)';
+    let dbChart = null;
+    let sqlChart = null;
+
+    function showChartFallback(canvasId, message = 'No data available') {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) {
+        return;
+      }
+
+      const parent = canvas.parentElement;
+      if (!parent) {
+        return;
+      }
+
+      parent.innerHTML = '<div class="chart-empty">' + message + '</div>';
+    }
+
+    function showViolinFallback(containerId, message = 'Violin distributions require historical or sampled metric series.') {
+      const container = document.getElementById(containerId);
+      if (!container) {
+        return;
+      }
+
+      container.innerHTML = '<div class="chart-empty violin-panel-empty">' + message + '</div>';
+    }
+
+    function computeMean(values) {
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function computeMedian(values) {
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+      }
+      return sorted[middle];
+    }
+
+    function formatMetricValue(value) {
+      if (!Number.isFinite(value)) {
+        return '';
+      }
+      if (Math.abs(value) >= 100) {
+        return value.toFixed(0);
+      }
+      if (Math.abs(value) >= 10) {
+        return value.toFixed(1);
+      }
+      return value.toFixed(2).replace(/\.?0+$/, '');
+    }
+
+    function buildDoughnutChart() {
+      const payload = chartPayload.db_time_breakdown;
+      if (
+        !payload
+        || !Array.isArray(payload.labels)
+        || !Array.isArray(payload.values)
+        || payload.labels.length === 0
+        || payload.labels.length !== payload.values.length
+      ) {
+        showChartFallback('dbTimeBreakdownChart');
+        return;
+      }
+
+      const ctx = document.getElementById('dbTimeBreakdownChart');
+      if (!ctx) {
+        showChartFallback('dbTimeBreakdownChart');
+        return;
+      }
+
+      if (dbChart) dbChart.destroy();
+      dbChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderColor: '#0f1b2d',
+            borderWidth: 2,
+            hoverOffset: 4,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: chartTextColor,
+                boxWidth: 12,
+                padding: 16,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function buildBarChart() {
+      const payload = chartPayload.top_sql_contribution;
+      if (
+        !payload
+        || !Array.isArray(payload.labels)
+        || !Array.isArray(payload.values)
+        || payload.labels.length === 0
+        || payload.labels.length !== payload.values.length
+      ) {
+        showChartFallback('topSqlContributionChart');
+        return;
+      }
+
+      const ctx = document.getElementById('topSqlContributionChart');
+      if (!ctx) {
+        showChartFallback('topSqlContributionChart');
+        return;
+      }
+
+      if (sqlChart) sqlChart.destroy();
+      sqlChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderRadius: 8,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false,
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                display: false,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                color: chartMutedColor,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function buildViolinChart(containerId, title, samples, color) {
+      if (!Array.isArray(samples) || samples.length < 2) {
+        showViolinFallback(containerId);
+        return;
+      }
+
+      const container = document.getElementById(containerId);
+      if (!container) {
+        return;
+      }
+
+      const meanValue = computeMean(samples);
+      const medianValue = computeMedian(samples);
+      const maxValue = Math.max(...samples);
+      const minValue = Math.min(...samples);
+
+      Plotly.purge(container);
+      Plotly.newPlot(
+        container,
+        [
+          {
+            type: 'violin',
+            y: samples,
+            name: title,
+            box: {
+              visible: true,
+              fillcolor: 'rgba(225, 232, 240, 0.22)',
+              line: {
+                color: 'rgba(225, 232, 240, 0.55)',
+                width: 1,
+              },
+            },
+            meanline: {
+              visible: true,
+              color: '#0b0f14',
+              width: 2,
+            },
+            line: {
+              color: color,
+              width: 1.5,
+            },
+            fillcolor: color,
+            opacity: 0.55,
+            points: false,
+            hoveron: 'violins+points+kde',
+          },
+          {
+            type: 'scatter',
+            mode: 'markers+text',
+            x: [title],
+            y: [meanValue],
+            text: ['Mean ' + formatMetricValue(meanValue)],
+            textposition: 'middle right',
+            textfont: {
+              color: '#f6b84c',
+              size: 11,
+            },
+            marker: {
+              color: '#f6b84c',
+              symbol: 'diamond',
+              size: 10,
+              line: {
+                color: '#fff3d6',
+                width: 1,
+              },
+            },
+            hoverinfo: 'skip',
+            showlegend: false,
+          },
+          {
+            type: 'scatter',
+            mode: 'markers+text',
+            x: [title],
+            y: [maxValue],
+            text: ['Max ' + formatMetricValue(maxValue)],
+            textposition: 'top right',
+            textfont: {
+              color: '#ff6b6b',
+              size: 11,
+            },
+            marker: {
+              color: '#ff6b6b',
+              symbol: 'diamond',
+              size: 10,
+              line: {
+                color: '#ffd7d7',
+                width: 1,
+              },
+            },
+            hoverinfo: 'skip',
+            showlegend: false,
+          },
+          {
+            type: 'scatter',
+            mode: 'text',
+            x: [title],
+            y: [minValue],
+            text: ['Min ' + formatMetricValue(minValue)],
+            textposition: 'bottom left',
+            textfont: {
+              color: 'rgba(232, 238, 247, 0.72)',
+              size: 10,
+            },
+            hoverinfo: 'skip',
+            showlegend: false,
+          },
+        ],
+        {
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(11, 21, 35, 0.35)',
+          margin: {
+            l: 56,
+            r: 18,
+            t: 8,
+            b: 42,
+          },
+          font: {
+            color: chartTextColor,
+          },
+          xaxis: {
+            color: chartTextColor,
+            gridcolor: 'rgba(0,0,0,0)',
+            zeroline: false,
+          },
+          yaxis: {
+            color: chartTextColor,
+            gridcolor: chartMutedColor,
+            zeroline: false,
+          },
+          shapes: [
+            {
+              type: 'line',
+              xref: 'paper',
+              x0: 0.38,
+              x1: 0.62,
+              y0: medianValue,
+              y1: medianValue,
+              line: {
+                color: '#0b0f14',
+                width: 2,
+              },
+            },
+          ],
+        },
+        {
+          displayModeBar: false,
+          responsive: true,
+        },
+      );
+    }
+
+    function buildViolinPanel() {
+      const payload = chartPayload.violin_panel || {};
+
+      buildViolinChart(
+        'violinCpuPct',
+        'CPU %',
+        payload.cpu_pct,
+        'rgba(255, 107, 107, 0.72)',
+      );
+      buildViolinChart(
+        'violinExecsPerSec',
+        'Execs/s',
+        payload.execs_per_sec,
+        'rgba(90, 209, 255, 0.72)',
+      );
+      buildViolinChart(
+        'violinReadIops',
+        'Read IOPs',
+        payload.read_iops,
+        'rgba(246, 184, 76, 0.72)',
+      );
+      buildViolinChart(
+        'violinReadMbPerSec',
+        'Read MB/s',
+        payload.read_mb_per_sec,
+        'rgba(212, 174, 82, 0.72)',
+      );
+      buildViolinChart(
+        'violinWriteIops',
+        'Write IOPs',
+        payload.write_iops,
+        'rgba(127, 179, 213, 0.72)',
+      );
+      buildViolinChart(
+        'violinWriteMbPerSec',
+        'Write MB/s',
+        payload.write_mb_per_sec,
+        'rgba(130, 148, 171, 0.72)',
+      );
+      buildViolinChart(
+        'violinUserIoWait',
+        'User I/O Wait',
+        payload.user_io_wait,
+        'rgba(255, 159, 67, 0.72)',
+      );
+      buildViolinChart(
+        'violinTopSqlElapsedNorm',
+        'Top SQL Elapsed Time (normalized)',
+        payload.top_sql_elapsed_norm,
+        'rgba(186, 104, 200, 0.72)',
+      );
+      buildViolinChart(
+        'violinPgaSpillPressure',
+        'PGA Spill Pressure',
+        payload.pga_spill_pressure,
+        'rgba(102, 187, 106, 0.72)',
+      );
+      buildViolinChart(
+        'violinTempIoPressure',
+        'Temp I/O Pressure',
+        payload.temp_io_pressure,
+        'rgba(38, 166, 154, 0.72)',
+      );
+      buildViolinChart(
+        'violinHardParsesPerSec',
+        'Hard Parses/s',
+        payload.hard_parses_per_sec,
+        'rgba(255, 202, 40, 0.72)',
+      );
+      buildViolinChart(
+        'violinLogFileSyncMs',
+        'Log File Sync Latency',
+        payload.log_file_sync_ms,
+        'rgba(239, 83, 80, 0.72)',
+      );
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      buildDoughnutChart();
+      buildBarChart();
+      buildViolinPanel();
+    });
+  </script>
+</body>
+</html>
