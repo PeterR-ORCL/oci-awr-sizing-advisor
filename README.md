@@ -1,10 +1,10 @@
-# OCI AWR Sizing Advisor — Progress Overview
+# OCI AWR Agentic AI Sizing Advisor — Progress Overview
 
 ## Overview
 
-The OCI AWR Sizing Advisor is an **agentic AI system** that transforms Oracle AWR reports into **actionable performance insights and OCI sizing guidance**.
+The OCI AWR Agentic AI Sizing Advisor is an **agentic AI system** that transforms Oracle AWR reports into **actionable performance insights and OCI sizing guidance**.
 
-The system progresses from raw AWR parsing to deterministic analysis, and ultimately to **recommendations, narrative insights, and infrastructure decisions**. It **analytical honesty**: no fabricated metrics, no synthetic distributions, and no misleading visualizations.
+The system progresses from raw AWR parsing to deterministic analysis, and ultimately to **recommendations, narrative insights, and infrastructure decisions**. It enforces **analytical honesty**: no fabricated metrics, no synthetic distributions, and no misleading visualizations.
 
 It is designed to replace manual AWR interpretation with a **repeatable, explainable, and automation-ready workflow**.
 
@@ -18,7 +18,7 @@ This system introduces:
 - Deterministic analysis → consistent outcomes  
 - Structured metrics → machine-readable insights  
 - Automated recommendations → immediate actionability  
-- AI narrative layer →  interpretation, prioritization, and decision support  
+- AI narrative layer → interpretation, prioritization, and decision support  
 
 Bridging the gap between **performance engineering and business decision-making**.
 
@@ -71,19 +71,19 @@ The system follows a layered, deterministic-first approach:
 AWR Report(s) (.out)
 (single run or batch input)
         ↓
-Parsing Layer (Day 1)
+Parsing Layer
         ↓
-Structured Metrics (Day 2)
+Structured Metrics
         ↓
-Issue Detection (Day 3)
+Issue Detection
         ↓
-Recommendation Engine (Day 4)
+Recommendation Engine
         ↓
 ────────────────────────────────────────────
 Deterministic Truth Layer (Source of Truth)
 ────────────────────────────────────────────
         ↓
-AI Narrative Layer (Day 5 - Grounded, Stateless)
+AI Narrative Layer (Grounded, Stateless)
    → OpenAI (advanced reasoning)
    → OCI Generative AI (Oracle-native AI)
         ↓
@@ -91,12 +91,40 @@ AI Narrative Layer (Day 5 - Grounded, Stateless)
 Context & State Layer
 ────────────────────────────────────────────
         ↓
-ADB (Day 6 - History / Trends)
+ADB (History / Trends)
         ↓
-Agentic Decision Layer (Day 6 - Stateful, Context-Aware)
+Agentic Decision Layer (Stateful, Context-Aware)
         ↓
-OCI Sizing Guidance (Day 7)
+OCI Sizing Guidance
 ```
+---
+
+## Database Schema
+
+The project includes an Autonomous Database schema under:
+
+```text
+dbschema/
+```
+
+This schema supports the **stateful layer** of the system and enables:
+- Multi-AWR ingestion and replay
+- Historical trend analysis
+- Metric, wait event, and top SQL fact storage
+- JSON-based raw and parsed payload persistence
+- Feature vectors and semantic embeddings
+- Scoring, recommendation, action, and outcome tracking
+- Feedback loops for model retraining
+
+The schema is designed to align with the agentic workflow:
+
+```text
+AWR → Parse → Metrics → Feature Vector → Score → Recommendation → Action → Outcome → Retrain
+```
+
+This allows the system to evolve from stateless analysis to a **stateful, learning system**.
+
+This schema is the foundation for the **Context & State Layer (ADB)** described in the architecture above.
 
 ---
 
@@ -108,7 +136,7 @@ This system is designed as an **agentic AI architecture**, not a chatbot.
 
 - Deterministic reasoning engine (issues + recommendations)
 - AI narrative layer (explains and contextualizes decisions)
-- Historical awareness via ADB (Day 6)
+- Historical awareness via ADB
 - Future capability:
   - trend-based decision making
   - predictive workload behavior
@@ -136,7 +164,7 @@ Each AWR may represent:
 The system:
 - analyzes each AWR independently
 - produces tailored recommendations per workload
-- will support historical trend analysis via ADB (Day 6)
+- will support historical trend analysis via ADB
 
 ### Why this matters
 
@@ -151,7 +179,7 @@ Multi-AWR analysis enables:
 
 ## Development Progress
 
-### Day 1 — AWR Parsing Foundation (Complete)
+### AWR Parsing Foundation (Complete)
 
 - Implemented ingestion of Oracle AWR .out files
 - Built section detection (CPU, waits, SQL, etc.)
@@ -162,7 +190,7 @@ Multi-AWR analysis enables:
 
 ---
 
-### Day 2 — Structured Metrics Extraction (Complete)
+### Structured Metrics Extraction (Complete)
 
 - Parsed CPU load profile metrics
 - Parsed foreground wait events
@@ -174,7 +202,7 @@ Multi-AWR analysis enables:
 
 ---
 
-### Day 3 — Automated Performance Issue Detection (Complete)
+### Automated Performance Issue Detection (Complete)
 
 The system performs deterministic performance analysis, converting metrics into prioritized, evidence-backed findings.
 
@@ -190,7 +218,7 @@ The system performs deterministic performance analysis, converting metrics into 
 
 ---
 
-### Day 4 — Recommendation Engine (Complete)
+### Recommendation Engine (Complete)
 
 The system now generates senior DBA-grade recommendations with clear execution guidance.
 
@@ -221,7 +249,7 @@ The system now generates senior DBA-grade recommendations with clear execution g
 
 ---
 
-## Day 5 — AI Narrative Layer (Completed)
+## AI Narrative Layer (Completed)
 
 The AI layer generates a structured, executive-ready advisory output grounded in deterministic findings and contributes to decision framing.
 
@@ -297,7 +325,7 @@ The project now generates an interactive HTML dashboard that presents determinis
 - Top SQL Elapsed Time (normalized)
 - Log File Sync Latency
 
-#### Violin metrics scaffolded for next parser enhancement
+#### Metrics currently available as scalar facts
 
 - PGA Spill Pressure
 - Temp I/O Pressure
@@ -405,15 +433,15 @@ This is:
 
 ### Completed
 
-- Day 1 — AWR Parsing
-- Day 2 — Structured Metrics
-- Day 3 — Issue Detection
-- Day 4 — Recommendation Engine
-- Day 5 — AI Narrative Layer (grounded, no hallucination)
+- AWR Parsing
+- Structured Metrics
+- Issue Detection
+- Recommendation Engine
+- AI Narrative Layer (grounded, no hallucination)
 
 ### Next
 
-### Day 6 — Agentic Decision Layer + ADB Integration
+### Agentic Decision Layer + ADB Integration
 
 Evolve from recommendations to guided execution planning.
 
@@ -428,7 +456,7 @@ Planned capabilities:
 
 ---
 
-### Day 7 — OCI Sizing & Demo Packaging
+### OCI Sizing & Demo Packaging
 
 Connect performance analysis to OCI infrastructure decisions.
 
@@ -475,22 +503,26 @@ src/
   models/
   parser/
   analysis/
+  reporting/
 scripts/
 data/
+dbschema/
+examples/
 ```
 
 ---
 
 ## Status
 
-**Day 5 Complete — AI Narrative Layer**  
+**Complete Milestone — Deterministic Analysis + AI Advisory Dashboard Complete**  
 
 Current state:
 - Deterministic analysis working
-- AI narrative layer working
+- AI advisory layer working
 - Interactive HTML dashboard working
-- Violin workload panel working for core metrics
+- Violin workload panel working for core distribution-backed metrics
 - Scalar extraction implemented for PGA Spill Pressure, Temp I/O Pressure, Hard Parses/s
-- Distribution support pending multi-AWR / historical data (Day 6)
+- ADB schema completed and provisioned
+- Multi-AWR ingestion and historical trend support next
 
-Next: **Day 6 — ADB (History / Trends), Agentic Decision Layer, and remaining violin metric extraction**
+Next: **Multi-AWR ingestion and comparison, ADB history/trend integration, and Agentic Decision Layer**
