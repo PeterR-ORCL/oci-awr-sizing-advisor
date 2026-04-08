@@ -60,6 +60,27 @@ SECTION_PATTERNS: dict[str, tuple[str, ...]] = {
         "logons cumulative",
         "activity during the snapshot period",
     ),
+    "cluster": (
+        "global cache",
+        "cluster wait",
+        "cache fusion",
+        "gc cr",
+        "gc current",
+    ),
+    "dataguard": (
+        "data guard",
+        "transport lag",
+        "apply lag",
+        "managed recovery",
+        "database role",
+    ),
+    "exadata": (
+        "exadata",
+        "cell smart table scan",
+        "cell physical io interconnect bytes",
+        "bytes eligible for predicate offload",
+        "storage index",
+    ),
 }
 
 

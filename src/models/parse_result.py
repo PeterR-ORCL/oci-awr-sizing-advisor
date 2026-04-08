@@ -27,6 +27,7 @@ class ParseResult:
     event_histograms: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     ash_samples: list[dict[str, Any]] = field(default_factory=list)
     session_metrics: list[dict[str, Any]] = field(default_factory=list)
+    topology_signals: dict[str, Any] = field(default_factory=dict)
     parse_warnings: list[str] = field(default_factory=list)
     parse_errors: list[str] = field(default_factory=list)
 

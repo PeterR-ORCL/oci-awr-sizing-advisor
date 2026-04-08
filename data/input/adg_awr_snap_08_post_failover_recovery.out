@@ -1,0 +1,85 @@
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.18.0.0.0
+WORKLOAD REPOSITORY REPORT - ADG SAMPLE
+
+Snapshot Period Summary
+DB Name         DB Id      Instance       Inst Num  Startup Time             Release      RAC
+------------ ----------- ------------- --------- ------------------------ ----------- ---
+FINDB        1234567890 FINDB_STBY            1 24-Mar-26 03:15:19      19.18.0.0.0 NO
+
+Host Name    Platform
+------------ ------------------------------------------------------------
+exa-adg-node01 Linux x86 64-bit
+
+Begin Snap: 12238  29-Mar-26 07:00:00
+  End Snap: 12239  29-Mar-26 08:00:00
+   Elapsed:               60.00 (mins)
+   DB Time:            410.0 (mins)
+
+Workload Note
+-------------
+Post-failover recovery. New primary stabilizes but throughput remains below pre-event baseline.
+
+Data Guard Role Summary
+-----------------------
+Reported role context: PRIMARY
+Protection mode: MAXIMUM PERFORMANCE
+
+Load Profile
+~~~~~~~~~~~~                            Per Second       Per Transaction
+                                   ---------------    ---------------
+                 DB Time(s):              410.0               1.21
+                  DB CPU(s):              250.0               0.74
+                  Redo size:        123,731,968.0          363,917.6
+               Transactions:              340.0
+
+Foreground Wait Events
+~~~~~~~~~~~~~~~~~~~~~~
+                                                               Avg
+                                                      Wait   wait   % DB
+Event                                   Waits   Time (s)   (ms)   time Wait Class
+-------------------------------- ------------ ---------- ------ ------ ------------------------------
+DB CPU                                                15,000          61.0                            CPU
+log file sync                           1,216,656      1,313   1.08    5.3                         Commit
+cell single block physical read        11,200,000      2,800   0.25   11.4                       User I/O
+LNS wait on SENDREQ                             1          0   0.00    0.0                        Network
+RFS write                                     420          1   2.38    0.0                     System I/O
+managed recovery process wait                 350          0   0.00    0.0                  Configuration
+
+Data Guard Statistics
+~~~~~~~~~~~~~~~~~~~~~
+Statistic                                      Value
+------------------------------------------- ----------------
+transport lag (seconds)                                    0
+apply lag (seconds)                                        0
+redo transport status                                     OK
+apply status                                       CAUGHT UP
+estimated data loss exposure (seconds)                     0
+observer status                                       ONLINE
+
+Role Transition Indicators
+--------------------------
+Post-failover state: former standby is now primary.
+Protection is being re-established to a new standby target.
+
+SQL ordered by Elapsed Time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SQL Id        Elapsed Time (s)  Executions  Elap/Exec(ms)  %Total   Module
+------------- ----------------- ---------- -------------- -------  ------------------
+8f7a1xk3d9abc             3,198 171,849,600           0.02    13.0  OrderService
+b9d2k3l4m5xyz             2,460 132,192,000           0.02    10.0  OrderService
+c7k9d2l8p3abc             1,476 79,315,200           0.02     6.0  CheckoutService
+d4n7s1v2q8mno               984 52,876,800           0.02     4.0  PaymentService
+
+Transactions and Redo
+~~~~~~~~~~~~~~~~~~~~~
+User commits:                          1,216,656
+User rollbacks:                           7,344
+Transactions/sec:                         340.0
+Redo generated per sec:                   118.0 MB
+
+Anomaly Flags
+~~~~~~~~~~~~~
+- post_failover_recovery
+
+End of Report

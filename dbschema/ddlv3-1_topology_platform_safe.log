@@ -1,0 +1,605 @@
+SQL> SET TIMING ON
+SQL> SET SERVEROUTPUT ON
+SQL> 
+SQL> --------------------------------------------------------------------------------
+SQL> -- 1. ADD NEW COLUMNS SAFELY
+SQL> --------------------------------------------------------------------------------
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        ALTER TABLE AWR_SOURCE_SYSTEM ADD (
+  5          DATABASE_ROLE VARCHAR2(64),
+  6          INSTANCE_COUNT NUMBER
+  7        )';
+  8    EXCEPTION
+  9      WHEN OTHERS THEN
+ 10        IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
+ 11    END;
+ 12  END;
+ 13  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.352
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        ALTER TABLE AWR_FEATURE_VECTOR ADD (
+  5          TOPOLOGY_CLASS VARCHAR2(64),
+  6          PLATFORM_CLASS VARCHAR2(64),
+  7          EVENT_CLASS VARCHAR2(64)
+  8        )';
+  9    EXCEPTION
+ 10      WHEN OTHERS THEN
+ 11        IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
+ 12    END;
+ 13  END;
+ 14  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.274
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        ALTER TABLE AWR_SCORE_RESULT ADD (
+  5          WORKLOAD_CLASS VARCHAR2(64),
+  6          TOPOLOGY_CLASS VARCHAR2(64),
+  7          PLATFORM_CLASS VARCHAR2(64),
+  8          EVENT_CLASS VARCHAR2(64),
+  9          PRIMARY_SIGNAL_DOMAIN VARCHAR2(64)
+ 10        )';
+ 11    EXCEPTION
+ 12      WHEN OTHERS THEN
+ 13        IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
+ 14    END;
+ 15  END;
+ 16  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.220
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> --------------------------------------------------------------------------------
+SQL> -- 2. BACKFILL NEW CLASSIFICATION COLUMNS FROM EXISTING JSON PAYLOADS
+SQL> --    Safe for current rows already stored by the updated Python code.
+SQL> --------------------------------------------------------------------------------
+SQL> 
+SQL> UPDATE AWR_FEATURE_VECTOR fv
+  2     SET TOPOLOGY_CLASS = JSON_VALUE(fv.FEATURE_JSON, '$.TOPOLOGY_CLASS' RETURNING VARCHAR2(64) NULL ON ERROR),
+  3         PLATFORM_CLASS = JSON_VALUE(fv.FEATURE_JSON, '$.PLATFORM_CLASS' RETURNING VARCHAR2(64) NULL ON ERROR),
+  4         EVENT_CLASS    = JSON_VALUE(fv.FEATURE_JSON, '$.OPERATIONAL_EVENT_CLASS' RETURNING VARCHAR2(64) NULL ON ERROR)
+  5   WHERE (fv.TOPOLOGY_CLASS IS NULL OR fv.PLATFORM_CLASS IS NULL OR fv.EVENT_CLASS IS NULL)
+  6     AND fv.FEATURE_JSON IS NOT NULL;
+
+21 rows updated.
+
+Elapsed: 00:00:00.179
+SQL> 
+SQL> UPDATE AWR_SCORE_RESULT sr
+  2     SET WORKLOAD_CLASS = JSON_VALUE(sr.SCORECARD_JSON, '$.workload_class' RETURNING VARCHAR2(64) NULL ON ERROR),
+  3         TOPOLOGY_CLASS = JSON_VALUE(sr.SCORECARD_JSON, '$.topology_class' RETURNING VARCHAR2(64) NULL ON ERROR),
+  4         PLATFORM_CLASS = JSON_VALUE(sr.SCORECARD_JSON, '$.platform_class' RETURNING VARCHAR2(64) NULL ON ERROR),
+  5         EVENT_CLASS = JSON_VALUE(sr.SCORECARD_JSON, '$.event_class' RETURNING VARCHAR2(64) NULL ON ERROR),
+  6         PRIMARY_SIGNAL_DOMAIN = JSON_VALUE(sr.SCORECARD_JSON, '$.primary_signal_domain' RETURNING VARCHAR2(64) NULL ON ERROR)
+  7   WHERE (sr.WORKLOAD_CLASS IS NULL
+  8      OR sr.TOPOLOGY_CLASS IS NULL
+  9      OR sr.PLATFORM_CLASS IS NULL
+ 10      OR sr.EVENT_CLASS IS NULL
+ 11      OR sr.PRIMARY_SIGNAL_DOMAIN IS NULL)
+ 12     AND sr.SCORECARD_JSON IS NOT NULL;
+
+10 rows updated.
+
+Elapsed: 00:00:00.159
+SQL> 
+SQL> UPDATE AWR_SOURCE_SYSTEM s
+  2     SET DATABASE_ROLE = (
+  3           SELECT MAX(JSON_VALUE(fv.FEATURE_JSON, '$.DATABASE_ROLE' RETURNING VARCHAR2(64) NULL ON ERROR))
+  4             FROM AWR_FEATURE_VECTOR fv
+  5            WHERE fv.SOURCE_SYSTEM_ID = s.SOURCE_SYSTEM_ID
+  6         ),
+  7         INSTANCE_COUNT = (
+  8           SELECT MAX(
+  9                    TO_NUMBER(
+ 10                      JSON_VALUE(fv.FEATURE_JSON, '$.INSTANCE_COUNT' RETURNING VARCHAR2(64) NULL ON ERROR)
+ 11                    )
+ 12                  )
+ 13             FROM AWR_FEATURE_VECTOR fv
+ 14            WHERE fv.SOURCE_SYSTEM_ID = s.SOURCE_SYSTEM_ID
+ 15         )
+ 16   WHERE EXISTS (
+ 17           SELECT 1
+ 18             FROM AWR_FEATURE_VECTOR fv
+ 19            WHERE fv.SOURCE_SYSTEM_ID = s.SOURCE_SYSTEM_ID
+ 20         );
+
+1 row updated.
+
+Elapsed: 00:00:00.160
+SQL> 
+SQL> COMMIT;
+
+Commit complete.
+
+Elapsed: 00:00:00.142
+SQL> 
+SQL> --------------------------------------------------------------------------------
+SQL> -- 3. CREATE SAFE NON-PARTITIONED INDEXES
+SQL> --    Do NOT use LOCAL here unless your tables are truly partitioned.
+SQL> --------------------------------------------------------------------------------
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        CREATE INDEX IX_AWR_FEATURE_VECTOR_02
+  5            ON AWR_FEATURE_VECTOR (TOPOLOGY_CLASS, PLATFORM_CLASS, EVENT_CLASS, AWR_ID)';
+  6    EXCEPTION
+  7      WHEN OTHERS THEN
+  8        IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+  9    END;
+ 10  END;
+ 11  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.202
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        CREATE INDEX IX_AWR_SCORE_RESULT_04
+  5            ON AWR_SCORE_RESULT (TOPOLOGY_CLASS, PLATFORM_CLASS, EVENT_CLASS, AWR_ID)';
+  6    EXCEPTION
+  7      WHEN OTHERS THEN
+  8        IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+  9    END;
+ 10  END;
+ 11  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.156
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> --------------------------------------------------------------------------------
+SQL> -- 4. OPTIONAL JSON FUNCTION-BASED INDEXES
+SQL> --    Safe and useful, but not required for correctness.
+SQL> --------------------------------------------------------------------------------
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        CREATE INDEX IX_AWR_FEATURE_VECTOR_JSON_02
+  5            ON AWR_FEATURE_VECTOR (
+  6              JSON_VALUE(FEATURE_JSON, ''$.TOPOLOGY_CLASS'' RETURNING VARCHAR2(64) NULL ON ERROR),
+  7              JSON_VALUE(FEATURE_JSON, ''$.PLATFORM_CLASS'' RETURNING VARCHAR2(64) NULL ON ERROR),
+  8              JSON_VALUE(FEATURE_JSON, ''$.OPERATIONAL_EVENT_CLASS'' RETURNING VARCHAR2(64) NULL ON ERROR)
+  9            )';
+ 10    EXCEPTION
+ 11      WHEN OTHERS THEN
+ 12        IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+ 13    END;
+ 14  END;
+ 15  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.173
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> BEGIN
+  2    BEGIN
+  3      EXECUTE IMMEDIATE '
+  4        CREATE INDEX IX_AWR_SCORE_RESULT_JSON_02
+  5            ON AWR_SCORE_RESULT (
+  6              JSON_VALUE(SCORECARD_JSON, ''$.topology_class'' RETURNING VARCHAR2(64) NULL ON ERROR),
+  7              JSON_VALUE(SCORECARD_JSON, ''$.platform_class'' RETURNING VARCHAR2(64) NULL ON ERROR),
+  8              JSON_VALUE(SCORECARD_JSON, ''$.event_class'' RETURNING VARCHAR2(64) NULL ON ERROR)
+  9            )';
+ 10    EXCEPTION
+ 11      WHEN OTHERS THEN
+ 12        IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+ 13    END;
+ 14  END;
+ 15  /
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.155
+SQL> SHOW ERRORS
+No errors.
+SQL> 
+SQL> --------------------------------------------------------------------------------
+SQL> -- 5. SEED TOPOLOGY / PLATFORM WEIGHTS INTO EXISTING MODEL
+SQL> --------------------------------------------------------------------------------
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'CLUSTER_WAIT_PCT_DB_TIME',
+  8      'Cluster Wait Pressure',
+  9      'CLUSTER',
+ 10      '$.CLUSTER_WAIT_PCT_DB_TIME',
+ 11      0.14,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_BAD',
+ 15      'Topology-aware RAC scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'CLUSTER_WAIT_PCT_DB_TIME'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.154
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'GC_CURRENT_WAIT_PCT_DB_TIME',
+  8      'GC Current Wait Pressure',
+  9      'CLUSTER',
+ 10      '$.GC_CURRENT_WAIT_PCT_DB_TIME',
+ 11      0.10,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_BAD',
+ 15      'Topology-aware RAC current block wait scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'GC_CURRENT_WAIT_PCT_DB_TIME'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.149
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'TRANSPORT_LAG_SEC',
+  8      'Transport Lag',
+  9      'DG',
+ 10      '$.TRANSPORT_LAG_SEC',
+ 11      0.12,
+ 12      'MINMAX',
+ 13      'LOG1P',
+ 14      'HIGH_BAD',
+ 15      'Topology-aware Data Guard transport lag scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'TRANSPORT_LAG_SEC'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.151
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'APPLY_LAG_SEC',
+  8      'Apply Lag',
+  9      'DG',
+ 10      '$.APPLY_LAG_SEC',
+ 11      0.12,
+ 12      'MINMAX',
+ 13      'LOG1P',
+ 14      'HIGH_BAD',
+ 15      'Topology-aware Data Guard apply lag scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'APPLY_LAG_SEC'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.148
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'FAILOVER_EVENT_FLAG',
+  8      'Failover Event',
+  9      'TOPOLOGY_EVENT',
+ 10      '$.FAILOVER_EVENT_FLAG',
+ 11      0.18,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_BAD',
+ 15      'Operational transition scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'FAILOVER_EVENT_FLAG'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.148
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'ROLE_TRANSITION_FLAG',
+  8      'Role Transition Event',
+  9      'TOPOLOGY_EVENT',
+ 10      '$.ROLE_TRANSITION_FLAG',
+ 11      0.12,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_BAD',
+ 15      'Operational role-transition scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'ROLE_TRANSITION_FLAG'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.150
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'POST_FAILOVER_RECOVERY_FLAG',
+  8      'Post-Failover Recovery',
+  9      'TOPOLOGY_EVENT',
+ 10      '$.POST_FAILOVER_RECOVERY_FLAG',
+ 11      0.12,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_BAD',
+ 15      'Operational recovery scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'POST_FAILOVER_RECOVERY_FLAG'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.145
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'EXA_CELL_IO_PCT_DB_TIME',
+  8      'Exadata Cell Wait Pressure',
+  9      'EXADATA',
+ 10      '$.EXA_CELL_IO_PCT_DB_TIME',
+ 11      0.10,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_BAD',
+ 15      'Engineered-system wait pressure weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'EXA_CELL_IO_PCT_DB_TIME'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.143
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'EXA_OFFLOAD_EFFICIENCY',
+  8      'Exadata Offload Efficiency',
+  9      'EXADATA',
+ 10      '$.EXA_OFFLOAD_EFFICIENCY',
+ 11      0.08,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_GOOD',
+ 15      'Beneficial engineered-system offload weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'EXA_OFFLOAD_EFFICIENCY'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.143
+SQL> 
+SQL> INSERT INTO AWR_SCORING_WEIGHT (
+  2      SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+  3      WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+  4  )
+  5  SELECT
+  6      m.SCORING_MODEL_ID,
+  7      'SMART_SCAN_FLAG',
+  8      'Smart Scan Active',
+  9      'EXADATA',
+ 10      '$.SMART_SCAN_FLAG',
+ 11      0.06,
+ 12      'MINMAX',
+ 13      'NONE',
+ 14      'HIGH_GOOD',
+ 15      'Beneficial smart scan scoring weight'
+ 16  FROM AWR_SCORING_MODEL m
+ 17  WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+ 18    AND NOT EXISTS (
+ 19        SELECT 1
+ 20        FROM AWR_SCORING_WEIGHT w
+ 21        WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+ 22          AND w.FEATURE_CODE = 'SMART_SCAN_FLAG'
+ 23    );
+
+1 row inserted.
+
+Elapsed: 00:00:00.145
+SQL> 
+SQL> COMMIT;
+
+Commit complete.
+
+Elapsed: 00:00:00.142
+SQL> 
+SQL> --------------------------------------------------------------------------------
+SQL> -- 6. QUICK VALIDATION
+SQL> --------------------------------------------------------------------------------
+SQL> 
+SQL> PROMPT
+
+SQL> PROMPT =============================
+=============================
+SQL> PROMPT V3 UPGRADE VALIDATION
+V3 UPGRADE VALIDATION
+SQL> PROMPT =============================
+=============================
+SQL> 
+SQL> SELECT column_name
+  2  FROM user_tab_cols
+  3  WHERE table_name = 'AWR_SOURCE_SYSTEM'
+  4    AND column_name IN ('DATABASE_ROLE', 'INSTANCE_COUNT')
+  5  ORDER BY column_name;
+
+COLUMN_NAME       
+_________________ 
+DATABASE_ROLE     
+INSTANCE_COUNT    
+
+Elapsed: 00:00:00.240
+SQL> 
+SQL> SELECT column_name
+  2  FROM user_tab_cols
+  3  WHERE table_name = 'AWR_FEATURE_VECTOR'
+  4    AND column_name IN ('TOPOLOGY_CLASS', 'PLATFORM_CLASS', 'EVENT_CLASS')
+  5  ORDER BY column_name;
+
+COLUMN_NAME       
+_________________ 
+EVENT_CLASS       
+PLATFORM_CLASS    
+TOPOLOGY_CLASS    
+
+Elapsed: 00:00:00.181
+SQL> 
+SQL> SELECT column_name
+  2  FROM user_tab_cols
+  3  WHERE table_name = 'AWR_SCORE_RESULT'
+  4    AND column_name IN ('WORKLOAD_CLASS', 'TOPOLOGY_CLASS', 'PLATFORM_CLASS', 'EVENT_CLASS', 'PRIMARY_SIGNAL_DOMAIN')
+  5  ORDER BY column_name;
+
+COLUMN_NAME              
+________________________ 
+EVENT_CLASS              
+PLATFORM_CLASS           
+PRIMARY_SIGNAL_DOMAIN    
+TOPOLOGY_CLASS           
+WORKLOAD_CLASS           
+
+Elapsed: 00:00:00.184
+SQL> 
+SQL> SELECT feature_code, feature_domain, weight_value
+  2  FROM awr_scoring_weight
+  3  WHERE feature_code IN (
+  4    'CLUSTER_WAIT_PCT_DB_TIME',
+  5    'GC_CURRENT_WAIT_PCT_DB_TIME',
+  6    'TRANSPORT_LAG_SEC',
+  7    'APPLY_LAG_SEC',
+  8    'FAILOVER_EVENT_FLAG',
+  9    'ROLE_TRANSITION_FLAG',
+ 10    'POST_FAILOVER_RECOVERY_FLAG',
+ 11    'EXA_CELL_IO_PCT_DB_TIME',
+ 12    'EXA_OFFLOAD_EFFICIENCY',
+ 13    'SMART_SCAN_FLAG'
+ 14  )
+ 15  ORDER BY feature_code;
+
+FEATURE_CODE                   FEATURE_DOMAIN       WEIGHT_VALUE 
+______________________________ _________________ _______________ 
+APPLY_LAG_SEC                  DG                           0.12 
+CLUSTER_WAIT_PCT_DB_TIME       CLUSTER                      0.14 
+EXA_CELL_IO_PCT_DB_TIME        EXADATA                       0.1 
+EXA_OFFLOAD_EFFICIENCY         EXADATA                      0.08 
+FAILOVER_EVENT_FLAG            TOPOLOGY_EVENT               0.18 
+GC_CURRENT_WAIT_PCT_DB_TIME    CLUSTER                       0.1 
+POST_FAILOVER_RECOVERY_FLAG    TOPOLOGY_EVENT               0.12 
+ROLE_TRANSITION_FLAG           TOPOLOGY_EVENT               0.12 
+SMART_SCAN_FLAG                EXADATA                      0.06 
+TRANSPORT_LAG_SEC              DG                           0.12 
+
+10 rows selected. 
+
+Elapsed: 00:00:00.148
+SQL> 
+SQL> SPOOL OFF

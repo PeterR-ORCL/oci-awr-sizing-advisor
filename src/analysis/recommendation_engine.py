@@ -5,6 +5,9 @@ from typing import Any, Dict, List
 from src.models.recommendation import Recommendation
 
 RECOMMENDATION_ORDER = (
+    "topology_event",
+    "dg_replication_state",
+    "cluster_contention",
     "cpu_pressure",
     "sql_concentration",
     "io_pressure",
@@ -56,6 +59,51 @@ def _build_recommendation(issue: Dict[str, Any]) -> Recommendation | None:
             evidence=evidence,
         )
 
+    if issue_type == "topology_event":
+        return RecommendationWithNextStep(
+            issue_type=issue_type,
+            severity=severity,
+            recommendation="Treat the current snapshot as an operational transition event first. Validate failover, role-transition, and recovery state before interpreting the interval as a pure workload-sizing signal.",
+            rationale="Failover, switchover, or post-failover recovery evidence is present, so topology state must be stabilized before generic scaling conclusions are trusted.",
+            actions=[
+                "Validate current database role and cluster/replication state first.",
+                "Check whether the interval sits inside failover or role-transition recovery activity.",
+                "Delay sizing actions until the platform has returned to a steady operating state.",
+            ],
+            next_step="Start by confirming whether the interval is inside failover or role-transition recovery behavior.",
+            evidence=evidence,
+        )
+
+    if issue_type == "dg_replication_state":
+        return RecommendationWithNextStep(
+            issue_type=issue_type,
+            severity=severity,
+            recommendation="Treat the dominant issue as Data Guard replication health, not generic workload scaling. Replication-state pressure should be resolved before the interval is used to justify capacity changes.",
+            rationale="Replication-state evidence is present, which points to Data Guard health or recovery state rather than to a simple CPU or storage shortfall.",
+            actions=[
+                "Validate redo transport health, network path quality, and standby recovery progress.",
+                "Check whether apply lag is driven by backlog, transport delay, or post-transition catch-up.",
+                "Separate primary workload symptoms from replication-lag symptoms before sizing decisions are made.",
+            ],
+            next_step="Start by validating Data Guard role, redo shipping health, and standby recovery state for the current role.",
+            evidence=evidence,
+        )
+
+    if issue_type == "cluster_contention":
+        return RecommendationWithNextStep(
+            issue_type=issue_type,
+            severity=severity,
+            recommendation="Treat the dominant issue as RAC coordination pressure before treating it as generic CPU or storage pressure. Global-cache and cluster waits should be reduced through access-pattern and instance-affinity tuning first.",
+            rationale="Cluster wait pressure is materially visible, which points to RAC coordination and interconnect behavior rather than to a generic single-instance bottleneck.",
+            actions=[
+                "Identify objects and SQL paths driving the hottest global-cache traffic.",
+                "Review service placement, instance affinity, and cross-instance access patterns.",
+                "Check whether interconnect stress or GC buffer busy behavior is amplifying the response-time profile.",
+            ],
+            next_step="Start by identifying the SQL and objects generating the highest cross-instance global-cache traffic.",
+            evidence=evidence,
+        )
+
     if issue_type == "sql_concentration":
         combined_pct_total = _format_pct(evidence.get("combined_pct_total"))
         modules = _extract_modules(evidence)
@@ -65,7 +113,7 @@ def _build_recommendation(issue: Dict[str, Any]) -> Recommendation | None:
                 "A small number of statements are dominating the workload and will deliver the fastest performance gain."
             )
             rationale = (
-                f"The top 2 SQL statements from module '{modules[0]}' account for {combined_pct_total} "
+                f"The top 3 SQL statements from module '{modules[0]}' account for {combined_pct_total} "
                 "of total elapsed SQL time."
             )
         else:
@@ -73,7 +121,7 @@ def _build_recommendation(issue: Dict[str, Any]) -> Recommendation | None:
                 "Prioritize the top elapsed-time SQL statements immediately. "
                 "A small number of statements dominate the workload and are the correct first tuning target."
             )
-            rationale = f"The top 2 SQL statements account for {combined_pct_total} of total elapsed SQL time."
+            rationale = f"The top 3 SQL statements account for {combined_pct_total} of total elapsed SQL time."
 
         return RecommendationWithNextStep(
             issue_type=issue_type,

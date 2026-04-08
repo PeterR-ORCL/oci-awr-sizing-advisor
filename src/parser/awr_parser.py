@@ -20,6 +20,7 @@ from src.parser.metadata_parser import parse_awr_metadata
 from src.parser.pga_advisory_parser import parse_pga_advisory
 from src.parser.sql_parser import parse_sql_section
 from src.parser.tablespace_io_parser import parse_tablespace_io_stats
+from src.parser.topology_parser import parse_topology_signals
 from src.parser.waits_parser import parse_waits_section
 from src.parser.workarea_histogram_parser import parse_workarea_histogram
 
@@ -69,6 +70,11 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
     workarea_histogram = parse_workarea_histogram(lines)
     event_histograms = parse_event_histograms(lines)
     ash_samples = parse_ash_samples(lines)
+    topology_signals = parse_topology_signals(
+        lines=lines,
+        wait_events=wait_events,
+        metadata=metadata_dict,
+    )
 
     return ParseResult(
         run_metadata=run_metadata,
@@ -85,6 +91,7 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
         event_histograms=event_histograms,
         ash_samples=ash_samples,
         session_metrics=[],
+        topology_signals=topology_signals,
         parse_warnings=metadata_warnings,
         parse_errors=[],
     )

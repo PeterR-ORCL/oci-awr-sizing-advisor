@@ -57,80 +57,195 @@ DEFAULT_CONFIDENCE_REASON = (
     "26.6%, and dominant wait classes, point clearly to tunable bottlenecks "
     "rather than infrastructure limits."
 )
-VIOLIN_METRIC_DEFINITIONS = [
+VIOLIN_METRIC_GROUP_DEFINITIONS = [
     {
-        "payload_key": "cpu_pct",
-        "container_id": "violinCpuPct",
-        "title": "CPU %",
-        "color": "rgba(255, 107, 107, 0.72)",
+        "group_key": "workload",
+        "group_title": "Workload Distributions",
+        "group_note": "Cluster-level workload values aggregated per snapshot.",
+        "metrics": [
+            {
+                "payload_key": "cluster_cpu_pct_db_time",
+                "container_id": "violinClusterCpuPct",
+                "title": "Cluster CPU % DB Time",
+                "color": "rgba(255, 107, 107, 0.72)",
+            },
+            {
+                "payload_key": "cluster_user_io_pct_db_time",
+                "container_id": "violinClusterUserIoPct",
+                "title": "Cluster User I/O %",
+                "color": "rgba(255, 159, 67, 0.72)",
+            },
+            {
+                "payload_key": "cluster_top_sql_concentration_pct",
+                "container_id": "violinClusterTopSqlConcentrationPct",
+                "title": "Cluster Top 3 SQL Share %",
+                "color": "rgba(186, 104, 200, 0.72)",
+            },
+            {
+                "payload_key": "cluster_execs_per_sec",
+                "container_id": "violinClusterExecsPerSec",
+                "title": "Cluster Execs/s Distribution",
+                "color": "rgba(90, 209, 255, 0.72)",
+            },
+            {
+                "payload_key": "cluster_read_iops",
+                "container_id": "violinClusterReadIops",
+                "title": "Cluster Read IOPs Distribution",
+                "color": "rgba(246, 184, 76, 0.72)",
+            },
+            {
+                "payload_key": "cluster_read_mb_per_sec",
+                "container_id": "violinClusterReadMbPerSec",
+                "title": "Cluster Read MB/s Distribution",
+                "color": "rgba(212, 174, 82, 0.72)",
+            },
+            {
+                "payload_key": "cluster_write_iops",
+                "container_id": "violinClusterWriteIops",
+                "title": "Cluster Write IOPs Distribution",
+                "color": "rgba(127, 179, 213, 0.72)",
+            },
+            {
+                "payload_key": "cluster_write_mb_per_sec",
+                "container_id": "violinClusterWriteMbPerSec",
+                "title": "Cluster Write MB/s Distribution",
+                "color": "rgba(130, 148, 171, 0.72)",
+            },
+            {
+                "payload_key": "cluster_log_file_sync_ms",
+                "container_id": "violinClusterLogFileSyncMs",
+                "title": "Cluster Log File Sync Latency Distribution",
+                "color": "rgba(239, 83, 80, 0.72)",
+            },
+            {
+                "payload_key": "cluster_pga_spill_pressure",
+                "container_id": "violinClusterPgaSpillPressure",
+                "title": "Cluster PGA Spill Pressure Distribution",
+                "color": "rgba(102, 187, 106, 0.72)",
+            },
+            {
+                "payload_key": "cluster_temp_io_pressure",
+                "container_id": "violinClusterTempIoPressure",
+                "title": "Cluster Temp I/O Pressure Distribution",
+                "color": "rgba(38, 166, 154, 0.72)",
+            },
+            {
+                "payload_key": "cluster_hard_parses_per_sec",
+                "container_id": "violinClusterHardParsesPerSec",
+                "title": "Cluster Hard Parses/s Distribution",
+                "color": "rgba(255, 202, 40, 0.72)",
+            },
+        ],
     },
     {
-        "payload_key": "execs_per_sec",
-        "container_id": "violinExecsPerSec",
-        "title": "Execs/s",
-        "color": "rgba(90, 209, 255, 0.72)",
+        "group_key": "topology",
+        "group_title": "Topology Distributions",
+        "group_note": (
+            "Cluster-level RAC and Data Guard measures across snapshots; "
+            "the combined GC trend is the summed GC current + GC CR pressure."
+        ),
+        "metrics": [
+            {
+                "payload_key": "cluster_wait_pct_db_time",
+                "container_id": "violinClusterWaitPct",
+                "title": "Cluster Wait % DB Time",
+                "color": "rgba(255, 127, 80, 0.72)",
+            },
+            {
+                "payload_key": "gc_current_wait_pct_db_time",
+                "container_id": "violinGcCurrentWaitPct",
+                "title": "GC Current Wait %",
+                "color": "rgba(244, 162, 97, 0.72)",
+            },
+            {
+                "payload_key": "gc_cr_wait_pct_db_time",
+                "container_id": "violinGcCrWaitPct",
+                "title": "GC CR Wait %",
+                "color": "rgba(233, 196, 106, 0.72)",
+            },
+            {
+                "payload_key": "transport_lag_sec",
+                "container_id": "violinTransportLagSec",
+                "title": "Data Guard Transport Lag",
+                "color": "rgba(94, 129, 244, 0.72)",
+            },
+            {
+                "payload_key": "apply_lag_sec",
+                "container_id": "violinApplyLagSec",
+                "title": "Data Guard Apply Lag",
+                "color": "rgba(72, 149, 239, 0.72)",
+            },
+        ],
     },
     {
-        "payload_key": "read_iops",
-        "container_id": "violinReadIops",
-        "title": "Read IOPs",
-        "color": "rgba(246, 184, 76, 0.72)",
+        "group_key": "platform",
+        "group_title": "Platform Distributions",
+        "group_note": "Cluster-level Exadata measures shown only when real platform evidence exists.",
+        "metrics": [
+            {
+                "payload_key": "cell_single_block_read_pct_db_time",
+                "container_id": "violinCellSingleBlockReadPct",
+                "title": "Exadata Cell Single Block Read %",
+                "color": "rgba(56, 176, 0, 0.72)",
+            },
+            {
+                "payload_key": "smart_scan_pct_db_time",
+                "container_id": "violinSmartScanPct",
+                "title": "Exadata Smart Scan %",
+                "color": "rgba(67, 170, 139, 0.72)",
+            },
+        ],
     },
     {
-        "payload_key": "read_mb_per_sec",
-        "container_id": "violinReadMbPerSec",
-        "title": "Read MB/s",
-        "color": "rgba(212, 174, 82, 0.72)",
-    },
-    {
-        "payload_key": "write_iops",
-        "container_id": "violinWriteIops",
-        "title": "Write IOPs",
-        "color": "rgba(127, 179, 213, 0.72)",
-    },
-    {
-        "payload_key": "write_mb_per_sec",
-        "container_id": "violinWriteMbPerSec",
-        "title": "Write MB/s",
-        "color": "rgba(130, 148, 171, 0.72)",
-    },
-    {
-        "payload_key": "user_io_wait",
-        "container_id": "violinUserIoWait",
-        "title": "User I/O Wait",
-        "color": "rgba(255, 159, 67, 0.72)",
-    },
-    {
-        "payload_key": "top_sql_elapsed_norm",
-        "container_id": "violinTopSqlElapsedNorm",
-        "title": "Top SQL Elapsed Time (normalized)",
-        "color": "rgba(186, 104, 200, 0.72)",
-    },
-    {
-        "payload_key": "pga_spill_pressure",
-        "container_id": "violinPgaSpillPressure",
-        "title": "PGA Spill Pressure",
-        "color": "rgba(102, 187, 106, 0.72)",
-    },
-    {
-        "payload_key": "temp_io_pressure",
-        "container_id": "violinTempIoPressure",
-        "title": "Temp I/O Pressure",
-        "color": "rgba(38, 166, 154, 0.72)",
-    },
-    {
-        "payload_key": "hard_parses_per_sec",
-        "container_id": "violinHardParsesPerSec",
-        "title": "Hard Parses/s",
-        "color": "rgba(255, 202, 40, 0.72)",
-    },
-    {
-        "payload_key": "log_file_sync_ms",
-        "container_id": "violinLogFileSyncMs",
-        "title": "Log File Sync Latency",
-        "color": "rgba(239, 83, 80, 0.72)",
+        "group_key": "rac_instance",
+        "group_title": "Per-Instance RAC Distributions",
+        "group_note": (
+            "Per-instance RAC values across nodes and snapshots. "
+            "These are not mixed with cluster-level distributions."
+        ),
+        "metrics": [
+            {
+                "payload_key": "per_instance_cpu_pct_db_time",
+                "container_id": "violinPerInstanceRacCpuPct",
+                "title": "Per-Instance RAC CPU",
+                "color": "rgba(249, 65, 68, 0.72)",
+            },
+            {
+                "payload_key": "per_instance_cluster_wait_pct_db_time",
+                "container_id": "violinPerInstanceRacClusterWaitPct",
+                "title": "Per-Instance RAC Cluster Wait",
+                "color": "rgba(243, 114, 44, 0.72)",
+            },
+            {
+                "payload_key": "per_instance_gc_current_wait_pct_db_time",
+                "container_id": "violinPerInstanceRacGcCurrentPct",
+                "title": "Per-Instance RAC GC Current Wait",
+                "color": "rgba(248, 150, 30, 0.72)",
+            },
+            {
+                "payload_key": "per_instance_gc_cr_wait_pct_db_time",
+                "container_id": "violinPerInstanceRacGcCrPct",
+                "title": "Per-Instance RAC GC CR Wait",
+                "color": "rgba(249, 199, 79, 0.72)",
+            },
+        ],
     },
 ]
+
+PERCENT_LIKE_VIOLIN_KEYS = {
+    "cluster_cpu_pct_db_time",
+    "cluster_user_io_pct_db_time",
+    "cluster_top_sql_concentration_pct",
+    "cluster_wait_pct_db_time",
+    "gc_current_wait_pct_db_time",
+    "gc_cr_wait_pct_db_time",
+    "cell_single_block_read_pct_db_time",
+    "smart_scan_pct_db_time",
+    "per_instance_cpu_pct_db_time",
+    "per_instance_cluster_wait_pct_db_time",
+    "per_instance_gc_current_wait_pct_db_time",
+    "per_instance_gc_cr_wait_pct_db_time",
+}
 
 
 def parse_ai_sections(ai_text: str) -> dict[str, str]:
@@ -170,16 +285,13 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
     issues = report_data.get("issues") or []
     recommendations = report_data.get("recommendations") or []
     agentic_decision = report_data.get("agentic_decision") or {}
-    ai_provider = escape(str(report_data.get("ai_provider")))
-    ai_model = escape(
-        _short_model_name(report_data.get("ai_provider"), report_data.get("ai_model"))
-    )
     generated_at = escape(
         str(report_data.get("generated_at") or datetime.utcnow().isoformat())
     )
     derived_scalar_metrics = report_data.get("derived_scalar_metrics") or {}
     chart_payload = _build_chart_payload(report_data)
-    violin_metric_configs = _build_violin_metric_configs(chart_payload["violin_panel"])
+    violin_metric_groups = _build_violin_metric_groups(chart_payload["violin_panel"])
+    violin_metric_configs = _flatten_violin_metric_groups(violin_metric_groups)
     # This payload must remain raw JSON in the script tag.
     # HTML escaping breaks JSON.parse().
     chart_payload_json = json.dumps(chart_payload, indent=2)
@@ -554,6 +666,22 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       grid-template-columns: repeat(12, 1fr);
       gap: 18px;
     }}
+    .violin-group {{
+      margin-top: 20px;
+    }}
+    .violin-group:first-child {{
+      margin-top: 0;
+    }}
+    .violin-group h3 {{
+      margin: 0 0 6px;
+      font-size: 18px;
+    }}
+    .violin-group-note {{
+      margin: 0 0 18px;
+      color: rgba(216, 228, 242, 0.82);
+      font-size: 14px;
+      line-height: 1.45;
+    }}
     .violin-chart-card {{
       grid-column: span 12;
       border: 1px solid var(--line);
@@ -637,12 +765,13 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
 
     <div class="grid">
       <section id="ai-summary" class="card primary">
-        <div class="section-kicker">AI Advisory Layer</div>
+        <div class="section-kicker">Agentic AI Advisory Layer</div>
         <h2>Executive Summary</h2>
         {_render_executive_summary(
             ai_sections["Executive Summary"],
             issues,
             decision_state,
+            report_data.get("summary_key_signals"),
         )}
       </section>
 
@@ -694,7 +823,7 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
             )}
           </section>
           <section class="chart-panel">
-            <h3>Top SQL Contribution (% Elapsed SQL Time)</h3>
+            <h3>Top SQL Contributors (% Elapsed SQL Time)</h3>
             {_render_chart_container(
                 "topSqlContributionChart",
                 chart_payload["top_sql_contribution"],
@@ -703,7 +832,7 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
         </div>
       </section>
 
-      {_render_violin_panel(violin_metric_configs)}
+      {_render_violin_panel(violin_metric_groups)}
 
       <section id="derived-scalar-metrics" class="card secondary">
         <div class="section-kicker">Deterministic Metrics</div>
@@ -736,20 +865,6 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
               {_render_recommendations(recommendations)}
             </div>
           </section>
-        </div>
-      </section>
-
-      <section id="provider-metadata" class="card secondary">
-        <h2>Provider Metadata</h2>
-        <div class="provider-grid">
-          <div class="provider-box">
-            <strong>Provider</strong>
-            <div>{ai_provider}</div>
-          </div>
-          <div class="provider-box">
-            <strong>Model</strong>
-            <div>{ai_model}</div>
-          </div>
         </div>
       </section>
     </div>
@@ -802,6 +917,21 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
         return (sorted[middle - 1] + sorted[middle]) / 2;
       }}
       return sorted[middle];
+    }}
+
+    function computeQuantile(values, quantile) {{
+      const sorted = [...values].sort((a, b) => a - b);
+      if (sorted.length === 0) {{
+        return NaN;
+      }}
+      const position = (sorted.length - 1) * quantile;
+      const lower = Math.floor(position);
+      const upper = Math.ceil(position);
+      if (lower === upper) {{
+        return sorted[lower];
+      }}
+      const weight = position - lower;
+      return sorted[lower] * (1 - weight) + sorted[upper] * weight;
     }}
 
     function formatMetricValue(value) {{
@@ -926,7 +1056,7 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       }});
     }}
 
-    function buildViolinChart(containerId, title, samples, color) {{
+    function buildViolinChart(containerId, title, samples, color, payloadKey) {{
       if (!Array.isArray(samples) || samples.length < 2) {{
         return;
       }}
@@ -938,8 +1068,46 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
 
       const meanValue = computeMean(samples);
       const medianValue = computeMedian(samples);
+      const q1Value = computeQuantile(samples, 0.25);
+      const q3Value = computeQuantile(samples, 0.75);
       const maxValue = Math.max(...samples);
       const minValue = Math.min(...samples);
+      const sampleCount = samples.length;
+      const lowSampleExtremaKeys = new Set([
+        'cluster_wait_pct_db_time',
+        'gc_current_wait_pct_db_time',
+        'gc_cr_wait_pct_db_time',
+        'per_instance_cluster_wait_pct_db_time',
+        'per_instance_gc_current_wait_pct_db_time',
+        'per_instance_gc_cr_wait_pct_db_time',
+      ]);
+      const showExtremaMarkers = (
+        maxValue !== minValue
+        && (
+          sampleCount >= 4
+          || (sampleCount >= 2 && lowSampleExtremaKeys.has(payloadKey))
+        )
+      );
+      const stats = [
+        formatMetricValue(meanValue),
+        formatMetricValue(medianValue),
+        formatMetricValue(q1Value),
+        formatMetricValue(q3Value),
+        formatMetricValue(minValue),
+        formatMetricValue(maxValue),
+      ];
+      const hoverOffsets = [-0.18, -0.12, -0.06, 0, 0.06, 0.12, 0.18];
+      const hoverX = [];
+      const hoverY = [];
+      const customData = [];
+
+      samples.forEach(function (sample) {{
+        hoverOffsets.forEach(function (offset) {{
+          hoverX.push(offset);
+          hoverY.push(sample);
+          customData.push(stats);
+        }});
+      }});
 
       Plotly.purge(container);
       Plotly.newPlot(
@@ -948,7 +1116,8 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
           {{
             type: 'violin',
             y: samples,
-            name: title,
+            x0: 0,
+            name: '',
             box: {{
               visible: true,
               fillcolor: 'rgba(225, 232, 240, 0.22)',
@@ -969,23 +1138,26 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
             fillcolor: color,
             opacity: 0.55,
             points: false,
-            hoveron: 'violins+points+kde',
+            hoverinfo: 'skip',
+            hovertemplate: null,
+            hoveron: 'points',
+            showlegend: false,
           }},
           {{
             type: 'scatter',
             mode: 'markers+text',
-            x: [title],
+            x: [0.1],
             y: [meanValue],
             text: ['Mean ' + formatMetricValue(meanValue)],
             textposition: 'middle right',
             textfont: {{
-              color: '#f6b84c',
-              size: 11,
+              color: '#f7d792',
+              size: 10,
             }},
             marker: {{
               color: '#f6b84c',
               symbol: 'diamond',
-              size: 10,
+              size: 9,
               line: {{
                 color: '#fff3d6',
                 width: 1,
@@ -994,52 +1166,82 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
             hoverinfo: 'skip',
             showlegend: false,
           }},
-          {{
-            type: 'scatter',
-            mode: 'markers+text',
-            x: [title],
-            y: [maxValue],
-            text: ['Max ' + formatMetricValue(maxValue)],
-            textposition: 'top right',
-            textfont: {{
-              color: '#ff6b6b',
-              size: 11,
-            }},
-            marker: {{
-              color: '#ff6b6b',
-              symbol: 'diamond',
-              size: 10,
-              line: {{
-                color: '#ffd7d7',
-                width: 1,
+          ...(showExtremaMarkers ? [
+            {{
+              type: 'scatter',
+              mode: 'markers+text',
+              x: [0.12],
+              y: [maxValue],
+              text: ['Max ' + formatMetricValue(maxValue)],
+              textposition: 'top right',
+              textfont: {{
+                color: 'rgba(255, 214, 214, 0.92)',
+                size: 9,
               }},
+              marker: {{
+                color: '#ff7f7f',
+                symbol: 'diamond',
+                size: 8,
+                line: {{
+                  color: '#ffd7d7',
+                  width: 1,
+                }},
+              }},
+              hoverinfo: 'skip',
+              showlegend: false,
             }},
-            hoverinfo: 'skip',
-            showlegend: false,
-          }},
+            {{
+              type: 'scatter',
+              mode: 'markers+text',
+              x: [-0.09],
+              y: [minValue],
+              text: ['Min ' + formatMetricValue(minValue)],
+              textposition: 'bottom right',
+              textfont: {{
+                color: 'rgba(220, 230, 242, 0.82)',
+                size: 9,
+              }},
+              marker: {{
+                color: 'rgba(216, 228, 242, 0.82)',
+                symbol: 'diamond',
+                size: 8,
+                line: {{
+                  color: '#e8eef7',
+                  width: 1,
+                }},
+              }},
+              hoverinfo: 'skip',
+              showlegend: false,
+            }},
+          ] : []),
           {{
             type: 'scatter',
-            mode: 'text',
-            x: [title],
-            y: [minValue],
-            text: ['Min ' + formatMetricValue(minValue)],
-            textposition: 'bottom left',
-            textfont: {{
-              color: 'rgba(232, 238, 247, 0.72)',
-              size: 10,
+            mode: 'markers',
+            x: hoverX,
+            y: hoverY,
+            customdata: customData,
+            marker: {{
+              color: 'rgba(0, 0, 0, 0)',
+              size: 22,
             }},
-            hoverinfo: 'skip',
+            hovertemplate:
+              'Value: %{{y}}<br>' +
+              'Mean: %{{customdata[0]}} | Median: %{{customdata[1]}}<br>' +
+              'Q1-Q3: %{{customdata[2]}} - %{{customdata[3]}}<br>' +
+              'Min-Max: %{{customdata[4]}} - %{{customdata[5]}}' +
+              '<extra></extra>',
             showlegend: false,
           }},
         ],
         {{
           paper_bgcolor: 'rgba(0,0,0,0)',
           plot_bgcolor: 'rgba(11, 21, 35, 0.35)',
+          hovermode: 'closest',
           margin: {{
             l: 56,
-            r: 18,
-            t: 8,
-            b: 42,
+            r: 14,
+            t: 6,
+            b: 20,
           }},
           font: {{
             color: chartTextColor,
@@ -1047,27 +1249,23 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
           xaxis: {{
             color: chartTextColor,
             gridcolor: 'rgba(0,0,0,0)',
+            range: [-0.35, 0.35],
             zeroline: false,
+            showticklabels: false,
           }},
           yaxis: {{
             color: chartTextColor,
             gridcolor: chartMutedColor,
             zeroline: false,
           }},
-          shapes: [
-            {{
-              type: 'line',
-              xref: 'paper',
-              x0: 0.38,
-              x1: 0.62,
-              y0: medianValue,
-              y1: medianValue,
-              line: {{
-                color: '#0b0f14',
-                width: 2,
-              }},
+          hoverlabel: {{
+            bgcolor: 'rgba(11, 21, 35, 0.94)',
+            bordercolor: 'rgba(159, 176, 199, 0.28)',
+            font: {{
+              color: '#e8eef7',
+              size: 11,
             }},
-          ],
+          }},
         }},
         {{
           displayModeBar: false,
@@ -1084,8 +1282,16 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
         const containerId = config.container_id;
         const title = config.title;
         const payloadKey = config.payload_key;
+        const groupKey = config.group_key;
         const color = config.color;
-        buildViolinChart(containerId, title, payload[payloadKey], color);
+        const groupPayload = payload[groupKey] || {{}};
+        buildViolinChart(
+          containerId,
+          title,
+          groupPayload[payloadKey],
+          color,
+          payloadKey,
+        );
       }});
     }}
 
@@ -1112,7 +1318,7 @@ def _render_issues(issues: list[dict[str, Any]]) -> str:
         severity_class = escape(severity)
         severity_label = escape(severity.upper())
         summary = escape(str(issue.get("summary") or ""))
-        issue_type = escape(str(issue.get("issue_type") or ""))
+        issue_type = escape(_display_issue_label(str(issue.get("issue_type") or "")))
         severity_html = (
             '<div class="meta"><span class="severity '
             f'{severity_class}">{severity_label}</span></div>'
@@ -1146,7 +1352,9 @@ def _render_recommendations(recommendations: list[Any]) -> str:
         )
         rationale = escape(str(recommendation_dict.get("rationale") or ""))
         next_step = escape(str(recommendation_dict.get("next_step") or ""))
-        issue_type = escape(str(recommendation_dict.get("issue_type") or ""))
+        issue_type = escape(
+            _display_issue_label(str(recommendation_dict.get("issue_type") or ""))
+        )
         severity = str(recommendation_dict.get("severity") or "low").lower()
         severity_class = escape(severity)
         severity_label = escape(severity.upper())
@@ -1190,11 +1398,12 @@ def _render_executive_summary(
     summary_text: str,
     issues: list[dict[str, Any]],
     decision_state: dict[str, str],
+    summary_key_signals: list[str] | None = None,
 ) -> str:
     """Render the Executive Summary in structured format."""
 
     rationale = _extract_summary_rationale(summary_text)
-    key_signals = _build_key_signal_items(issues)
+    key_signals = summary_key_signals or _build_key_signal_items(issues)
     signal_items = "".join(f"<li>{escape(item)}</li>" for item in key_signals)
 
     banner_class = escape(decision_state["css_class"])
@@ -1554,8 +1763,13 @@ def _extract_summary_rationale(summary_text: str) -> str:
     if not cleaned_text:
         return DEFAULT_SUMMARY_RATIONALE
 
-    first_sentence = re.split(r"(?<=[.!?])\s+", cleaned_text, maxsplit=1)[0].strip()
-    return first_sentence or DEFAULT_SUMMARY_RATIONALE
+    return cleaned_text or DEFAULT_SUMMARY_RATIONALE
+
+
+def _display_issue_label(issue_type: str) -> str:
+    if issue_type == "sql_concentration":
+        return "sql_concentration (top 3 SQL share)"
+    return issue_type
 
 
 def _build_key_signal_items(issues: list[dict[str, Any]]) -> list[str]:
@@ -1575,11 +1789,36 @@ def _build_key_signal_items(issues: list[dict[str, Any]]) -> list[str]:
         issue_by_type.get("io_pressure", {}).get("evidence", {}).get("pct_db_time")
     )
 
-    return [
-        f"CPU: {cpu:.1f}% DB time",
-        f"Top SQL concentration: {sql:.1f}%",
-        f"User I/O: {io:.1f}%",
+    signal_items = [
+        f"CPU: {(cpu or 0.0):.1f}% DB time",
+        f"Top SQL concentration (top 3 share): {(sql or 0.0):.1f}%",
+        f"User I/O: {(io or 0.0):.1f}%",
     ]
+    cluster_wait = _safe_float(
+        issue_by_type.get("cluster_contention", {})
+        .get("evidence", {})
+        .get("cluster_wait_pct_db_time")
+    )
+    if cluster_wait is not None:
+        signal_items.append(f"Cluster waits: {cluster_wait:.1f}% DB time")
+    transport_lag = _safe_float(
+        issue_by_type.get("dg_replication_state", {})
+        .get("evidence", {})
+        .get("transport_lag_sec")
+    )
+    if transport_lag is not None:
+        signal_items.append(f"Transport lag: {transport_lag:.0f}s")
+    event_class = (
+        issue_by_type.get("topology_event", {})
+        .get("evidence", {})
+        .get("operational_event_class")
+    )
+    if event_class:
+        signal_items.append(
+            "Operational event: "
+            + str(event_class).replace("_", " ").title()
+        )
+    return signal_items[:5]
 
 
 def _extract_confidence_reason(confidence_text: str) -> str:
@@ -1642,31 +1881,43 @@ def _render_chart_container(canvas_id: str, chart_data: dict[str, Any]) -> str:
     return f'<div class="chart-canvas"><canvas id="{escape(canvas_id)}"></canvas></div>'
 
 
-def _render_violin_panel(violin_metric_configs: list[dict[str, str]]) -> str:
+def _render_violin_panel(violin_metric_groups: list[dict[str, Any]]) -> str:
     """Render the violin panel only when real series-backed metrics exist."""
 
-    if not violin_metric_configs:
+    if not violin_metric_groups:
         return ""
 
-    cards = []
-    for config in violin_metric_configs:
-        cards.append(f"""
-          <section class="violin-chart-card">
-            <h3>{escape(config["title"])}</h3>
-            <div id="{escape(config["container_id"])}" class="violin-chart"></div>
-          </section>
-            """)
+    group_sections: list[str] = []
+    for group in violin_metric_groups:
+        group_slug = re.sub(r"[^a-z0-9]+", "-", group["group_key"]).strip("-")
+        cards = []
+        for config in group["metrics"]:
+            cards.append(f"""
+              <section class="violin-chart-card">
+                <h3>{escape(config["title"])}</h3>
+                <div id="{escape(config["container_id"])}" class="violin-chart"></div>
+              </section>
+                """)
+        group_sections.append(
+            f"""
+        <div class="violin-group violin-group-{escape(group_slug)}">
+          <h3>{escape(group["group_title"])}</h3>
+          <p class="violin-group-note">{escape(group["group_note"].rstrip("."))}</p>
+          <div class="violin-grid">
+            {''.join(cards)}
+          </div>
+        </div>
+            """
+        )
 
     return (
         """
       <section id="workload-violin-panel" class="card secondary violin-panel">
-        <div class="section-kicker">Workload Analysis</div>
-        <h2>Workload Distribution — Violin Panel</h2>
-        <div class="violin-grid">
+        <div class="section-kicker">Distribution Panels</div>
+        <h2>Distribution Analysis</h2>
 """
-        + "".join(cards)
+        + "".join(group_sections)
         + """
-        </div>
       </section>
     """
     )
@@ -1693,6 +1944,16 @@ def _render_scalar_metrics(metrics: dict[str, Any]) -> str:
         ),
     ]
 
+    available_values = [
+        value for _, value, _ in metric_specs if isinstance(value, (int, float))
+    ]
+    if not available_values:
+        return (
+            '<p class="scalar-note">'
+            "No derived scalar-only metrics were available for this analysis window."
+            "</p>"
+        )
+
     boxes: list[str] = []
     for label, value, note in metric_specs:
         boxes.append(f"""
@@ -1711,16 +1972,40 @@ def _render_scalar_metrics(metrics: dict[str, Any]) -> str:
     )
 
 
-def _build_violin_metric_configs(
-    violin_payload: dict[str, list[float]],
-) -> list[dict[str, str]]:
-    """Return only violin metrics that have real series data to render."""
+def _build_violin_metric_groups(
+    violin_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return only grouped violin metrics that have real series data to render."""
 
-    return [
-        metric
-        for metric in VIOLIN_METRIC_DEFINITIONS
-        if _has_violin_samples(violin_payload.get(metric["payload_key"]))
-    ]
+    groups: list[dict[str, Any]] = []
+    for group_definition in VIOLIN_METRIC_GROUP_DEFINITIONS:
+        payload_group = violin_payload.get(group_definition["group_key"]) or {}
+        metrics = [
+            metric
+            for metric in group_definition["metrics"]
+            if _has_violin_samples(payload_group.get(metric["payload_key"]))
+        ]
+        if not metrics:
+            continue
+        groups.append(
+            {
+                "group_key": group_definition["group_key"],
+                "group_title": group_definition["group_title"],
+                "group_note": group_definition["group_note"],
+                "metrics": metrics,
+            }
+        )
+    return groups
+
+
+def _flatten_violin_metric_groups(
+    violin_metric_groups: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    configs: list[dict[str, str]] = []
+    for group in violin_metric_groups:
+        for metric in group["metrics"]:
+            configs.append({**metric, "group_key": group["group_key"]})
+    return configs
 
 
 def _has_violin_samples(values: Any) -> bool:
@@ -1742,6 +2027,14 @@ def _build_chart_payload(report_data: dict[str, Any]) -> dict[str, dict[str, Any
         "top_sql_contribution": _build_top_sql_contribution(top_sql),
         "violin_panel": _build_violin_panel_payload(report_data),
     }
+
+
+def _mapping_or_empty(value: Any) -> dict[str, Any]:
+    """Return a mapping-like value or an empty dict for safe `.get()` access."""
+
+    if isinstance(value, dict):
+        return value
+    return {}
 
 
 def _build_db_time_breakdown(issues: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1815,72 +2108,140 @@ def _build_top_sql_contribution(top_sql: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-def _build_violin_panel_payload(report_data: dict[str, Any]) -> dict[str, list[float]]:
+def _build_violin_panel_payload(
+    report_data: dict[str, Any],
+) -> dict[str, dict[str, list[float]]]:
     """Build violin-panel metric series from structured report data when available."""
 
-    source = report_data.get("violin_panel") or report_data.get("metric_samples") or {}
+    source = _mapping_or_empty(
+        report_data.get("violin_panel") or report_data.get("metric_samples")
+    )
+    has_grouped_source = any(
+        isinstance(source.get(group["group_key"]), dict)
+        for group in VIOLIN_METRIC_GROUP_DEFINITIONS
+    )
+    workload_source = (
+        _mapping_or_empty(source.get("workload")) if has_grouped_source else source
+    )
+    topology_source = (
+        _mapping_or_empty(source.get("topology")) if has_grouped_source else {}
+    )
+    platform_source = (
+        _mapping_or_empty(source.get("platform")) if has_grouped_source else {}
+    )
+    rac_instance_source = (
+        _mapping_or_empty(source.get("rac_instance"))
+        if has_grouped_source
+        else {}
+    )
 
-    # Intended interval series meanings:
-    # cpu_pct = (DB CPU / DB Time) * 100 per interval
-    # execs_per_sec = executions delta / elapsed seconds
-    # read_iops = physical read requests delta / elapsed seconds
-    # read_mb_per_sec = physical read bytes delta / elapsed seconds / 1024 / 1024
-    # write_iops = physical write requests delta / elapsed seconds
-    # write_mb_per_sec = physical write bytes delta / elapsed seconds / 1024 / 1024
-    # user_io_wait = User I/O wait per interval (keep consistent units)
-    # top_sql_elapsed_norm = top SQL elapsed time normalized per execution
-    # or equivalent normalized interval metric
-    # pga_spill_pressure = onepass + multipass workarea pressure
-    # per interval, or equivalent spill signal
-    # temp_io_pressure = temp reads/writes per second or equivalent
-    # temp I/O pressure signal
-    # hard_parses_per_sec = hard parses delta / elapsed seconds
-    # log_file_sync_ms = average log file sync latency per interval in milliseconds
-    full_payload = {
-        "cpu_pct": _sanitize_numeric_series(
-            source.get("cpu_pct") or source.get("cpu_pct_db_time")
-        ),
-        "execs_per_sec": _sanitize_numeric_series(
-            source.get("execs_per_sec") or source.get("executions_per_sec")
-        ),
-        "read_iops": _sanitize_numeric_series(
-            source.get("read_iops") or source.get("physical_read_iops")
-        ),
-        "read_mb_per_sec": _sanitize_numeric_series(
-            source.get("read_mb_per_sec") or source.get("physical_read_mb_per_sec")
-        ),
-        "write_iops": _sanitize_numeric_series(
-            source.get("write_iops") or source.get("physical_write_iops")
-        ),
-        "write_mb_per_sec": _sanitize_numeric_series(
-            source.get("write_mb_per_sec") or source.get("physical_write_mb_per_sec")
-        ),
-        "user_io_wait": _sanitize_numeric_series(
-            source.get("user_io_wait") or source.get("user_io_wait_per_interval")
-        ),
-        "top_sql_elapsed_norm": _sanitize_numeric_series(
-            source.get("top_sql_elapsed_norm")
-            or source.get("top_sql_elapsed_normalized")
-        ),
-        "pga_spill_pressure": _sanitize_numeric_series(
-            source.get("pga_spill_pressure") or source.get("workarea_spill_pressure")
-        ),
-        "temp_io_pressure": _sanitize_numeric_series(
-            source.get("temp_io_pressure") or source.get("temp_io_per_sec")
-        ),
-        "hard_parses_per_sec": _sanitize_numeric_series(
-            source.get("hard_parses_per_sec") or source.get("hard_parse_rate")
-        ),
-        "log_file_sync_ms": _sanitize_numeric_series(
-            source.get("log_file_sync_ms") or source.get("avg_log_file_sync_ms")
-        ),
+    payload = {
+        "workload": {
+            "cluster_cpu_pct_db_time": _sanitize_numeric_series(
+                workload_source.get("cluster_cpu_pct_db_time")
+                or workload_source.get("cpu_pct")
+                or workload_source.get("cpu_pct_db_time")
+            ),
+            "cluster_execs_per_sec": _sanitize_numeric_series(
+                workload_source.get("cluster_execs_per_sec")
+                or workload_source.get("execs_per_sec")
+                or workload_source.get("executions_per_sec")
+            ),
+            "cluster_read_iops": _sanitize_numeric_series(
+                workload_source.get("cluster_read_iops")
+                or workload_source.get("read_iops")
+                or workload_source.get("physical_read_iops")
+            ),
+            "cluster_read_mb_per_sec": _sanitize_numeric_series(
+                workload_source.get("cluster_read_mb_per_sec")
+                or workload_source.get("read_mb_per_sec")
+                or workload_source.get("physical_read_mb_per_sec")
+            ),
+            "cluster_write_iops": _sanitize_numeric_series(
+                workload_source.get("cluster_write_iops")
+                or workload_source.get("write_iops")
+                or workload_source.get("physical_write_iops")
+            ),
+            "cluster_write_mb_per_sec": _sanitize_numeric_series(
+                workload_source.get("cluster_write_mb_per_sec")
+                or workload_source.get("write_mb_per_sec")
+                or workload_source.get("physical_write_mb_per_sec")
+            ),
+            "cluster_user_io_pct_db_time": _sanitize_numeric_series(
+                workload_source.get("cluster_user_io_pct_db_time")
+                or workload_source.get("user_io_wait")
+                or workload_source.get("user_io_wait_per_interval")
+            ),
+            "cluster_top_sql_concentration_pct": _sanitize_numeric_series(
+                workload_source.get("cluster_top_sql_concentration_pct")
+                or workload_source.get("top_sql_concentration_pct")
+            ),
+            "cluster_pga_spill_pressure": _sanitize_numeric_series(
+                workload_source.get("cluster_pga_spill_pressure")
+                or workload_source.get("pga_spill_pressure")
+                or workload_source.get("workarea_spill_pressure")
+            ),
+            "cluster_temp_io_pressure": _sanitize_numeric_series(
+                workload_source.get("cluster_temp_io_pressure")
+                or workload_source.get("temp_io_pressure")
+                or workload_source.get("temp_io_per_sec")
+            ),
+            "cluster_hard_parses_per_sec": _sanitize_numeric_series(
+                workload_source.get("cluster_hard_parses_per_sec")
+                or workload_source.get("hard_parses_per_sec")
+                or workload_source.get("hard_parse_rate")
+            ),
+            "cluster_log_file_sync_ms": _sanitize_numeric_series(
+                workload_source.get("cluster_log_file_sync_ms")
+                or workload_source.get("log_file_sync_ms")
+                or workload_source.get("avg_log_file_sync_ms")
+            ),
+        },
+        "topology": {
+            "cluster_wait_pct_db_time": _sanitize_numeric_series(
+                topology_source.get("cluster_wait_pct_db_time")
+            ),
+            "gc_current_wait_pct_db_time": _sanitize_numeric_series(
+                topology_source.get("gc_current_wait_pct_db_time")
+            ),
+            "gc_cr_wait_pct_db_time": _sanitize_numeric_series(
+                topology_source.get("gc_cr_wait_pct_db_time")
+            ),
+            "transport_lag_sec": _sanitize_numeric_series(
+                topology_source.get("transport_lag_sec")
+            ),
+            "apply_lag_sec": _sanitize_numeric_series(
+                topology_source.get("apply_lag_sec")
+            ),
+        },
+        "platform": {
+            "cell_single_block_read_pct_db_time": _sanitize_numeric_series(
+                platform_source.get("cell_single_block_read_pct_db_time")
+            ),
+            "smart_scan_pct_db_time": _sanitize_numeric_series(
+                platform_source.get("smart_scan_pct_db_time")
+            ),
+        },
+        "rac_instance": {
+            "per_instance_cpu_pct_db_time": _sanitize_numeric_series(
+                rac_instance_source.get("per_instance_cpu_pct_db_time")
+            ),
+            "per_instance_cluster_wait_pct_db_time": _sanitize_numeric_series(
+                rac_instance_source.get("per_instance_cluster_wait_pct_db_time")
+            ),
+            "per_instance_gc_current_wait_pct_db_time": _sanitize_numeric_series(
+                rac_instance_source.get("per_instance_gc_current_wait_pct_db_time")
+            ),
+            "per_instance_gc_cr_wait_pct_db_time": _sanitize_numeric_series(
+                rac_instance_source.get("per_instance_gc_cr_wait_pct_db_time")
+            ),
+        },
     }
-
-    return {
-        key: values
-        for key, values in full_payload.items()
-        if _has_violin_samples(values)
-    }
+    for group_name, group_values in payload.items():
+        for metric_key, values in group_values.items():
+            if metric_key in PERCENT_LIKE_VIOLIN_KEYS:
+                group_values[metric_key] = _normalize_percent_series(values)
+    return payload
 
 
 def _safe_float(value: Any) -> float:
@@ -1929,3 +2290,16 @@ def _sanitize_numeric_series(values: Any) -> list[float]:
                 continue
 
     return sanitized
+
+
+def _normalize_percent_series(values: list[float]) -> list[float]:
+    """Normalize ratio-style values into 0-100 percentages when needed."""
+
+    if not values:
+        return values
+    numeric_values = [float(value) for value in values if isinstance(value, (int, float))]
+    if not numeric_values:
+        return values
+    if max(abs(value) for value in numeric_values) <= 1.0:
+        return [round(value * 100.0, 3) for value in numeric_values]
+    return numeric_values

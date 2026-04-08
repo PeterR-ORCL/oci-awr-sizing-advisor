@@ -1,0 +1,655 @@
+
+========================================================================
+OCI AWR AGENTIC ADVISOR - MULTI-AWR INGEST VERIFICATION
+========================================================================
+
+
+========================================================================
+1. CORE TABLE COUNTS
+========================================================================
+
+
+TABLE_NAME                ROW_COUNT
+______________________ ____________
+AWR_FEATURE_VECTOR               21
+AWR_INGEST_RUN                   11
+AWR_METRIC_FACT                 537
+AWR_REPORT                       21
+AWR_SOURCE_SYSTEM                 1
+AWR_TOP_SQL_FACT                115
+AWR_WAIT_EVENT_FACT             165
+
+7 rows selected.
+
+
+========================================================================
+2. MOST RECENT INGEST RUNS
+========================================================================
+
+
+   INGEST_RUN_ID STATUS          FILE_COUNT    SUCCESS_COUNT    ERROR_COUNT
+________________ ____________ _____________ ________________ ______________
+              11 COMPLETED               10               10              0
+              10 FAILED                  10                0             10
+               9 COMPLETED               10               10              0
+               8 FAILED                  10                0             10
+               7 FAILED                  10                0             10
+               6 FAILED                  10                0             10
+               5 FAILED                  10                0             10
+               4 COMPLETED                1                1              0
+               3 FAILED                   1                0              1
+               2 FAILED                   1                0              1
+
+10 rows selected.
+
+
+========================================================================
+3. SOURCE SYSTEM REUSE CHECK
+========================================================================
+
+
+   SOURCE_SYSTEM_ID SOURCE_SYSTEM_CODE         DB_NAME    DB_UNIQUE_NAME    PRIMARY_HOST_NAME                     REPORT_COUNT
+___________________ __________________________ __________ _________________ __________________________________ _______________
+                  4 1234567890:findb:findb1    FINDB      FINDB             exa-rac-node01 Linux x86 64-bit                 21
+
+1 row selected.
+
+
+========================================================================
+4. AWR REPORT CHRONOLOGY
+========================================================================
+
+
+   AWR_ID    SOURCE_SYSTEM_ID SNAP_BEGIN             SNAP_END
+_________ ___________________ ______________________ ______________________
+        5                   4 2026-03-28 00:00:00    2026-03-28 01:00:00
+        6                   4 2026-03-28 01:00:00    2026-03-28 02:00:00
+        7                   4 2026-03-28 02:00:00    2026-03-28 03:00:00
+        8                   4 2026-03-28 03:00:00    2026-03-28 04:00:00
+        9                   4 2026-03-28 04:00:00    2026-03-28 05:00:00
+       10                   4 2026-03-28 05:00:00    2026-03-28 06:00:00
+       11                   4 2026-03-28 06:00:00    2026-03-28 07:00:00
+       12                   4 2026-03-28 07:00:00    2026-03-28 08:00:00
+        4                   4 2026-03-28 08:00:00    2026-03-28 09:00:00
+       13                   4 2026-03-28 08:00:00    2026-03-28 09:00:00
+       14                   4 2026-03-28 09:00:00    2026-03-28 10:00:00
+       20                   4 2026-03-29 00:00:00    2026-03-29 01:00:00
+       21                   4 2026-03-29 01:00:00    2026-03-29 02:00:00
+       22                   4 2026-03-29 02:00:00    2026-03-29 03:00:00
+       23                   4 2026-03-29 03:00:00    2026-03-29 04:00:00
+       24                   4 2026-03-29 04:00:00    2026-03-29 05:00:00
+       15                   4 2026-03-29 05:00:00    2026-03-29 06:00:00
+       16                   4 2026-03-29 06:00:00    2026-03-29 07:00:00
+       17                   4 2026-03-29 07:00:00    2026-03-29 08:00:00
+       18                   4 2026-03-29 08:00:00    2026-03-29 09:00:00
+       19                   4 2026-03-29 09:00:00    2026-03-29 10:00:00
+
+21 rows selected.
+
+
+========================================================================
+5. CHRONOLOGY GAP / OVERLAP CHECK
+========================================================================
+
+
+   CURRENT_AWR_ID    PREV_AWR_ID PREV_END               CURRENT_BEGIN          CHRONOLOGY_STATUS
+_________________ ______________ ______________________ ______________________ ____________________
+                5                                       2026-03-28 00:00:00    FIRST
+                6              5 2026-03-28 01:00:00    2026-03-28 01:00:00    CONTIGUOUS
+                7              6 2026-03-28 02:00:00    2026-03-28 02:00:00    CONTIGUOUS
+                8              7 2026-03-28 03:00:00    2026-03-28 03:00:00    CONTIGUOUS
+                9              8 2026-03-28 04:00:00    2026-03-28 04:00:00    CONTIGUOUS
+               10              9 2026-03-28 05:00:00    2026-03-28 05:00:00    CONTIGUOUS
+               11             10 2026-03-28 06:00:00    2026-03-28 06:00:00    CONTIGUOUS
+               12             11 2026-03-28 07:00:00    2026-03-28 07:00:00    CONTIGUOUS
+                4             12 2026-03-28 08:00:00    2026-03-28 08:00:00    CONTIGUOUS
+               13              4 2026-03-28 09:00:00    2026-03-28 08:00:00    OVERLAP
+               14             13 2026-03-28 09:00:00    2026-03-28 09:00:00    CONTIGUOUS
+               20             14 2026-03-28 10:00:00    2026-03-29 00:00:00    GAP
+               21             20 2026-03-29 01:00:00    2026-03-29 01:00:00    CONTIGUOUS
+               22             21 2026-03-29 02:00:00    2026-03-29 02:00:00    CONTIGUOUS
+               23             22 2026-03-29 03:00:00    2026-03-29 03:00:00    CONTIGUOUS
+               24             23 2026-03-29 04:00:00    2026-03-29 04:00:00    CONTIGUOUS
+               15             24 2026-03-29 05:00:00    2026-03-29 05:00:00    CONTIGUOUS
+               16             15 2026-03-29 06:00:00    2026-03-29 06:00:00    CONTIGUOUS
+               17             16 2026-03-29 07:00:00    2026-03-29 07:00:00    CONTIGUOUS
+               18             17 2026-03-29 08:00:00    2026-03-29 08:00:00    CONTIGUOUS
+               19             18 2026-03-29 09:00:00    2026-03-29 09:00:00    CONTIGUOUS
+
+21 rows selected.
+
+
+========================================================================
+6. PER-AWR FACT COMPLETENESS
+========================================================================
+
+
+   AWR_ID    METRIC_FACT_COUNT    TOP_SQL_COUNT    WAIT_EVENT_COUNT    FEATURE_VECTOR_COUNT COMPLETENESS_STATUS
+_________ ____________________ ________________ ___________________ _______________________ ______________________
+        4                   47               10                  12                       1 COMPLETE
+        5                   42                6                   9                       1 COMPLETE
+        6                   42                6                   9                       1 COMPLETE
+        7                   42                6                   9                       1 COMPLETE
+        8                   42                6                   9                       1 COMPLETE
+        9                   42                6                   9                       1 COMPLETE
+       10                   42                6                   9                       1 COMPLETE
+       11                   42                6                   9                       1 COMPLETE
+       12                   42                6                   9                       1 COMPLETE
+       13                   42                6                   9                       1 COMPLETE
+       14                   42                6                   9                       1 COMPLETE
+       15                    7                4                   6                       1 COMPLETE
+       16                    7                4                   4                       1 COMPLETE
+       17                    7                4                   6                       1 COMPLETE
+       18                    7                4                   6                       1 COMPLETE
+       19                    7                4                   6                       1 COMPLETE
+       20                    7                5                   7                       1 COMPLETE
+       21                    7                5                   7                       1 COMPLETE
+       22                    7                5                   7                       1 COMPLETE
+       23                    7                5                   7                       1 COMPLETE
+       24                    7                5                   7                       1 COMPLETE
+
+21 rows selected.
+
+
+========================================================================
+7. FEATURE VECTOR PRESENCE
+========================================================================
+
+
+   AWR_ID
+_________
+        4
+        5
+        6
+        7
+        8
+        9
+       10
+       11
+       12
+       13
+       14
+       15
+       16
+       17
+       18
+       19
+       20
+       21
+       22
+       23
+       24
+
+21 rows selected.
+
+
+========================================================================
+8. TOP SQL TREND VIEW SAMPLE
+========================================================================
+
+
+SOURCE_SYSTEM_CODE            SOURCE_SYSTEM_ID    AWR_ID SNAP_TIME_BEGIN                    SNAP_TIME_END                      SQL_ID              PLAN_HASH_VALUE    RANK_BY_ELAPSED    RANK_BY_CPU    ELAPSED_TIME_SEC    CPU_TIME_SEC    IO_TIME_SEC    EXECUTIONS    ELAPSED_PER_EXEC_SEC    CPU_PER_EXEC_SEC
+__________________________ ___________________ _________ __________________________________ __________________________________ ________________ __________________ __________________ ______________ ___________________ _______________ ______________ _____________ _______________________ ___________________
+1234567890:findb:findb1                      4         5 28-MAR-26 12.00.00.000000000 AM    28-MAR-26 01.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               2262                                    109670400                 0.00002
+1234567890:findb:findb1                      4         5 28-MAR-26 12.00.00.000000000 AM    28-MAR-26 01.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                                436                                       709632                 0.00062
+1234567890:findb:findb1                      4         5 28-MAR-26 12.00.00.000000000 AM    28-MAR-26 01.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                                686                                     35481600                 0.00002
+1234567890:findb:findb1                      4         5 28-MAR-26 12.00.00.000000000 AM    28-MAR-26 01.00.00.000000000 AM    d4n7s1v2q8mno                                        4                                842                                     25804800                 0.00003
+1234567890:findb:findb1                      4         5 28-MAR-26 12.00.00.000000000 AM    28-MAR-26 01.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               1185                                     41932800                 0.00003
+1234567890:findb:findb1                      4         5 28-MAR-26 12.00.00.000000000 AM    28-MAR-26 01.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               1840                                     93542400                 0.00002
+1234567890:findb:findb1                      4         6 28-MAR-26 01.00.00.000000000 AM    28-MAR-26 02.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               2827                                    140515200                 0.00002
+1234567890:findb:findb1                      4         6 28-MAR-26 01.00.00.000000000 AM    28-MAR-26 02.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                                546                                       909216                  0.0006
+1234567890:findb:findb1                      4         6 28-MAR-26 01.00.00.000000000 AM    28-MAR-26 02.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                                858                                     45460800                 0.00002
+1234567890:findb:findb1                      4         6 28-MAR-26 01.00.00.000000000 AM    28-MAR-26 02.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1053                                     33062400                 0.00003
+1234567890:findb:findb1                      4         6 28-MAR-26 01.00.00.000000000 AM    28-MAR-26 02.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               1482                                     53726400                 0.00003
+1234567890:findb:findb1                      4         6 28-MAR-26 01.00.00.000000000 AM    28-MAR-26 02.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               2301                                    119851199                 0.00002
+1234567890:findb:findb1                      4         7 28-MAR-26 02.00.00.000000000 AM    28-MAR-26 03.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               3392                                    173073600                 0.00002
+1234567890:findb:findb1                      4         7 28-MAR-26 02.00.00.000000000 AM    28-MAR-26 03.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                                655                                      1119888                 0.00059
+1234567890:findb:findb1                      4         7 28-MAR-26 02.00.00.000000000 AM    28-MAR-26 03.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                               1029                                     55994400                 0.00002
+1234567890:findb:findb1                      4         7 28-MAR-26 02.00.00.000000000 AM    28-MAR-26 03.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1263                                     40723200                 0.00003
+1234567890:findb:findb1                      4         7 28-MAR-26 02.00.00.000000000 AM    28-MAR-26 03.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               1778                                     66175200                 0.00003
+1234567890:findb:findb1                      4         7 28-MAR-26 02.00.00.000000000 AM    28-MAR-26 03.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               2761                                    147621600                 0.00002
+1234567890:findb:findb1                      4         8 28-MAR-26 03.00.00.000000000 AM    28-MAR-26 04.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               3958                                    170674560                 0.00002
+1234567890:findb:findb1                      4         8 28-MAR-26 03.00.00.000000000 AM    28-MAR-26 04.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                                764                                      1104364                 0.00069
+1234567890:findb:findb1                      4         8 28-MAR-26 03.00.00.000000000 AM    28-MAR-26 04.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                               1201                                     55218240                 0.00002
+1234567890:findb:findb1                      4         8 28-MAR-26 03.00.00.000000000 AM    28-MAR-26 04.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1474                                     40158720                 0.00004
+1234567890:findb:findb1                      4         8 28-MAR-26 03.00.00.000000000 AM    28-MAR-26 04.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               2074                                     65257920                 0.00003
+1234567890:findb:findb1                      4         8 28-MAR-26 03.00.00.000000000 AM    28-MAR-26 04.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               3221                                    145575360                 0.00002
+1234567890:findb:findb1                      4         9 28-MAR-26 04.00.00.000000000 AM    28-MAR-26 05.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               4088                                    191923200                 0.00002
+1234567890:findb:findb1                      4         9 28-MAR-26 04.00.00.000000000 AM    28-MAR-26 05.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                                789                                      1241856                 0.00064
+1234567890:findb:findb1                      4         9 28-MAR-26 04.00.00.000000000 AM    28-MAR-26 05.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                               1240                                     62092800                 0.00002
+1234567890:findb:findb1                      4         9 28-MAR-26 04.00.00.000000000 AM    28-MAR-26 05.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1522                                     45158400                 0.00003
+1234567890:findb:findb1                      4         9 28-MAR-26 04.00.00.000000000 AM    28-MAR-26 05.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               2143                                     73382400                 0.00003
+1234567890:findb:findb1                      4         9 28-MAR-26 04.00.00.000000000 AM    28-MAR-26 05.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               3327                                    163699200                 0.00002
+1234567890:findb:findb1                      4        10 28-MAR-26 05.00.00.000000000 AM    28-MAR-26 06.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               4567                                    187810560                 0.00002
+1234567890:findb:findb1                      4        10 28-MAR-26 05.00.00.000000000 AM    28-MAR-26 06.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               3717                                    160191360                 0.00002
+1234567890:findb:findb1                      4        10 28-MAR-26 05.00.00.000000000 AM    28-MAR-26 06.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               2394                                     71809920                 0.00003
+1234567890:findb:findb1                      4        10 28-MAR-26 05.00.00.000000000 AM    28-MAR-26 06.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1701                                     44190720                 0.00004
+1234567890:findb:findb1                      4        10 28-MAR-26 05.00.00.000000000 AM    28-MAR-26 06.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                               1386                                     60762240                 0.00002
+1234567890:findb:findb1                      4        10 28-MAR-26 05.00.00.000000000 AM    28-MAR-26 06.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                                882                                      1215244                 0.00073
+1234567890:findb:findb1                      4        11 28-MAR-26 06.00.00.000000000 AM    28-MAR-26 07.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               4698                                    197064000                 0.00002
+1234567890:findb:findb1                      4        11 28-MAR-26 06.00.00.000000000 AM    28-MAR-26 07.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               3823                                    168084000                 0.00002
+1234567890:findb:findb1                      4        11 28-MAR-26 06.00.00.000000000 AM    28-MAR-26 07.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               2462                                     75348000                 0.00003
+1234567890:findb:findb1                      4        11 28-MAR-26 06.00.00.000000000 AM    28-MAR-26 07.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1749                                     46368000                 0.00004
+1234567890:findb:findb1                      4        11 28-MAR-26 06.00.00.000000000 AM    28-MAR-26 07.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                               1425                                     63756000                 0.00002
+1234567890:findb:findb1                      4        11 28-MAR-26 06.00.00.000000000 AM    28-MAR-26 07.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                               2106                                      1275120                 0.00165
+1234567890:findb:findb1                      4        12 28-MAR-26 07.00.00.000000000 AM    28-MAR-26 08.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               5307                                    194664960                 0.00003
+1234567890:findb:findb1                      4        12 28-MAR-26 07.00.00.000000000 AM    28-MAR-26 08.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               4318                                    166037760                 0.00003
+1234567890:findb:findb1                      4        12 28-MAR-26 07.00.00.000000000 AM    28-MAR-26 08.00.00.000000000 AM    c7k9d2l8p3abc                                        3                               2781                                     74430720                 0.00004
+1234567890:findb:findb1                      4        12 28-MAR-26 07.00.00.000000000 AM    28-MAR-26 08.00.00.000000000 AM    d4n7s1v2q8mno                                        4                               1976                                     45803520                 0.00004
+1234567890:findb:findb1                      4        12 28-MAR-26 07.00.00.000000000 AM    28-MAR-26 08.00.00.000000000 AM    f1g2h3j4k5lmn                                        5                               1610                                     62979840                 0.00003
+1234567890:findb:findb1                      4        12 28-MAR-26 07.00.00.000000000 AM    28-MAR-26 08.00.00.000000000 AM    q8w7e6r5t4y3u                                        6                               2379                                      1259596                 0.00189
+1234567890:findb:findb1                      4         4 28-MAR-26 08.00.00.000000000 AM    28-MAR-26 09.00.00.000000000 AM    8f7a1xk3d9abc                                        1                               4641                                      5102230                 0.00091
+1234567890:findb:findb1                      4         4 28-MAR-26 08.00.00.000000000 AM    28-MAR-26 09.00.00.000000000 AM    b9d2k3l4m5xyz                                        2                               3828                                      4431019                 0.00086
+
+50 rows selected.
+
+
+========================================================================
+9. WAIT EVENT TREND VIEW SAMPLE
+========================================================================
+
+
+SOURCE_SYSTEM_CODE            AWR_ID SNAP_BEGIN             EVENT_NAME                         WAIT_CLASS        PCT_DB_TIME
+__________________________ _________ ______________________ __________________________________ ______________ ______________
+1234567890:findb:findb1            5 2026-03-28 00:00:00    DB CPU                             CPU                      69.2
+1234567890:findb:findb1            5 2026-03-28 00:00:00    latch: cache buffers chains        Concurrency               0.4
+1234567890:findb:findb1            5 2026-03-28 00:00:00    cell smart table scan              User I/O                  0.5
+1234567890:findb:findb1            5 2026-03-28 00:00:00    buffer busy waits                  Concurrency               0.6
+1234567890:findb:findb1            5 2026-03-28 00:00:00    enq: TX - row lock contention      Application               0.8
+1234567890:findb:findb1            5 2026-03-28 00:00:00    log file parallel write            System I/O                1.5
+1234567890:findb:findb1            5 2026-03-28 00:00:00    cell multiblock physical read      User I/O                  5.4
+1234567890:findb:findb1            5 2026-03-28 00:00:00    log file sync                      Commit                    5.5
+1234567890:findb:findb1            5 2026-03-28 00:00:00    cell single block physical read    User I/O                 15.4
+1234567890:findb:findb1            6 2026-03-28 01:00:00    DB CPU                             CPU                      69.2
+1234567890:findb:findb1            6 2026-03-28 01:00:00    latch: cache buffers chains        Concurrency               0.4
+1234567890:findb:findb1            6 2026-03-28 01:00:00    cell smart table scan              User I/O                  0.5
+1234567890:findb:findb1            6 2026-03-28 01:00:00    buffer busy waits                  Concurrency               0.6
+1234567890:findb:findb1            6 2026-03-28 01:00:00    enq: TX - row lock contention      Application               0.8
+1234567890:findb:findb1            6 2026-03-28 01:00:00    log file parallel write            System I/O                1.7
+1234567890:findb:findb1            6 2026-03-28 01:00:00    cell multiblock physical read      User I/O                  4.6
+1234567890:findb:findb1            6 2026-03-28 01:00:00    log file sync                      Commit                    6.2
+1234567890:findb:findb1            6 2026-03-28 01:00:00    cell single block physical read    User I/O                 13.6
+1234567890:findb:findb1            7 2026-03-28 02:00:00    DB CPU                             CPU                      70.5
+1234567890:findb:findb1            7 2026-03-28 02:00:00    latch: cache buffers chains        Concurrency               0.4
+1234567890:findb:findb1            7 2026-03-28 02:00:00    cell smart table scan              User I/O                  0.4
+1234567890:findb:findb1            7 2026-03-28 02:00:00    buffer busy waits                  Concurrency               0.6
+1234567890:findb:findb1            7 2026-03-28 02:00:00    enq: TX - row lock contention      Application               0.9
+1234567890:findb:findb1            7 2026-03-28 02:00:00    log file parallel write            System I/O                  2
+1234567890:findb:findb1            7 2026-03-28 02:00:00    cell multiblock physical read      User I/O                    4
+1234567890:findb:findb1            7 2026-03-28 02:00:00    log file sync                      Commit                      7
+1234567890:findb:findb1            7 2026-03-28 02:00:00    cell single block physical read    User I/O                 12.5
+1234567890:findb:findb1            8 2026-03-28 03:00:00    DB CPU                             CPU                        62
+1234567890:findb:findb1            8 2026-03-28 03:00:00    latch: cache buffers chains        Concurrency               0.3
+1234567890:findb:findb1            8 2026-03-28 03:00:00    cell smart table scan              User I/O                  0.4
+1234567890:findb:findb1            8 2026-03-28 03:00:00    buffer busy waits                  Concurrency               0.6
+1234567890:findb:findb1            8 2026-03-28 03:00:00    enq: TX - row lock contention      Application               0.9
+1234567890:findb:findb1            8 2026-03-28 03:00:00    cell multiblock physical read      User I/O                  3.4
+1234567890:findb:findb1            8 2026-03-28 03:00:00    log file parallel write            System I/O                5.2
+1234567890:findb:findb1            8 2026-03-28 03:00:00    cell single block physical read    User I/O                 11.8
+1234567890:findb:findb1            8 2026-03-28 03:00:00    log file sync                      Commit                   18.6
+1234567890:findb:findb1            9 2026-03-28 04:00:00    DB CPU                             CPU                        66
+1234567890:findb:findb1            9 2026-03-28 04:00:00    latch: cache buffers chains        Concurrency               0.4
+1234567890:findb:findb1            9 2026-03-28 04:00:00    cell smart table scan              User I/O                  0.4
+1234567890:findb:findb1            9 2026-03-28 04:00:00    buffer busy waits                  Concurrency               0.6
+1234567890:findb:findb1            9 2026-03-28 04:00:00    enq: TX - row lock contention      Application                 1
+1234567890:findb:findb1            9 2026-03-28 04:00:00    log file parallel write            System I/O                2.1
+1234567890:findb:findb1            9 2026-03-28 04:00:00    cell multiblock physical read      User I/O                  3.5
+1234567890:findb:findb1            9 2026-03-28 04:00:00    log file sync                      Commit                    7.5
+1234567890:findb:findb1            9 2026-03-28 04:00:00    cell single block physical read    User I/O                 11.9
+1234567890:findb:findb1           10 2026-03-28 05:00:00    DB CPU                             CPU                      60.6
+1234567890:findb:findb1           10 2026-03-28 05:00:00    enq: TX - row lock contention      Application               2.2
+1234567890:findb:findb1           10 2026-03-28 05:00:00    cell multiblock physical read      User I/O                  3.1
+1234567890:findb:findb1           10 2026-03-28 05:00:00    log file sync                      Commit                      7
+1234567890:findb:findb1           10 2026-03-28 05:00:00    cell single block physical read    User I/O                 12.1
+
+50 rows selected.
+
+
+========================================================================
+10. KNOWN ANOMALY CHECK - COMMIT LATENCY WINDOW
+========================================================================
+
+
+   AWR_ID SNAP_BEGIN             EVENT_NAME       WAIT_CLASS       PCT_DB_TIME
+_________ ______________________ ________________ _____________ ______________
+        5 2026-03-28 00:00:00    log file sync    Commit                   5.5
+        6 2026-03-28 01:00:00    log file sync    Commit                   6.2
+        7 2026-03-28 02:00:00    log file sync    Commit                     7
+        8 2026-03-28 03:00:00    log file sync    Commit                  18.6
+        9 2026-03-28 04:00:00    log file sync    Commit                   7.5
+       10 2026-03-28 05:00:00    log file sync    Commit                     7
+       11 2026-03-28 06:00:00    log file sync    Commit                   7.5
+       12 2026-03-28 07:00:00    log file sync    Commit                   7.3
+        4 2026-03-28 08:00:00    log file sync    Commit                   8.2
+       13 2026-03-28 08:00:00    log file sync    Commit                   7.9
+       14 2026-03-28 09:00:00    log file sync    Commit                   6.2
+       20 2026-03-29 00:00:00    log file sync    Commit                   6.1
+       21 2026-03-29 01:00:00    log file sync    Commit                   6.7
+       22 2026-03-29 02:00:00    log file sync    Commit                   6.3
+       23 2026-03-29 03:00:00    log file sync    Commit                   5.8
+       24 2026-03-29 04:00:00    log file sync    Commit                   6.4
+       15 2026-03-29 05:00:00    log file sync    Commit                   8.5
+       17 2026-03-29 07:00:00    log file sync    Commit                   5.3
+       18 2026-03-29 08:00:00    log file sync    Commit                   6.3
+       19 2026-03-29 09:00:00    log file sync    Commit                   6.5
+
+20 rows selected.
+
+
+========================================================================
+11. KNOWN ANOMALY CHECK - CONCURRENCY WINDOW
+========================================================================
+
+
+   AWR_ID SNAP_BEGIN             EVENT_NAME                       WAIT_CLASS        PCT_DB_TIME
+_________ ______________________ ________________________________ ______________ ______________
+        5 2026-03-28 00:00:00    enq: TX - row lock contention    Application               0.8
+        5 2026-03-28 00:00:00    buffer busy waits                Concurrency               0.6
+        5 2026-03-28 00:00:00    latch: cache buffers chains      Concurrency               0.4
+        6 2026-03-28 01:00:00    enq: TX - row lock contention    Application               0.8
+        6 2026-03-28 01:00:00    buffer busy waits                Concurrency               0.6
+        6 2026-03-28 01:00:00    latch: cache buffers chains      Concurrency               0.4
+        7 2026-03-28 02:00:00    buffer busy waits                Concurrency               0.6
+        7 2026-03-28 02:00:00    enq: TX - row lock contention    Application               0.9
+        7 2026-03-28 02:00:00    latch: cache buffers chains      Concurrency               0.4
+        8 2026-03-28 03:00:00    enq: TX - row lock contention    Application               0.9
+        8 2026-03-28 03:00:00    buffer busy waits                Concurrency               0.6
+        8 2026-03-28 03:00:00    latch: cache buffers chains      Concurrency               0.3
+        9 2026-03-28 04:00:00    buffer busy waits                Concurrency               0.6
+        9 2026-03-28 04:00:00    latch: cache buffers chains      Concurrency               0.4
+        9 2026-03-28 04:00:00    enq: TX - row lock contention    Application                 1
+       10 2026-03-28 05:00:00    buffer busy waits                Concurrency               1.3
+       10 2026-03-28 05:00:00    enq: TX - row lock contention    Application               2.2
+       10 2026-03-28 05:00:00    latch: cache buffers chains      Concurrency               0.8
+       11 2026-03-28 06:00:00    enq: TX - row lock contention    Application                 1
+       11 2026-03-28 06:00:00    latch: cache buffers chains      Concurrency               0.4
+       11 2026-03-28 06:00:00    buffer busy waits                Concurrency               0.7
+       12 2026-03-28 07:00:00    latch: cache buffers chains      Concurrency               0.4
+       12 2026-03-28 07:00:00    enq: TX - row lock contention    Application                 1
+       12 2026-03-28 07:00:00    buffer busy waits                Concurrency               0.6
+        4 2026-03-28 08:00:00    latch: cache buffers chains      Concurrency               0.8
+        4 2026-03-28 08:00:00    enq: TX - row lock contention    Application               2.8
+        4 2026-03-28 08:00:00    buffer busy waits                Concurrency               1.4
+        4 2026-03-28 08:00:00    cursor: pin S wait on X          Concurrency               0.4
+       13 2026-03-28 08:00:00    enq: TX - row lock contention    Application                 1
+       13 2026-03-28 08:00:00    latch: cache buffers chains      Concurrency               0.4
+       13 2026-03-28 08:00:00    buffer busy waits                Concurrency               0.7
+       14 2026-03-28 09:00:00    buffer busy waits                Concurrency               0.5
+       14 2026-03-28 09:00:00    latch: cache buffers chains      Concurrency               0.3
+       14 2026-03-28 09:00:00    enq: TX - row lock contention    Application               0.8
+       20 2026-03-29 00:00:00    latch: cache buffers chains      Concurrency               0.4
+       20 2026-03-29 00:00:00    enq: TX - row lock contention    Application               0.8
+       21 2026-03-29 01:00:00    enq: TX - row lock contention    Application               0.8
+       21 2026-03-29 01:00:00    latch: cache buffers chains      Concurrency               0.4
+       22 2026-03-29 02:00:00    enq: TX - row lock contention    Application               0.8
+       22 2026-03-29 02:00:00    latch: cache buffers chains      Concurrency               0.4
+       23 2026-03-29 03:00:00    enq: TX - row lock contention    Application               0.8
+       23 2026-03-29 03:00:00    latch: cache buffers chains      Concurrency               0.5
+       24 2026-03-29 04:00:00    enq: TX - row lock contention    Application               0.8
+       24 2026-03-29 04:00:00    latch: cache buffers chains      Concurrency               0.4
+
+44 rows selected.
+
+
+========================================================================
+12. KNOWN ANOMALY CHECK - SINGLE BLOCK READ / FLASH CACHE WINDOW
+========================================================================
+
+
+   AWR_ID SNAP_BEGIN             EVENT_NAME                         WAIT_CLASS       PCT_DB_TIME
+_________ ______________________ __________________________________ _____________ ______________
+        5 2026-03-28 00:00:00    cell single block physical read    User I/O                15.4
+        6 2026-03-28 01:00:00    cell single block physical read    User I/O                13.6
+        7 2026-03-28 02:00:00    cell single block physical read    User I/O                12.5
+        8 2026-03-28 03:00:00    cell single block physical read    User I/O                11.8
+        9 2026-03-28 04:00:00    cell single block physical read    User I/O                11.9
+       10 2026-03-28 05:00:00    cell single block physical read    User I/O                12.1
+       11 2026-03-28 06:00:00    cell single block physical read    User I/O                12.8
+       12 2026-03-28 07:00:00    cell single block physical read    User I/O                22.6
+        4 2026-03-28 08:00:00    cell single block physical read    User I/O                12.4
+       13 2026-03-28 08:00:00    cell single block physical read    User I/O                  14
+       14 2026-03-28 09:00:00    cell single block physical read    User I/O                  16
+       20 2026-03-29 00:00:00    cell single block physical read    User I/O                11.8
+       21 2026-03-29 01:00:00    cell single block physical read    User I/O                  11
+       22 2026-03-29 02:00:00    cell single block physical read    User I/O                10.1
+       23 2026-03-29 03:00:00    cell single block physical read    User I/O                10.2
+       24 2026-03-29 04:00:00    cell single block physical read    User I/O                11.9
+       15 2026-03-29 05:00:00    cell single block physical read    User I/O                 9.9
+       17 2026-03-29 07:00:00    cell single block physical read    User I/O                11.4
+       18 2026-03-29 08:00:00    cell single block physical read    User I/O                11.1
+       19 2026-03-29 09:00:00    cell single block physical read    User I/O                10.7
+
+20 rows selected.
+
+
+========================================================================
+13. DUPLICATE REPORT WINDOW CHECK
+========================================================================
+
+
+DUPLICATE_KEY                                   DUP_COUNT
+____________________________________________ ____________
+4|2026-03-28 08:00:00|2026-03-28 09:00:00               2
+
+1 row selected.
+
+
+========================================================================
+14. HIGH-LEVEL VERDICT
+========================================================================
+
+
+SOURCE_SYSTEM_CHECK    REPORT_COUNT_CHECK    METRIC_FACT_CHECK    TOP_SQL_CHECK    WAIT_EVENT_CHECK    FEATURE_VECTOR_CHECK    TOP_SQL_VIEW_CHECK    WAIT_VIEW_CHECK
+______________________ _____________________ ____________________ ________________ ___________________ _______________________ _____________________ __________________
+OK                     OK                    OK                   OK               OK                  OK                      OK                    OK
+
+1 row selected.
+
+
+========================================================================
+15. SCORE RESULT SUMMARY (LATEST ROW PER AWR)
+========================================================================
+
+
+   AWR_ID    SCORE_RESULT_ID    SCORING_MODEL_ID    TOTAL_SCORE    CONFIDENCE_SCORE RISK_LEVEL
+_________ __________________ ___________________ ______________ ___________________ _____________
+       15                  1                   1        27.2343             63.6667 LOW
+       16                  2                   1        25.4727                  47 LOW
+       17                  3                   1        27.6221             63.6667 LOW
+       18                  4                   1        28.2557             63.6667 LOW
+       19                  5                   1        28.1146             63.6667 LOW
+       20                  6                   1        27.1672             63.6667 LOW
+       21                  7                   1        27.6339             63.6667 LOW
+       22                  8                   1        26.8994             63.6667 LOW
+       23                  9                   1        26.3113             63.6667 LOW
+       24                 10                   1        27.5108             63.6667 LOW
+
+10 rows selected.
+
+
+========================================================================
+16. SCORE RESULT SUMMARY - LATEST 10 SCORE ROWS
+========================================================================
+
+
+   AWR_ID    SCORE_RESULT_ID    SCORING_MODEL_ID    TOTAL_SCORE    CONFIDENCE_SCORE RISK_LEVEL
+_________ __________________ ___________________ ______________ ___________________ _____________
+       24                 10                   1        27.5108             63.6667 LOW
+       23                  9                   1        26.3113             63.6667 LOW
+       22                  8                   1        26.8994             63.6667 LOW
+       21                  7                   1        27.6339             63.6667 LOW
+       20                  6                   1        27.1672             63.6667 LOW
+       19                  5                   1        28.1146             63.6667 LOW
+       18                  4                   1        28.2557             63.6667 LOW
+       17                  3                   1        27.6221             63.6667 LOW
+       16                  2                   1        25.4727                  47 LOW
+       15                  1                   1        27.2343             63.6667 LOW
+
+10 rows selected.
+
+
+========================================================================
+17. SCORE SPREAD CHECK (LATEST ROW PER AWR)
+========================================================================
+
+
+   SCORE_ROW_COUNT    MIN_SCORE    MAX_SCORE    AVG_SCORE    MIN_CONFIDENCE    MAX_CONFIDENCE    AVG_CONFIDENCE
+__________________ ____________ ____________ ____________ _________________ _________________ _________________
+                10      25.4727      28.2557      27.2222                47           63.6667                62
+
+1 row selected.
+
+
+========================================================================
+18. SCORE RESULTS JOINED TO REPORT TIMELINE
+========================================================================
+
+
+   AWR_ID    SOURCE_SYSTEM_ID SNAP_BEGIN             SNAP_END                  TOTAL_SCORE    CONFIDENCE_SCORE RISK_LEVEL
+_________ ___________________ ______________________ ______________________ ______________ ___________________ _____________
+       20                   4 2026-03-29 00:00:00    2026-03-29 01:00:00           27.1672             63.6667 LOW
+       21                   4 2026-03-29 01:00:00    2026-03-29 02:00:00           27.6339             63.6667 LOW
+       22                   4 2026-03-29 02:00:00    2026-03-29 03:00:00           26.8994             63.6667 LOW
+       23                   4 2026-03-29 03:00:00    2026-03-29 04:00:00           26.3113             63.6667 LOW
+       24                   4 2026-03-29 04:00:00    2026-03-29 05:00:00           27.5108             63.6667 LOW
+       15                   4 2026-03-29 05:00:00    2026-03-29 06:00:00           27.2343             63.6667 LOW
+       16                   4 2026-03-29 06:00:00    2026-03-29 07:00:00           25.4727                  47 LOW
+       17                   4 2026-03-29 07:00:00    2026-03-29 08:00:00           27.6221             63.6667 LOW
+       18                   4 2026-03-29 08:00:00    2026-03-29 09:00:00           28.2557             63.6667 LOW
+       19                   4 2026-03-29 09:00:00    2026-03-29 10:00:00           28.1146             63.6667 LOW
+
+10 rows selected.
+
+
+========================================================================
+19. SCORE RESULTS FOR RAC + ADG PACK (AWR_ID 15-24)
+========================================================================
+
+
+   AWR_ID    SOURCE_SYSTEM_ID SNAP_BEGIN             SNAP_END                  TOTAL_SCORE    CONFIDENCE_SCORE RISK_LEVEL
+_________ ___________________ ______________________ ______________________ ______________ ___________________ _____________
+       15                   4 2026-03-29 05:00:00    2026-03-29 06:00:00           27.2343             63.6667 LOW
+       16                   4 2026-03-29 06:00:00    2026-03-29 07:00:00           25.4727                  47 LOW
+       17                   4 2026-03-29 07:00:00    2026-03-29 08:00:00           27.6221             63.6667 LOW
+       18                   4 2026-03-29 08:00:00    2026-03-29 09:00:00           28.2557             63.6667 LOW
+       19                   4 2026-03-29 09:00:00    2026-03-29 10:00:00           28.1146             63.6667 LOW
+       20                   4 2026-03-29 00:00:00    2026-03-29 01:00:00           27.1672             63.6667 LOW
+       21                   4 2026-03-29 01:00:00    2026-03-29 02:00:00           27.6339             63.6667 LOW
+       22                   4 2026-03-29 02:00:00    2026-03-29 03:00:00           26.8994             63.6667 LOW
+       23                   4 2026-03-29 03:00:00    2026-03-29 04:00:00           26.3113             63.6667 LOW
+       24                   4 2026-03-29 04:00:00    2026-03-29 05:00:00           27.5108             63.6667 LOW
+
+10 rows selected.
+
+
+========================================================================
+20. RISK LEVEL DISTRIBUTION (LATEST ROW PER AWR)
+========================================================================
+
+
+RISK_LEVEL       ROW_COUNT
+_____________ ____________
+LOW                     10
+
+1 row selected.
+
+
+========================================================================
+21. EXPLAINABILITY PAYLOAD PRESENCE (LATEST ROW PER AWR)
+========================================================================
+
+
+   AWR_ID    EXPLANATION_LEN    CONTRIBUTION_LEN    SCORECARD_LEN
+_________ __________________ ___________________ ________________
+       15                556                 856              290
+       16                482                 633              258
+       17                556                 859              290
+       18                557                 856              291
+       19                557                 858              291
+       20                557                 856              291
+       21                557                 855              291
+       22                556                 855              290
+       23                557                 858              291
+       24                557                 855              291
+
+10 rows selected.
+
+
+----------------------------------------------------------------------- prompt 22. EXPLAINABILITY JSON SAMPLE - AWR_ID 16
+----------------------------------------------------------------------- prompt
+
+   AWR_ID EXPLANATION_JSON                                                                                                                                                                                                                                                                                                                                                                                                                                                                       CONTRIBUTION_JSON                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             SCORECARD_JSON
+_________ ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ _____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ _____________________________________________________________________________________________________________________________________________________________________________________________________________________________
+       16 {"evidence":{"feature_codes_used":["CPU_UTIL_P95","DB_TIME_PER_TXN","TOP_SQL_LOAD_CONCENTRATION"],"feature_coverage":3,"top_domains":[{"domain":"CPU","score":10.56},{"domain":"SQL","score":3.45},{"domain":"LOAD","score":0}]},"summary":"Deterministic model AWR_WEIGHTED_CORE produced a total score of 25.47 with risk level LOW and confidence 47.00. The strongest weighted drivers were CPU_UTIL_P95=52.8000, TOP_SQL_LOAD_CONCENTRATION=23.0000, DB_TIME_PER_TXN=0.0000."}    {"components":[{"feature_domain":"CPU","weighted_points":10.56,"normalization_method":"MINMAX","feature_path":"$.CPU_UTIL_P95","normalized_value":0.528,"transformed_value":52.8,"weight_value":0.2,"raw_value":52.8,"feature_name":"CPU Utilization P95","polarity":"HIGH_BAD","feature_code":"CPU_UTIL_P95","transform_method":"NONE"},{"feature_domain":"LOAD","weighted_points":0,"normalization_method":"ROBUST","feature_path":"$.DB_TIME_PER_TXN","normalized_value":0,"transformed_value":0,"weight_value":0.2,"raw_value":0,"feature_name":"DB Time Per Transaction","polarity":"HIGH_BAD","feature_code":"DB_TIME_PER_TXN","transform_method":"LOG1P"},{"feature_domain":"SQL","weighted_points":3.45,"normalization_method":"MINMAX","feature_path":"$.TOP_SQL_LOAD_CONCENTRATION","normalized_value":0.23,"transformed_value":23,"weight_value":0.15,"raw_value":23,"feature_name":"Top SQL Load Concentration","polarity":"HIGH_BAD","feature_code":"TOP_SQL_LOAD_CONCENTRATION","transform_method":"NONE"}]}    {"coverage_ratio":0.5,"decision_domain":"SIZING","domain_totals":{"CPU":10.56,"LOAD":0,"SQL":3.45},"feature_vector_version":"2.0.0","model_code":"AWR_WEIGHTED_CORE","model_version":"1.0.0","workload_class":"CPU_BOUND"}
+
+1 row selected.
+
+
+----------------------------------------------------------------------- prompt 23. EXPLAINABILITY JSON SAMPLE - AWR_ID 22
+----------------------------------------------------------------------- prompt
+
+   AWR_ID EXPLANATION_JSON                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                CONTRIBUTION_JSON                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                SCORECARD_JSON
+_________ _______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+       22 {"evidence":{"feature_codes_used":["CPU_UTIL_P95","DB_TIME_PER_TXN","READ_LATENCY_MS","LOG_FILE_SYNC_MS","TOP_SQL_LOAD_CONCENTRATION"],"feature_coverage":5,"top_domains":[{"domain":"CPU","score":12.8372},{"domain":"LOAD","score":5.471},{"domain":"SQL","score":3.75},{"domain":"WAIT","score":0.72},{"domain":"IO","score":0.0862}]},"summary":"Deterministic model AWR_WEIGHTED_CORE produced a total score of 26.90 with risk level LOW and confidence 63.67. The strongest weighted drivers were CPU_UTIL_P95=64.1860, DB_TIME_PER_TXN=0.9100, TOP_SQL_LOAD_CONCENTRATION=25.0000."}    {"components":[{"feature_domain":"CPU","weighted_points":12.8372,"normalization_method":"MINMAX","feature_path":"$.CPU_UTIL_P95","normalized_value":0.64186,"transformed_value":64.186,"weight_value":0.2,"raw_value":64.186,"feature_name":"CPU Utilization P95","polarity":"HIGH_BAD","feature_code":"CPU_UTIL_P95","transform_method":"NONE"},{"feature_domain":"LOAD","weighted_points":5.47104,"normalization_method":"ROBUST","feature_path":"$.DB_TIME_PER_TXN","normalized_value":0.273552,"transformed_value":0.647103,"weight_value":0.2,"raw_value":0.91,"feature_name":"DB Time Per Transaction","polarity":"HIGH_BAD","feature_code":"DB_TIME_PER_TXN","transform_method":"LOG1P"},{"feature_domain":"IO","weighted_points":0.08625,"normalization_method":"MINMAX","feature_path":"$.READ_LATENCY_MS","normalized_value":0.00575,"transformed_value":0.23,"weight_value":0.15,"raw_value":0.23,"feature_name":"Read Latency (ms)","polarity":"HIGH_BAD","feature_code":"READ_LATENCY_MS","transform_method":"NONE"},{"feature_domain":"WAIT","weighted_points":0.72,"normalization_method":"MINMAX","feature_path":"$.LOG_FILE_SYNC_MS","normalized_value":0.048,"transformed_value":0.96,"weight_value":0.15,"raw_value":0.96,"feature_name":"Log File Sync (ms)","polarity":"HIGH_BAD","feature_code":"LOG_FILE_SYNC_MS","transform_method":"NONE"},{"feature_domain":"SQL","weighted_points":3.75,"normalization_method":"MINMAX","feature_path":"$.TOP_SQL_LOAD_CONCENTRATION","normalized_value":0.25,"transformed_value":25,"weight_value":0.15,"raw_value":25,"feature_name":"Top SQL Load Concentration","polarity":"HIGH_BAD","feature_code":"TOP_SQL_LOAD_CONCENTRATION","transform_method":"NONE"}]}    {"coverage_ratio":0.8333,"decision_domain":"SIZING","domain_totals":{"CPU":12.8372,"IO":0.0862,"LOAD":5.471,"SQL":3.75,"WAIT":0.72},"feature_vector_version":"2.0.0","model_code":"AWR_WEIGHTED_CORE","model_version":"1.0.0","workload_class":"CPU_BOUND"}
+
+1 row selected.
+
+
+----------------------------------------------------------------------- prompt 24. EXPLAINABILITY JSON SAMPLE - AWR_ID 23
+----------------------------------------------------------------------- prompt
+
+   AWR_ID EXPLANATION_JSON                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   CONTRIBUTION_JSON                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     SCORECARD_JSON
+_________ __________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ _____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ _________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+       23 {"evidence":{"feature_codes_used":["CPU_UTIL_P95","DB_TIME_PER_TXN","READ_LATENCY_MS","LOG_FILE_SYNC_MS","TOP_SQL_LOAD_CONCENTRATION"],"feature_coverage":5,"top_domains":[{"domain":"CPU","score":11.4059},{"domain":"LOAD","score":6.3237},{"domain":"SQL","score":3.75},{"domain":"WAIT","score":0.7875},{"domain":"IO","score":0.0975}]},"summary":"Deterministic model AWR_WEIGHTED_CORE produced a total score of 26.31 with risk level LOW and confidence 63.67. The strongest weighted drivers were CPU_UTIL_P95=57.0297, DB_TIME_PER_TXN=1.0800, TOP_SQL_LOAD_CONCENTRATION=25.0000."}    {"components":[{"feature_domain":"CPU","weighted_points":11.40594,"normalization_method":"MINMAX","feature_path":"$.CPU_UTIL_P95","normalized_value":0.570297,"transformed_value":57.0297,"weight_value":0.2,"raw_value":57.0297,"feature_name":"CPU Utilization P95","polarity":"HIGH_BAD","feature_code":"CPU_UTIL_P95","transform_method":"NONE"},{"feature_domain":"LOAD","weighted_points":6.32368,"normalization_method":"ROBUST","feature_path":"$.DB_TIME_PER_TXN","normalized_value":0.316184,"transformed_value":0.732368,"weight_value":0.2,"raw_value":1.08,"feature_name":"DB Time Per Transaction","polarity":"HIGH_BAD","feature_code":"DB_TIME_PER_TXN","transform_method":"LOG1P"},{"feature_domain":"IO","weighted_points":0.0975,"normalization_method":"MINMAX","feature_path":"$.READ_LATENCY_MS","normalized_value":0.0065,"transformed_value":0.26,"weight_value":0.15,"raw_value":0.26,"feature_name":"Read Latency (ms)","polarity":"HIGH_BAD","feature_code":"READ_LATENCY_MS","transform_method":"NONE"},{"feature_domain":"WAIT","weighted_points":0.7875,"normalization_method":"MINMAX","feature_path":"$.LOG_FILE_SYNC_MS","normalized_value":0.0525,"transformed_value":1.05,"weight_value":0.15,"raw_value":1.05,"feature_name":"Log File Sync (ms)","polarity":"HIGH_BAD","feature_code":"LOG_FILE_SYNC_MS","transform_method":"NONE"},{"feature_domain":"SQL","weighted_points":3.75,"normalization_method":"MINMAX","feature_path":"$.TOP_SQL_LOAD_CONCENTRATION","normalized_value":0.25,"transformed_value":25,"weight_value":0.15,"raw_value":25,"feature_name":"Top SQL Load Concentration","polarity":"HIGH_BAD","feature_code":"TOP_SQL_LOAD_CONCENTRATION","transform_method":"NONE"}]}    {"coverage_ratio":0.8333,"decision_domain":"SIZING","domain_totals":{"CPU":11.4059,"IO":0.0975,"LOAD":6.3237,"SQL":3.75,"WAIT":0.7875},"feature_vector_version":"2.0.0","model_code":"AWR_WEIGHTED_CORE","model_version":"1.0.0","workload_class":"CPU_BOUND"}
+
+1 row selected.
+
+
+========================================================================
+25. SCORE COVERAGE CHECK (LATEST ROW PER AWR)
+========================================================================
+
+
+SCORE_COVERAGE_STATUS       FEATURE_VECTOR_COUNT    SCORE_RESULT_COUNT
+________________________ _______________________ _____________________
+PARTIAL                                       21                    10
+
+1 row selected.
+
+
+========================================================================
+26. FEATURE VECTOR TO SCORE RESULT MATCH CHECK
+========================================================================
+
+
+   AWR_ID MATCH_STATUS
+_________ ________________
+        4 MISSING_SCORE
+        5 MISSING_SCORE
+        6 MISSING_SCORE
+        7 MISSING_SCORE
+        8 MISSING_SCORE
+        9 MISSING_SCORE
+       10 MISSING_SCORE
+       11 MISSING_SCORE
+       12 MISSING_SCORE
+       13 MISSING_SCORE
+       14 MISSING_SCORE
+       15 MATCHED
+       16 MATCHED
+       17 MATCHED
+       18 MATCHED
+       19 MATCHED
+       20 MATCHED
+       21 MATCHED
+       22 MATCHED
+       23 MATCHED
+       24 MATCHED
+
+21 rows selected.
+
+
+========================================================================
+VERIFICATION COMPLETE
+========================================================================
+

@@ -1,0 +1,316 @@
+--------------------------------------------------------------------------------
+-- OCI AGENTIC AWR DEMO
+-- TOPOLOGY / PLATFORM UPGRADE DDL v3
+-- Extends ddlv2_final.sql without replacing the base design.
+--------------------------------------------------------------------------------
+
+SPOOL ddlv3_topology_platform.log
+SET SQLBLANKLINES ON
+SET DEFINE OFF
+SET ECHO ON
+SET TIMING ON
+SET SERVEROUTPUT ON
+
+--------------------------------------------------------------------------------
+-- 1. SOURCE SYSTEM ENHANCEMENTS
+--------------------------------------------------------------------------------
+ALTER TABLE AWR_SOURCE_SYSTEM
+ADD (
+    DATABASE_ROLE            VARCHAR2(64),
+    INSTANCE_COUNT           NUMBER
+);
+
+--------------------------------------------------------------------------------
+-- 2. FEATURE VECTOR CLASSIFICATION SUPPORT
+--------------------------------------------------------------------------------
+ALTER TABLE AWR_FEATURE_VECTOR
+ADD (
+    TOPOLOGY_CLASS           VARCHAR2(64),
+    PLATFORM_CLASS           VARCHAR2(64),
+    EVENT_CLASS              VARCHAR2(64)
+);
+
+--------------------------------------------------------------------------------
+-- 3. SCORE RESULT CLASSIFICATION SUPPORT
+--------------------------------------------------------------------------------
+ALTER TABLE AWR_SCORE_RESULT
+ADD (
+    WORKLOAD_CLASS           VARCHAR2(64),
+    TOPOLOGY_CLASS           VARCHAR2(64),
+    PLATFORM_CLASS           VARCHAR2(64),
+    EVENT_CLASS              VARCHAR2(64),
+    PRIMARY_SIGNAL_DOMAIN    VARCHAR2(64)
+);
+
+--------------------------------------------------------------------------------
+-- 4. INDEXES FOR NEW CLASSIFICATION FIELDS
+--------------------------------------------------------------------------------
+CREATE INDEX IX_AWR_FEATURE_VECTOR_02
+    ON AWR_FEATURE_VECTOR (TOPOLOGY_CLASS, PLATFORM_CLASS, OBSERVED_AT) LOCAL;
+
+CREATE INDEX IX_AWR_SCORE_RESULT_04
+    ON AWR_SCORE_RESULT (TOPOLOGY_CLASS, PLATFORM_CLASS, EVENT_CLASS, SCORED_AT) LOCAL;
+
+--------------------------------------------------------------------------------
+-- 5. JSON INDEXES FOR TOPOLOGY / PLATFORM PAYLOADS
+--------------------------------------------------------------------------------
+CREATE INDEX IX_AWR_FEATURE_VECTOR_JSON_02
+    ON AWR_FEATURE_VECTOR (
+        JSON_VALUE(FEATURE_JSON, '$.topology_class' RETURNING VARCHAR2(64)),
+        JSON_VALUE(FEATURE_JSON, '$.platform_class' RETURNING VARCHAR2(64)),
+        JSON_VALUE(FEATURE_JSON, '$.operational_event_class' RETURNING VARCHAR2(64))
+    );
+
+CREATE INDEX IX_AWR_SCORE_RESULT_JSON_02
+    ON AWR_SCORE_RESULT (
+        JSON_VALUE(SCORECARD_JSON, '$.topology_class' RETURNING VARCHAR2(64)),
+        JSON_VALUE(SCORECARD_JSON, '$.platform_class' RETURNING VARCHAR2(64)),
+        JSON_VALUE(SCORECARD_JSON, '$.event_class' RETURNING VARCHAR2(64))
+    );
+
+--------------------------------------------------------------------------------
+-- 6. SEED TOPOLOGY / PLATFORM WEIGHTS INTO EXISTING MODEL
+--------------------------------------------------------------------------------
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'CLUSTER_WAIT_PCT_DB_TIME',
+    'Cluster Wait Pressure',
+    'CLUSTER',
+    '$.CLUSTER_WAIT_PCT_DB_TIME',
+    0.14,
+    'MINMAX',
+    'NONE',
+    'HIGH_BAD',
+    'Topology-aware RAC scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'CLUSTER_WAIT_PCT_DB_TIME'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'GC_CURRENT_WAIT_PCT_DB_TIME',
+    'GC Current Wait Pressure',
+    'CLUSTER',
+    '$.GC_CURRENT_WAIT_PCT_DB_TIME',
+    0.10,
+    'MINMAX',
+    'NONE',
+    'HIGH_BAD',
+    'Topology-aware RAC current block wait scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'GC_CURRENT_WAIT_PCT_DB_TIME'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'TRANSPORT_LAG_SEC',
+    'Transport Lag',
+    'DG',
+    '$.TRANSPORT_LAG_SEC',
+    0.12,
+    'MINMAX',
+    'LOG1P',
+    'HIGH_BAD',
+    'Topology-aware Data Guard transport lag scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'TRANSPORT_LAG_SEC'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'APPLY_LAG_SEC',
+    'Apply Lag',
+    'DG',
+    '$.APPLY_LAG_SEC',
+    0.12,
+    'MINMAX',
+    'LOG1P',
+    'HIGH_BAD',
+    'Topology-aware Data Guard apply lag scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'APPLY_LAG_SEC'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'FAILOVER_EVENT_FLAG',
+    'Failover Event',
+    'TOPOLOGY_EVENT',
+    '$.FAILOVER_EVENT_FLAG',
+    0.18,
+    'MINMAX',
+    'NONE',
+    'HIGH_BAD',
+    'Operational transition scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'FAILOVER_EVENT_FLAG'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'ROLE_TRANSITION_FLAG',
+    'Role Transition Event',
+    'TOPOLOGY_EVENT',
+    '$.ROLE_TRANSITION_FLAG',
+    0.12,
+    'MINMAX',
+    'NONE',
+    'HIGH_BAD',
+    'Operational role-transition scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'ROLE_TRANSITION_FLAG'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'POST_FAILOVER_RECOVERY_FLAG',
+    'Post-Failover Recovery',
+    'TOPOLOGY_EVENT',
+    '$.POST_FAILOVER_RECOVERY_FLAG',
+    0.12,
+    'MINMAX',
+    'NONE',
+    'HIGH_BAD',
+    'Operational recovery scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'POST_FAILOVER_RECOVERY_FLAG'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'EXA_CELL_IO_PCT_DB_TIME',
+    'Exadata Cell Wait Pressure',
+    'EXADATA',
+    '$.EXA_CELL_IO_PCT_DB_TIME',
+    0.10,
+    'MINMAX',
+    'NONE',
+    'HIGH_BAD',
+    'Engineered-system wait pressure weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'EXA_CELL_IO_PCT_DB_TIME'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'EXA_OFFLOAD_EFFICIENCY',
+    'Exadata Offload Efficiency',
+    'EXADATA',
+    '$.EXA_OFFLOAD_EFFICIENCY',
+    0.08,
+    'MINMAX',
+    'NONE',
+    'HIGH_GOOD',
+    'Beneficial engineered-system offload weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'EXA_OFFLOAD_EFFICIENCY'
+  );
+
+INSERT INTO AWR_SCORING_WEIGHT (
+    SCORING_MODEL_ID, FEATURE_CODE, FEATURE_NAME, FEATURE_DOMAIN, FEATURE_PATH,
+    WEIGHT_VALUE, NORMALIZATION_METHOD, TRANSFORM_METHOD, POLARITY, NOTES
+)
+SELECT
+    m.SCORING_MODEL_ID,
+    'SMART_SCAN_FLAG',
+    'Smart Scan Active',
+    'EXADATA',
+    '$.SMART_SCAN_FLAG',
+    0.06,
+    'MINMAX',
+    'NONE',
+    'HIGH_GOOD',
+    'Beneficial smart scan scoring weight'
+FROM AWR_SCORING_MODEL m
+WHERE m.MODEL_CODE = 'AWR_WEIGHTED_CORE'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM AWR_SCORING_WEIGHT w
+      WHERE w.SCORING_MODEL_ID = m.SCORING_MODEL_ID
+        AND w.FEATURE_CODE = 'SMART_SCAN_FLAG'
+  );
+
+COMMIT;
+
+SPOOL OFF

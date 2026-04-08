@@ -13,6 +13,9 @@ KNOWN_CONCURRENCY_EVENTS = {
 }
 
 ISSUE_PRIORITY_ORDER = (
+    "topology_event",
+    "dg_replication_state",
+    "cluster_contention",
     "cpu_pressure",
     "sql_concentration",
     "io_pressure",
@@ -33,6 +36,13 @@ def detect_issues(parse_result: ParseResult) -> list[dict[str, Any]]:
     """
 
     detected_issues = {
+        "topology_event": _detect_topology_event(parse_result.topology_signals),
+        "dg_replication_state": _detect_dg_transport_lag(
+            parse_result.topology_signals
+        ),
+        "cluster_contention": _detect_cluster_contention(
+            parse_result.topology_signals
+        ),
         "cpu_pressure": _detect_cpu_pressure(parse_result.wait_events),
         "sql_concentration": _detect_sql_concentration(parse_result.top_sql),
         "io_pressure": _detect_io_pressure(parse_result.wait_events),
@@ -45,6 +55,113 @@ def detect_issues(parse_result: ParseResult) -> list[dict[str, Any]]:
         for issue_type in ISSUE_PRIORITY_ORDER
         if detected_issues[issue_type] is not None
     ]
+
+
+def _detect_cluster_contention(
+    topology_signals: dict[str, Any],
+) -> dict[str, Any] | None:
+    cluster_wait_pct = _to_float(topology_signals.get("cluster_wait_pct_db_time"))
+    if cluster_wait_pct is None:
+        return None
+    severity = _severity_from_thresholds(
+        cluster_wait_pct,
+        high_threshold=10.0,
+        medium_threshold=4.0,
+    )
+    if severity is None:
+        return None
+    return {
+        "issue_type": "cluster_contention",
+        "severity": severity,
+        "summary": (
+            "Cluster coordination is material, with RAC/global-cache activity "
+            f"consuming {cluster_wait_pct:.1f}% of DB time."
+        ),
+        "evidence": {
+            "cluster_wait_pct_db_time": cluster_wait_pct,
+            "gc_cr_wait_pct_db_time": _to_float(
+                topology_signals.get("gc_cr_wait_pct_db_time")
+            ),
+            "gc_current_wait_pct_db_time": _to_float(
+                topology_signals.get("gc_current_wait_pct_db_time")
+            ),
+            "gc_buffer_busy_pct_db_time": _to_float(
+                topology_signals.get("gc_buffer_busy_pct_db_time")
+            ),
+            "interconnect_stress_flag": bool(
+                topology_signals.get("interconnect_stress_flag")
+            ),
+        },
+    }
+
+
+def _detect_dg_transport_lag(
+    topology_signals: dict[str, Any],
+) -> dict[str, Any] | None:
+    transport_lag_sec = _to_float(topology_signals.get("transport_lag_sec"))
+    apply_lag_sec = _to_float(topology_signals.get("apply_lag_sec"))
+    lag_signal = max(
+        transport_lag_sec or 0.0,
+        apply_lag_sec or 0.0,
+    )
+    if lag_signal <= 0 and not topology_signals.get("redo_transport_issue_flag"):
+        return None
+    severity = _severity_from_thresholds(
+        lag_signal,
+        high_threshold=300.0,
+        medium_threshold=30.0,
+    ) or "medium"
+    return {
+        "issue_type": "dg_replication_state",
+        "severity": severity,
+        "summary": (
+            "Data Guard replication-state pressure is present and should be "
+            "treated as a topology health issue rather than a generic workload bottleneck."
+        ),
+        "evidence": {
+            "database_role": topology_signals.get("database_role"),
+            "transport_lag_sec": transport_lag_sec,
+            "apply_lag_sec": apply_lag_sec,
+            "redo_transport_issue_flag": bool(
+                topology_signals.get("redo_transport_issue_flag")
+            ),
+        },
+    }
+
+
+def _detect_topology_event(
+    topology_signals: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not any(
+        bool(topology_signals.get(key))
+        for key in (
+            "failover_event_flag",
+            "role_transition_flag",
+            "post_failover_recovery_flag",
+        )
+    ):
+        return None
+    return {
+        "issue_type": "topology_event",
+        "severity": "high"
+        if topology_signals.get("failover_event_flag")
+        else "medium",
+        "summary": (
+            "An operational topology event is present, so the current interval "
+            "should be interpreted in the context of failover/role-transition behavior."
+        ),
+        "evidence": {
+            "database_role": topology_signals.get("database_role"),
+            "failover_event_flag": bool(topology_signals.get("failover_event_flag")),
+            "role_transition_flag": bool(topology_signals.get("role_transition_flag")),
+            "post_failover_recovery_flag": bool(
+                topology_signals.get("post_failover_recovery_flag")
+            ),
+            "operational_event_class": topology_signals.get(
+                "operational_event_class"
+            ),
+        },
+    }
 
 
 def _detect_cpu_pressure(wait_events: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -195,9 +312,9 @@ def _detect_sql_concentration(top_sql: list[dict[str, Any]]) -> dict[str, Any] |
     if not ranked_sql:
         return None
 
-    top_two_sql = ranked_sql[:2]
+    top_ranked_sql = ranked_sql[:3]
     combined_pct_total = sum(
-        _to_float(sql_record.get("pct_total")) or 0.0 for sql_record in top_two_sql
+        _to_float(sql_record.get("pct_total")) or 0.0 for sql_record in top_ranked_sql
     )
     severity = _severity_from_thresholds(
         combined_pct_total,
@@ -207,17 +324,17 @@ def _detect_sql_concentration(top_sql: list[dict[str, Any]]) -> dict[str, Any] |
     if severity is None:
         return None
 
-    modules = _extract_modules(top_two_sql)
+    modules = _extract_modules(top_ranked_sql)
     shared_module = modules[0] if len(modules) == 1 else None
     if shared_module:
         summary = (
-            f"SQL concentration is {severity}, with the top 2 SQL statements from "
+            f"SQL concentration is {severity}, with the top 3 SQL statements from "
             f"module '{shared_module}' accounting for {combined_pct_total:.1f}% "
             "of total elapsed SQL time."
         )
     else:
         summary = (
-            f"SQL concentration is {severity}, with the top 2 SQL statements "
+            f"SQL concentration is {severity}, with the top 3 SQL statements "
             f"accounting for {combined_pct_total:.1f}% of total elapsed SQL time."
         )
 
@@ -227,7 +344,7 @@ def _detect_sql_concentration(top_sql: list[dict[str, Any]]) -> dict[str, Any] |
         "summary": summary,
         "evidence": {
             "combined_pct_total": combined_pct_total,
-            "sql_ids": [sql_record.get("sql_id") for sql_record in top_two_sql],
+            "sql_ids": [sql_record.get("sql_id") for sql_record in top_ranked_sql],
             "modules": modules,
             "top_sql": [
                 {
@@ -238,7 +355,7 @@ def _detect_sql_concentration(top_sql: list[dict[str, Any]]) -> dict[str, Any] |
                     ),
                     "module": sql_record.get("module"),
                 }
-                for sql_record in top_two_sql
+                for sql_record in top_ranked_sql
             ],
         },
     }

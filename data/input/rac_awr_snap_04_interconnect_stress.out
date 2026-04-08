@@ -1,0 +1,88 @@
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.18.0.0.0
+WORKLOAD REPOSITORY REPORT - RAC SAMPLE
+
+Snapshot Period Summary
+DB Name         DB Id      Instance     Inst Num  Startup Time             Release      RAC
+------------ ----------- ----------- --------- ------------------------ ----------- ---
+FINDB        1234567890 FINDB2              2 24-Mar-26 03:15:19      19.18.0.0.0 YES
+
+Host Name    Platform
+------------ ------------------------------------------------------------
+exa-rac-node02 Linux x86 64-bit
+
+CPU          Cores     Sockets     Memory(GB)
+---------- ---------- ---------- ------------
+64                32          2          512
+
+Begin Snap: 11234  29-Mar-26 03:00:00
+  End Snap: 11235  29-Mar-26 04:00:00
+   Elapsed:               60.00 (mins)
+   DB Time:            505.0 (mins)
+
+Workload Note
+-------------
+Anomaly: RAC interconnect stress increases gc waits and cluster messaging overhead.
+
+Cluster Summary
+---------------
+2-node Oracle RAC on Exadata
+Instance under report: FINDB2
+Services: OLTP_APP, CHECKOUT_API, REPORTING
+
+Load Profile
+~~~~~~~~~~~~                            Per Second       Per Transaction
+                                   ---------------    ---------------
+                 DB Time(s):              505.0               1.08
+                  DB CPU(s):              288.0               0.62
+                  Redo size:        176,160,768.0          376,411.9
+               Transactions:              468.0
+
+Foreground Wait Events
+~~~~~~~~~~~~~~~~~~~~~~
+                                                               Avg
+                                                      Wait   wait   % DB
+Event                                   Waits   Time (s)   (ms)   time Wait Class
+-------------------------------- ------------ ---------- ------ ------ ------------------------------
+DB CPU                                                17,280          57.0                            CPU
+cell single block physical read        11,840,000      3,078   0.26   10.2                       User I/O
+gc cr grant 2-way                       2,024,000        880   0.43    2.9                        Cluster
+gc current block 2-way                    594,000        330   0.56    1.1                        Cluster
+log file sync                           1,674,691      1,758   1.05    5.8                         Commit
+enq: TX - row lock contention              45,900        255   5.56    0.8                    Application
+latch: cache buffers chains               289,800        138   0.48    0.5                    Concurrency
+
+RAC Statistics
+~~~~~~~~~~~~~~
+Statistic                                      Value
+------------------------------------------- ----------------
+gc cr blocks received                             16,192,000
+gc current blocks received                         4,752,000
+gc blocks lost                                         4,048
+global cache average cr get time (ms)                  0.435
+global cache average current get time (ms)             0.556
+interconnect bytes sent                     1,209,462,790,553
+interconnect bytes received                  522,268,023,193
+
+SQL ordered by Elapsed Time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SQL Id        Elapsed Time (s)  Executions  Elap/Exec(ms)  %Total   Module
+------------- ----------------- ---------- -------------- -------  ------------------
+8f7a1xk3d9abc             4,242 282,102,912           0.02    14.0  OrderService
+b9d2k3l4m5xyz             3,333 221,652,287           0.02    11.0  OrderService
+c7k9d2l8p3abc             2,121 141,051,456           0.02     7.0  CheckoutService
+d4n7s1v2q8mno             1,515 100,751,039           0.02     5.0  PaymentService
+q8w7e6r5t4y3u             1,818 120,901,247           0.02     6.0  Reporting
+
+Transactions and Redo
+~~~~~~~~~~~~~~~~~~~~~
+User commits:                          1,674,691
+User rollbacks:                          10,108
+Transactions/sec:                         468.0
+Redo generated per sec:                   168.0 MB
+
+Anomaly Flags
+~~~~~~~~~~~~~
+- rac_interconnect_stress
+
+End of Report

@@ -46,6 +46,157 @@ DB_VERSION_PATTERNS = (
 )
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOTENV_PATH = PROJECT_ROOT / ".env"
+FEATURE_SET_NAME = "awr_core_metrics"
+FEATURE_SET_VERSION = "3.0.0"
+SCORING_VECTOR_VERSION = "3.0.0"
+SCORING_MODEL_CODE = "AWR_WEIGHTED_CORE"
+SCORING_MODEL_DOMAIN = "SIZING"
+SCORING_NORMALIZATION_DEFAULTS: dict[str, dict[str, float]] = {
+    "CPU_UTIL_P95": {"min": 0.0, "max": 100.0},
+    "DB_TIME_PER_TXN": {"median": 0.1, "iqr": 0.5},
+    "READ_LATENCY_MS": {"min": 0.0, "max": 40.0},
+    "LOG_FILE_SYNC_MS": {"min": 0.0, "max": 20.0},
+    "TOP_SQL_LOAD_CONCENTRATION": {"min": 0.0, "max": 100.0},
+    "AAS_PER_CPU": {"min": 0.0, "max": 4.0},
+    "USER_IO_PRESSURE": {"min": 0.0, "max": 100.0},
+    "COMMIT_PRESSURE": {"min": 0.0, "max": 100.0},
+    "CONCURRENCY_PRESSURE": {"min": 0.0, "max": 100.0},
+    "HARD_PARSES_PER_SEC": {"min": 0.0, "max": 100.0},
+    "PGA_SPILL_PRESSURE": {"min": 0.0, "max": 1.0},
+    "TEMP_IO_PRESSURE": {"min": 0.0, "max": 500.0},
+    "THROUGHPUT_EXECUTIONS_PER_SEC": {"min": 0.0, "max": 20000.0},
+    "THROUGHPUT_USER_CALLS_PER_SEC": {"min": 0.0, "max": 20000.0},
+    "READ_MB_PER_SEC": {"min": 0.0, "max": 2048.0},
+    "WRITE_MB_PER_SEC": {"min": 0.0, "max": 2048.0},
+    "CLUSTER_WAIT_PCT_DB_TIME": {"min": 0.0, "max": 50.0},
+    "GC_CR_WAIT_PCT_DB_TIME": {"min": 0.0, "max": 50.0},
+    "GC_CURRENT_WAIT_PCT_DB_TIME": {"min": 0.0, "max": 50.0},
+    "GC_BUFFER_BUSY_PCT_DB_TIME": {"min": 0.0, "max": 20.0},
+    "TRANSPORT_LAG_SEC": {"min": 0.0, "max": 3600.0},
+    "APPLY_LAG_SEC": {"min": 0.0, "max": 3600.0},
+    "FAILOVER_EVENT_FLAG": {"min": 0.0, "max": 1.0},
+    "ROLE_TRANSITION_FLAG": {"min": 0.0, "max": 1.0},
+    "POST_FAILOVER_RECOVERY_FLAG": {"min": 0.0, "max": 1.0},
+    "EXA_CELL_IO_PCT_DB_TIME": {"min": 0.0, "max": 50.0},
+    "EXA_OFFLOAD_EFFICIENCY": {"min": 0.0, "max": 1.0},
+    "EXA_STORAGE_INDEX_SAVINGS": {"min": 0.0, "max": 1.0},
+    "SMART_SCAN_FLAG": {"min": 0.0, "max": 1.0},
+    "INTERCONNECT_STRESS_FLAG": {"min": 0.0, "max": 1.0},
+    "RAC_CONTENTION_FLAG": {"min": 0.0, "max": 1.0},
+    "REDO_TRANSPORT_ISSUE_FLAG": {"min": 0.0, "max": 1.0},
+}
+TOPOLOGY_SCORING_FALLBACK_WEIGHTS: list[dict[str, Any]] = [
+    {
+        "feature_code": "CLUSTER_WAIT_PCT_DB_TIME",
+        "feature_name": "Cluster Wait Pressure",
+        "feature_domain": "CLUSTER",
+        "feature_path": "$.CLUSTER_WAIT_PCT_DB_TIME",
+        "weight_value": 0.14,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for RAC cluster waits",
+    },
+    {
+        "feature_code": "GC_CURRENT_WAIT_PCT_DB_TIME",
+        "feature_name": "GC Current Wait Pressure",
+        "feature_domain": "CLUSTER",
+        "feature_path": "$.GC_CURRENT_WAIT_PCT_DB_TIME",
+        "weight_value": 0.10,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for RAC current block waits",
+    },
+    {
+        "feature_code": "TRANSPORT_LAG_SEC",
+        "feature_name": "Transport Lag",
+        "feature_domain": "DG",
+        "feature_path": "$.TRANSPORT_LAG_SEC",
+        "weight_value": 0.12,
+        "normalization_method": "MINMAX",
+        "transform_method": "LOG1P",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for DG transport lag",
+    },
+    {
+        "feature_code": "APPLY_LAG_SEC",
+        "feature_name": "Apply Lag",
+        "feature_domain": "DG",
+        "feature_path": "$.APPLY_LAG_SEC",
+        "weight_value": 0.12,
+        "normalization_method": "MINMAX",
+        "transform_method": "LOG1P",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for DG apply lag",
+    },
+    {
+        "feature_code": "FAILOVER_EVENT_FLAG",
+        "feature_name": "Failover Event",
+        "feature_domain": "TOPOLOGY_EVENT",
+        "feature_path": "$.FAILOVER_EVENT_FLAG",
+        "weight_value": 0.18,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for failover events",
+    },
+    {
+        "feature_code": "ROLE_TRANSITION_FLAG",
+        "feature_name": "Role Transition Event",
+        "feature_domain": "TOPOLOGY_EVENT",
+        "feature_path": "$.ROLE_TRANSITION_FLAG",
+        "weight_value": 0.12,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for role transitions",
+    },
+    {
+        "feature_code": "POST_FAILOVER_RECOVERY_FLAG",
+        "feature_name": "Post-Failover Recovery",
+        "feature_domain": "TOPOLOGY_EVENT",
+        "feature_path": "$.POST_FAILOVER_RECOVERY_FLAG",
+        "weight_value": 0.12,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for post-failover recovery",
+    },
+    {
+        "feature_code": "EXA_CELL_IO_PCT_DB_TIME",
+        "feature_name": "Exadata Cell Wait Pressure",
+        "feature_domain": "EXADATA",
+        "feature_path": "$.EXA_CELL_IO_PCT_DB_TIME",
+        "weight_value": 0.10,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_BAD",
+        "notes": "Fallback deterministic weight for Exadata cell waits",
+    },
+    {
+        "feature_code": "EXA_OFFLOAD_EFFICIENCY",
+        "feature_name": "Exadata Offload Efficiency",
+        "feature_domain": "EXADATA",
+        "feature_path": "$.EXA_OFFLOAD_EFFICIENCY",
+        "weight_value": 0.08,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_GOOD",
+        "notes": "Fallback deterministic weight for beneficial Exadata offload",
+    },
+    {
+        "feature_code": "SMART_SCAN_FLAG",
+        "feature_name": "Smart Scan Active",
+        "feature_domain": "EXADATA",
+        "feature_path": "$.SMART_SCAN_FLAG",
+        "weight_value": 0.06,
+        "normalization_method": "MINMAX",
+        "transform_method": "NONE",
+        "polarity": "HIGH_GOOD",
+        "notes": "Fallback deterministic weight for smart scan benefit",
+    },
+]
 
 
 def _load_project_env() -> None:
@@ -60,6 +211,7 @@ class DbCursor(Protocol):
     def execute(self, statement: str, parameters: Any = ...) -> Any: ...
     def executemany(self, statement: str, parameters: Any) -> Any: ...
     def fetchone(self) -> Any: ...
+    def fetchall(self) -> Any: ...
 
 
 class DbConnection(Protocol):
@@ -287,6 +439,7 @@ def build_source_system_record(parse_result: ParseResult) -> dict[str, Any]:
     """Map parsed metadata to one AWR_SOURCE_SYSTEM row."""
 
     metadata = parse_result.run_metadata
+    topology = parse_result.topology_signals or {}
     db_name = metadata.database_name
     dbid = _to_int(metadata.db_id)
     instance_name = metadata.instance_name
@@ -306,13 +459,15 @@ def build_source_system_record(parse_result: ParseResult) -> dict[str, Any]:
         "db_unique_name": db_name,
         "dbid": dbid,
         "platform_name": metadata.platform,
-        "db_version": _extract_report_header_fields(
-            metadata.source_file_path
-        ).get("db_version"),
-        "rac_flag": "N",
-        "adg_flag": "N",
+        "db_version": _extract_report_header_fields(metadata.source_file_path).get(
+            "db_version"
+        ),
+        "rac_flag": "Y" if topology.get("is_rac") else "N",
+        "adg_flag": "Y" if topology.get("is_dataguard") else "N",
         "cdb_flag": "N",
-        "exadata_flag": "N",
+        "exadata_flag": "Y" if topology.get("is_exadata") else "N",
+        "database_role": topology.get("database_role"),
+        "instance_count": _to_int(topology.get("instance_count")),
         "primary_host_name": metadata.host_name,
         "region_name": None,
         "availability_domain": None,
@@ -320,6 +475,12 @@ def build_source_system_record(parse_result: ParseResult) -> dict[str, Any]:
             {
                 "source": "awr_text",
                 "instance_name": instance_name,
+                "database_role": topology.get("database_role"),
+                "topology_class": topology.get("topology_class"),
+                "platform_class": topology.get("platform_class"),
+                "operational_event_class": topology.get(
+                    "operational_event_class"
+                ),
             }
         ),
     }
@@ -331,7 +492,19 @@ def upsert_source_system(
 ) -> int:
     """Insert or update one source-system record and return its identity."""
 
-    lookup = {"source_system_code": source_system_record["source_system_code"]}
+    clean_source_system_record = {
+        key.lstrip(":"): value for key, value in source_system_record.items()
+    }
+    source_code_lookup = {
+        "source_system_code": clean_source_system_record["source_system_code"]
+    }
+    db_identity_lookup = {
+        "dbid": clean_source_system_record["dbid"],
+        "db_unique_name": clean_source_system_record["db_unique_name"],
+    }
+    update_binds = _source_system_update_binds(clean_source_system_record)
+    insert_binds = _source_system_insert_binds(clean_source_system_record)
+
     with conn.cursor() as cursor:
         cursor.execute(
             """
@@ -339,17 +512,33 @@ def upsert_source_system(
               from AWR_SOURCE_SYSTEM
              where SOURCE_SYSTEM_CODE = :source_system_code
             """,
-            lookup,
+            source_code_lookup,
         )
         row = cursor.fetchone()
+        lookup_path = "source_system_code"
+
+        if not row and db_identity_lookup["dbid"] is not None:
+            cursor.execute(
+                """
+                select SOURCE_SYSTEM_ID
+                  from AWR_SOURCE_SYSTEM
+                 where DBID = :dbid
+                   and DB_UNIQUE_NAME = :db_unique_name
+                """,
+                db_identity_lookup,
+            )
+            row = cursor.fetchone()
+            lookup_path = "dbid/db_unique_name"
+
         if row:
             source_system_id = int(row[0])
-            update_record = dict(source_system_record)
-            update_record["source_system_id"] = source_system_id
+            update_payload = dict(update_binds)
+            update_payload["source_system_id"] = source_system_id
             cursor.execute(
                 """
                 update AWR_SOURCE_SYSTEM
-                   set TENANCY_NAME = :tenancy_name,
+                   set SOURCE_SYSTEM_CODE = :source_system_code,
+                       TENANCY_NAME = :tenancy_name,
                        COMPARTMENT_NAME = :compartment_name,
                        ENVIRONMENT_NAME = :environment_name,
                        CUSTOMER_NAME = :customer_name,
@@ -363,6 +552,8 @@ def upsert_source_system(
                        ADG_FLAG = :adg_flag,
                        CDB_FLAG = :cdb_flag,
                        EXADATA_FLAG = :exadata_flag,
+                       DATABASE_ROLE = :database_role,
+                       INSTANCE_COUNT = :instance_count,
                        PRIMARY_HOST_NAME = :primary_host_name,
                        REGION_NAME = :region_name,
                        AVAILABILITY_DOMAIN = :availability_domain,
@@ -370,12 +561,15 @@ def upsert_source_system(
                        UPDATED_AT = SYSTIMESTAMP
                  where SOURCE_SYSTEM_ID = :source_system_id
                 """,
-                update_record,
+                update_payload,
             )
             LOGGER.info(
-                "Source system upserted: SOURCE_SYSTEM_ID=%s CODE=%s",
+                "Source system matched by %s: SOURCE_SYSTEM_ID=%s CODE=%s database_role=%s instance_count=%s",
+                lookup_path,
                 source_system_id,
-                source_system_record["source_system_code"],
+                clean_source_system_record["source_system_code"],
+                clean_source_system_record.get("database_role"),
+                clean_source_system_record.get("instance_count"),
             )
             return source_system_id
 
@@ -397,6 +591,8 @@ def upsert_source_system(
                 ADG_FLAG,
                 CDB_FLAG,
                 EXADATA_FLAG,
+                DATABASE_ROLE,
+                INSTANCE_COUNT,
                 PRIMARY_HOST_NAME,
                 REGION_NAME,
                 AVAILABILITY_DOMAIN,
@@ -417,13 +613,15 @@ def upsert_source_system(
                 :adg_flag,
                 :cdb_flag,
                 :exadata_flag,
+                :database_role,
+                :instance_count,
                 :primary_host_name,
                 :region_name,
                 :availability_domain,
                 :tags_json
             )
             """,
-            source_system_record,
+            insert_binds,
         )
 
     with conn.cursor() as cursor:
@@ -433,18 +631,76 @@ def upsert_source_system(
               from AWR_SOURCE_SYSTEM
              where SOURCE_SYSTEM_CODE = :source_system_code
             """,
-            lookup,
+            source_code_lookup,
         )
         row = cursor.fetchone()
     if not row:
         raise RuntimeError("Failed to upsert AWR_SOURCE_SYSTEM record.")
     source_system_id = int(row[0])
     LOGGER.info(
-        "Source system upserted: SOURCE_SYSTEM_ID=%s CODE=%s",
+        "Source system inserted: SOURCE_SYSTEM_ID=%s CODE=%s database_role=%s instance_count=%s",
         source_system_id,
-        source_system_record["source_system_code"],
+        clean_source_system_record["source_system_code"],
+        clean_source_system_record.get("database_role"),
+        clean_source_system_record.get("instance_count"),
     )
     return source_system_id
+
+
+def _source_system_update_binds(
+    source_system_record: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "source_system_code": source_system_record["source_system_code"],
+        "tenancy_name": source_system_record["tenancy_name"],
+        "compartment_name": source_system_record["compartment_name"],
+        "environment_name": source_system_record["environment_name"],
+        "customer_name": source_system_record["customer_name"],
+        "application_name": source_system_record["application_name"],
+        "db_name": source_system_record["db_name"],
+        "db_unique_name": source_system_record["db_unique_name"],
+        "dbid": source_system_record["dbid"],
+        "platform_name": source_system_record["platform_name"],
+        "db_version": source_system_record["db_version"],
+        "rac_flag": source_system_record["rac_flag"],
+        "adg_flag": source_system_record["adg_flag"],
+        "cdb_flag": source_system_record["cdb_flag"],
+        "exadata_flag": source_system_record["exadata_flag"],
+        "database_role": source_system_record["database_role"],
+        "instance_count": source_system_record["instance_count"],
+        "primary_host_name": source_system_record["primary_host_name"],
+        "region_name": source_system_record["region_name"],
+        "availability_domain": source_system_record["availability_domain"],
+        "tags_json": source_system_record["tags_json"],
+    }
+
+
+def _source_system_insert_binds(
+    source_system_record: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "source_system_code": source_system_record["source_system_code"],
+        "tenancy_name": source_system_record["tenancy_name"],
+        "compartment_name": source_system_record["compartment_name"],
+        "environment_name": source_system_record["environment_name"],
+        "customer_name": source_system_record["customer_name"],
+        "application_name": source_system_record["application_name"],
+        "db_name": source_system_record["db_name"],
+        "db_unique_name": source_system_record["db_unique_name"],
+        "dbid": source_system_record["dbid"],
+        "platform_name": source_system_record["platform_name"],
+        "db_version": source_system_record["db_version"],
+        "rac_flag": source_system_record["rac_flag"],
+        "adg_flag": source_system_record["adg_flag"],
+        "cdb_flag": source_system_record["cdb_flag"],
+        "exadata_flag": source_system_record["exadata_flag"],
+        "database_role": source_system_record["database_role"],
+        "instance_count": source_system_record["instance_count"],
+        "primary_host_name": source_system_record["primary_host_name"],
+        "region_name": source_system_record["region_name"],
+        "availability_domain": source_system_record["availability_domain"],
+        "tags_json": source_system_record["tags_json"],
+    }
 
 
 def build_report_record(
@@ -851,9 +1107,7 @@ def build_top_sql_fact_rows(
                     str(sql_row.get("sql_text_snippet") or ""),
                     4000,
                 ),
-                "sql_text_clob": (
-                    str(sql_row.get("sql_text_snippet") or "") or None
-                ),
+                "sql_text_clob": (str(sql_row.get("sql_text_snippet") or "") or None),
                 "sql_metrics_json": _json_dumps(sql_row),
             }
         )
@@ -1031,50 +1285,25 @@ def build_feature_vector_record(
     """Build one feature-vector record with FEATURE_JSON populated."""
 
     _, snap_end = _require_snapshot_window(parse_result)
-    derived = extract_derived_pressure_metrics(parse_result)
-    feature_json = {
-        "cpu_pct": _compute_cpu_pct(parse_result),
-        "user_io_pct": _sum_wait_class_pct(parse_result, "User I/O"),
-        "commit_pct": _sum_wait_class_pct(parse_result, "Commit"),
-        "concurrency_pct": _sum_wait_class_pct(parse_result, "Concurrency"),
-        "read_iops": _extract_load_profile_metric(
-            parse_result,
-            "Physical reads",
-        ),
-        "write_iops": _extract_load_profile_metric(
-            parse_result,
-            "Physical writes",
-        ),
-        "read_mb_per_sec": _aggregate_datafile_metric(
-            parse_result,
-            "read_mb",
-        ),
-        "write_mb_per_sec": _aggregate_datafile_metric(
-            parse_result,
-            "write_mb",
-        ),
-        "hard_parses_per_sec": derived.get("hard_parses_per_sec"),
-        "temp_io_pressure": derived.get("temp_io_pressure"),
-        "pga_spill_pressure": derived.get("pga_spill_pressure"),
-        "log_file_sync_ms": _extract_log_file_sync_ms(parse_result),
-        "top_sql_concentration": _top_sql_concentration(parse_result),
-    }
-    return {
+    feature_payload = _build_feature_payload(parse_result)
+    feature_json = feature_payload["feature_json"]
+    feature_record = {
         "awr_id": awr_id,
         "source_system_id": source_system_id,
         "observed_at": snap_end,
-        "vector_version": "1.0.0",
-        "feature_set_name": "awr_core_metrics",
-        "feature_set_version": "1.0.0",
+        "vector_version": SCORING_VECTOR_VERSION,
+        "feature_set_name": FEATURE_SET_NAME,
+        "feature_set_version": FEATURE_SET_VERSION,
         "workload_class": _derive_workload_class(parse_result),
+        "topology_class": feature_json.get("topology_class"),
+        "platform_class": feature_json.get("platform_class"),
+        "event_class": feature_json.get("operational_event_class"),
         "vector_status": "ACTIVE",
         "feature_vector": None,
         "narrative_embedding": None,
         "feature_json": _json_dumps(feature_json),
-        "normalization_json": None,
-        "explanation_json": _json_dumps(
-            {"derived_metrics": derived, "feature_keys": sorted(feature_json)}
-        ),
+        "normalization_json": _json_dumps(feature_payload["normalization_json"]),
+        "explanation_json": _json_dumps(feature_payload["explanation_json"]),
         "source_lineage_json": _json_dumps(
             {
                 "source_file_name": parse_result.run_metadata.source_file_name,
@@ -1083,13 +1312,22 @@ def build_feature_vector_record(
             }
         ),
     }
+    LOGGER.info(
+        "Feature classifications derived: AWR_ID=%s workload_class=%s topology_class=%s platform_class=%s event_class=%s",
+        awr_id,
+        feature_record["workload_class"],
+        feature_record["topology_class"],
+        feature_record["platform_class"],
+        feature_record["event_class"],
+    )
+    return feature_record
 
 
 def insert_feature_vector(
     conn: Any,
     feature_vector_record: dict[str, Any],
-) -> None:
-    """Insert one feature vector row."""
+) -> int:
+    """Insert one feature vector row and return its identity."""
 
     with conn.cursor() as cursor:
         cursor.execute(
@@ -1102,6 +1340,9 @@ def insert_feature_vector(
                 FEATURE_SET_NAME,
                 FEATURE_SET_VERSION,
                 WORKLOAD_CLASS,
+                TOPOLOGY_CLASS,
+                PLATFORM_CLASS,
+                EVENT_CLASS,
                 VECTOR_STATUS,
                 FEATURE_VECTOR,
                 NARRATIVE_EMBEDDING,
@@ -1117,6 +1358,9 @@ def insert_feature_vector(
                 :feature_set_name,
                 :feature_set_version,
                 :workload_class,
+                :topology_class,
+                :platform_class,
+                :event_class,
                 :vector_status,
                 :feature_vector,
                 :narrative_embedding,
@@ -1128,10 +1372,207 @@ def insert_feature_vector(
             """,
             feature_vector_record,
         )
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            select FEATURE_VECTOR_ID
+              from AWR_FEATURE_VECTOR
+             where AWR_ID = :awr_id
+               and FEATURE_SET_NAME = :feature_set_name
+               and FEATURE_SET_VERSION = :feature_set_version
+            """,
+            {
+                "awr_id": feature_vector_record["awr_id"],
+                "feature_set_name": feature_vector_record["feature_set_name"],
+                "feature_set_version": feature_vector_record["feature_set_version"],
+            },
+        )
+        row = cursor.fetchone()
+    if not row:
+        raise RuntimeError("Failed to insert AWR_FEATURE_VECTOR row.")
+    feature_vector_id = int(row[0])
     LOGGER.info(
-        "Feature vector inserted: AWR_ID=%s SOURCE_SYSTEM_ID=%s",
+        "Feature vector inserted: FEATURE_VECTOR_ID=%s AWR_ID=%s SOURCE_SYSTEM_ID=%s topology_class=%s platform_class=%s event_class=%s",
+        feature_vector_id,
         feature_vector_record["awr_id"],
         feature_vector_record["source_system_id"],
+        feature_vector_record.get("topology_class"),
+        feature_vector_record.get("platform_class"),
+        feature_vector_record.get("event_class"),
+    )
+    return feature_vector_id
+
+
+def load_active_scoring_model(
+    conn: Any,
+    decision_domain: str = SCORING_MODEL_DOMAIN,
+) -> dict[str, Any] | None:
+    """Load the active deterministic scoring model, if one exists."""
+
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            select SCORING_MODEL_ID,
+                   MODEL_CODE,
+                   MODEL_NAME,
+                   MODEL_VERSION,
+                   MODEL_TYPE,
+                   TARGET_DECISION_DOMAIN,
+                   STATUS,
+                   SCORE_MIN,
+                   SCORE_MAX,
+                   THRESHOLD_JSON,
+                   MODEL_CONFIG_JSON
+              from AWR_SCORING_MODEL
+             where STATUS = 'ACTIVE'
+               and TARGET_DECISION_DOMAIN = :decision_domain
+             order by
+                   case when MODEL_CODE = :model_code then 0 else 1 end,
+                   SCORING_MODEL_ID desc
+             fetch first 1 rows only
+            """,
+            {
+                "decision_domain": decision_domain,
+                "model_code": SCORING_MODEL_CODE,
+            },
+        )
+        row = cursor.fetchone()
+    if not row:
+        LOGGER.info(
+            "Scoring skipped: no active scoring model found for domain=%s",
+            decision_domain,
+        )
+        return None
+    model = {
+        "scoring_model_id": int(row[0]),
+        "model_code": row[1],
+        "model_name": row[2],
+        "model_version": row[3],
+        "model_type": row[4],
+        "target_decision_domain": row[5],
+        "status": row[6],
+        "score_min": _safe_float(row[7]) or 0.0,
+        "score_max": _safe_float(row[8]) or 100.0,
+        "threshold_json": _json_loads(row[9]) or {},
+        "model_config_json": _json_loads(row[10]) or {},
+    }
+    LOGGER.info(
+        "Active scoring model loaded: id=%s code=%s version=%s",
+        model["scoring_model_id"],
+        model["model_code"],
+        model["model_version"],
+    )
+    return model
+
+
+def load_scoring_weights(conn: Any, scoring_model_id: int) -> list[dict[str, Any]]:
+    """Load enabled weights for one scoring model."""
+
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            select FEATURE_CODE,
+                   FEATURE_NAME,
+                   FEATURE_DOMAIN,
+                   FEATURE_PATH,
+                   WEIGHT_VALUE,
+                   NORMALIZATION_METHOD,
+                   TRANSFORM_METHOD,
+                   POLARITY,
+                   NOTES
+              from AWR_SCORING_WEIGHT
+             where SCORING_MODEL_ID = :scoring_model_id
+               and nvl(ENABLED_FLAG, 'Y') = 'Y'
+             order by SCORING_WEIGHT_ID
+            """,
+            {"scoring_model_id": scoring_model_id},
+        )
+        rows = cursor.fetchall()
+    weights = [
+        {
+            "feature_code": row[0],
+            "feature_name": row[1],
+            "feature_domain": row[2],
+            "feature_path": row[3],
+            "weight_value": _safe_float(row[4]) or 0.0,
+            "normalization_method": row[5] or "MINMAX",
+            "transform_method": row[6] or "NONE",
+            "polarity": row[7] or "HIGH_BAD",
+            "notes": row[8],
+        }
+        for row in rows
+    ]
+    LOGGER.info(
+        "Scoring weights loaded: model_id=%s count=%s",
+        scoring_model_id,
+        len(weights),
+    )
+    return _augment_scoring_weights(weights)
+
+
+def insert_score_result(conn: Any, score_result_record: dict[str, Any]) -> None:
+    """Insert one deterministic score result row."""
+
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            insert into AWR_SCORE_RESULT (
+                AWR_ID,
+                SOURCE_SYSTEM_ID,
+                FEATURE_VECTOR_ID,
+                SCORING_MODEL_ID,
+                SCORED_AT,
+                DECISION_DOMAIN,
+                RISK_LEVEL,
+                TOTAL_SCORE,
+                CONFIDENCE_SCORE,
+                SEVERITY_SCORE,
+                URGENCY_SCORE,
+                BUSINESS_IMPACT_SCORE,
+                WORKLOAD_CLASS,
+                TOPOLOGY_CLASS,
+                PLATFORM_CLASS,
+                EVENT_CLASS,
+                PRIMARY_SIGNAL_DOMAIN,
+                EXPLANATION_JSON,
+                CONTRIBUTION_JSON,
+                SCORECARD_JSON
+            ) values (
+                :awr_id,
+                :source_system_id,
+                :feature_vector_id,
+                :scoring_model_id,
+                :scored_at,
+                :decision_domain,
+                :risk_level,
+                :total_score,
+                :confidence_score,
+                :severity_score,
+                :urgency_score,
+                :business_impact_score,
+                :workload_class,
+                :topology_class,
+                :platform_class,
+                :event_class,
+                :primary_signal_domain,
+                :explanation_json,
+                :contribution_json,
+                :scorecard_json
+            )
+            """,
+            score_result_record,
+        )
+    LOGGER.info(
+        "Score result inserted: AWR_ID=%s MODEL_ID=%s TOTAL_SCORE=%s RISK=%s workload_class=%s topology_class=%s platform_class=%s event_class=%s primary_signal_domain=%s",
+        score_result_record["awr_id"],
+        score_result_record["scoring_model_id"],
+        score_result_record["total_score"],
+        score_result_record["risk_level"],
+        score_result_record.get("workload_class"),
+        score_result_record.get("topology_class"),
+        score_result_record.get("platform_class"),
+        score_result_record.get("event_class"),
+        score_result_record.get("primary_signal_domain"),
     )
 
 
@@ -1156,6 +1597,21 @@ def process_awr_batch(
             pipeline_version=PIPELINE_VERSION,
             trigger_type=os.getenv("AWR_TRIGGER_TYPE", "MANUAL"),
         )
+        scoring_model: dict[str, Any] | None = None
+        scoring_weights: list[dict[str, Any]] = []
+        try:
+            scoring_model = load_active_scoring_model(db_conn)
+            if scoring_model is not None:
+                scoring_weights = load_scoring_weights(
+                    db_conn,
+                    scoring_model["scoring_model_id"],
+                )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception(
+                "Scoring model initialization failed; ingest will continue without scoring"
+            )
+            scoring_model = None
+            scoring_weights = []
 
         file_count = len(awr_files)
         success_count = 0
@@ -1208,7 +1664,39 @@ def process_awr_batch(
                     awr_id=awr_id,
                     source_system_id=source_system_id,
                 )
-                insert_feature_vector(db_conn, feature_vector_record)
+                feature_vector_id = insert_feature_vector(
+                    db_conn,
+                    feature_vector_record,
+                )
+
+                if scoring_model and scoring_weights:
+                    try:
+                        persist_deterministic_score(
+                            conn=db_conn,
+                            parse_result=parse_result,
+                            awr_id=awr_id,
+                            source_system_id=source_system_id,
+                            feature_vector_id=feature_vector_id,
+                            feature_vector_record=feature_vector_record,
+                            scoring_model=scoring_model,
+                            scoring_weights=scoring_weights,
+                        )
+                    except Exception:  # noqa: BLE001
+                        LOGGER.exception(
+                            "Scoring failed for AWR_ID=%s; ingest will continue without persisted score",
+                            awr_id,
+                        )
+                elif scoring_model and not scoring_weights:
+                    LOGGER.info(
+                        "Scoring skipped: AWR_ID=%s model_id=%s has no enabled weights",
+                        awr_id,
+                        scoring_model["scoring_model_id"],
+                    )
+                else:
+                    LOGGER.info(
+                        "Scoring skipped: AWR_ID=%s no active scoring model available",
+                        awr_id,
+                    )
 
                 db_conn.commit()
                 LOGGER.info(
@@ -1360,12 +1848,8 @@ def _metric_fact_row(
 def _require_snapshot_window(
     parse_result: ParseResult,
 ) -> tuple[datetime, datetime]:
-    snap_begin = normalize_timestamp(
-        parse_result.run_metadata.begin_snapshot_time
-    )
-    snap_end = normalize_timestamp(
-        parse_result.run_metadata.end_snapshot_time
-    )
+    snap_begin = normalize_timestamp(parse_result.run_metadata.begin_snapshot_time)
+    snap_end = normalize_timestamp(parse_result.run_metadata.end_snapshot_time)
     if snap_begin is None or snap_end is None:
         raise ValueError(
             "Parsed AWR report does not include usable snapshot timestamps."
@@ -1514,6 +1998,666 @@ def _aggregate_datafile_metric(
     return round(sum(values), 4)
 
 
+def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
+    derived = extract_derived_pressure_metrics(parse_result)
+    topology = parse_result.topology_signals or {}
+    base_features = {
+        "cpu_pct": _compute_cpu_pct(parse_result),
+        "user_io_pct": _sum_wait_class_pct(parse_result, "User I/O"),
+        "commit_pct": _sum_wait_class_pct(parse_result, "Commit"),
+        "concurrency_pct": _sum_wait_class_pct(parse_result, "Concurrency"),
+        "read_iops": _extract_load_profile_metric(parse_result, "Physical reads"),
+        "write_iops": _extract_load_profile_metric(parse_result, "Physical writes"),
+        "read_mb_per_sec": _aggregate_datafile_metric(parse_result, "read_mb"),
+        "write_mb_per_sec": _aggregate_datafile_metric(parse_result, "write_mb"),
+        "hard_parses_per_sec": derived.get("hard_parses_per_sec"),
+        "temp_io_pressure": derived.get("temp_io_pressure"),
+        "pga_spill_pressure": derived.get("pga_spill_pressure"),
+        "log_file_sync_ms": _extract_log_file_sync_ms(parse_result),
+        "top_sql_concentration": _top_sql_concentration(parse_result),
+        "db_time_per_txn": _extract_load_profile_transaction_metric(
+            parse_result,
+            "DB Time(s)",
+        ),
+        "read_latency_ms": _extract_wait_class_avg_wait_ms(parse_result, "User I/O"),
+        "db_time_per_sec": _extract_load_profile_metric(parse_result, "DB Time(s)"),
+        "db_cpu_per_sec": _extract_load_profile_metric(parse_result, "DB CPU(s)"),
+        "executions_per_sec": _extract_load_profile_metric(parse_result, "Executions"),
+        "user_calls_per_sec": _extract_load_profile_metric(parse_result, "User calls"),
+        "transactions_per_sec": _extract_load_profile_metric(
+            parse_result,
+            "Transactions",
+        ),
+        "redo_size_per_sec": _extract_load_profile_metric(parse_result, "Redo size"),
+        "host_cpu_busy_pct": _extract_host_cpu_metric(parse_result, "busy"),
+        "is_rac": _flag_to_float(topology.get("is_rac")),
+        "instance_count": _safe_float(topology.get("instance_count")),
+        "cluster_wait_pct_db_time": _safe_float(
+            topology.get("cluster_wait_pct_db_time")
+        ),
+        "gc_cr_wait_pct_db_time": _safe_float(
+            topology.get("gc_cr_wait_pct_db_time")
+        ),
+        "gc_current_wait_pct_db_time": _safe_float(
+            topology.get("gc_current_wait_pct_db_time")
+        ),
+        "gc_buffer_busy_pct_db_time": _safe_float(
+            topology.get("gc_buffer_busy_pct_db_time")
+        ),
+        "interconnect_stress_flag": _flag_to_float(
+            topology.get("interconnect_stress_flag")
+        ),
+        "rac_contention_flag": _flag_to_float(topology.get("rac_contention_flag")),
+        "is_dataguard": _flag_to_float(topology.get("is_dataguard")),
+        "database_role": topology.get("database_role"),
+        "is_primary": _flag_to_float(topology.get("is_primary")),
+        "is_standby": _flag_to_float(topology.get("is_standby")),
+        "transport_lag_sec": _safe_float(topology.get("transport_lag_sec")),
+        "apply_lag_sec": _safe_float(topology.get("apply_lag_sec")),
+        "redo_transport_issue_flag": _flag_to_float(
+            topology.get("redo_transport_issue_flag")
+        ),
+        "failover_event_flag": _flag_to_float(topology.get("failover_event_flag")),
+        "role_transition_flag": _flag_to_float(
+            topology.get("role_transition_flag")
+        ),
+        "post_failover_recovery_flag": _flag_to_float(
+            topology.get("post_failover_recovery_flag")
+        ),
+        "is_exadata": _flag_to_float(topology.get("is_exadata")),
+        "smart_scan_flag": _flag_to_float(topology.get("smart_scan_flag")),
+        "exa_cell_io_pct_db_time": _safe_float(topology.get("exa_cell_io_pct_db_time")),
+        "exa_offload_efficiency": _safe_float(topology.get("exa_offload_efficiency")),
+        "exa_storage_index_savings": _safe_float(
+            topology.get("exa_storage_index_savings")
+        ),
+        "flash_cache_hit_flag": _flag_to_float(topology.get("flash_cache_hit_flag")),
+        "exadata_io_benefit_flag": _flag_to_float(
+            topology.get("exadata_io_benefit_flag")
+        ),
+        "topology_class": topology.get("topology_class"),
+        "platform_class": topology.get("platform_class"),
+        "operational_event_class": topology.get("operational_event_class"),
+    }
+    scoring_features = {
+        "CPU_UTIL_P95": base_features["cpu_pct"],
+        "DB_TIME_PER_TXN": base_features["db_time_per_txn"],
+        "READ_LATENCY_MS": base_features["read_latency_ms"],
+        "LOG_FILE_SYNC_MS": base_features["log_file_sync_ms"],
+        "TOP_SQL_LOAD_CONCENTRATION": base_features["top_sql_concentration"],
+        "AAS_PER_CPU": _derive_aas_per_cpu(parse_result),
+        "USER_IO_PRESSURE": base_features["user_io_pct"],
+        "COMMIT_PRESSURE": base_features["commit_pct"],
+        "CONCURRENCY_PRESSURE": base_features["concurrency_pct"],
+        "HARD_PARSES_PER_SEC": base_features["hard_parses_per_sec"],
+        "PGA_SPILL_PRESSURE": base_features["pga_spill_pressure"],
+        "TEMP_IO_PRESSURE": base_features["temp_io_pressure"],
+        "THROUGHPUT_EXECUTIONS_PER_SEC": base_features["executions_per_sec"],
+        "THROUGHPUT_USER_CALLS_PER_SEC": base_features["user_calls_per_sec"],
+        "READ_MB_PER_SEC": base_features["read_mb_per_sec"],
+        "WRITE_MB_PER_SEC": base_features["write_mb_per_sec"],
+        "CLUSTER_WAIT_PCT_DB_TIME": base_features["cluster_wait_pct_db_time"],
+        "GC_CR_WAIT_PCT_DB_TIME": base_features["gc_cr_wait_pct_db_time"],
+        "GC_CURRENT_WAIT_PCT_DB_TIME": base_features["gc_current_wait_pct_db_time"],
+        "GC_BUFFER_BUSY_PCT_DB_TIME": base_features["gc_buffer_busy_pct_db_time"],
+        "INTERCONNECT_STRESS_FLAG": base_features["interconnect_stress_flag"],
+        "RAC_CONTENTION_FLAG": base_features["rac_contention_flag"],
+        "TRANSPORT_LAG_SEC": base_features["transport_lag_sec"],
+        "APPLY_LAG_SEC": base_features["apply_lag_sec"],
+        "REDO_TRANSPORT_ISSUE_FLAG": base_features["redo_transport_issue_flag"],
+        "FAILOVER_EVENT_FLAG": base_features["failover_event_flag"],
+        "ROLE_TRANSITION_FLAG": base_features["role_transition_flag"],
+        "POST_FAILOVER_RECOVERY_FLAG": base_features[
+            "post_failover_recovery_flag"
+        ],
+        "EXA_CELL_IO_PCT_DB_TIME": base_features["exa_cell_io_pct_db_time"],
+        "EXA_OFFLOAD_EFFICIENCY": base_features["exa_offload_efficiency"],
+        "EXA_STORAGE_INDEX_SAVINGS": base_features["exa_storage_index_savings"],
+        "SMART_SCAN_FLAG": base_features["smart_scan_flag"],
+    }
+    feature_json = {
+        **base_features,
+        **scoring_features,
+        "feature_vector_version": SCORING_VECTOR_VERSION,
+        "feature_set_name": FEATURE_SET_NAME,
+        "feature_set_version": FEATURE_SET_VERSION,
+        "scoring_features": scoring_features,
+    }
+    normalization_json = {
+        "vector_version": SCORING_VECTOR_VERSION,
+        "normalization_defaults": SCORING_NORMALIZATION_DEFAULTS,
+        "scoring_weight_feature_codes": sorted(scoring_features),
+    }
+    explanation_json = {
+        "derived_metrics": derived,
+        "feature_keys": sorted(feature_json),
+        "scoring_feature_keys": sorted(scoring_features),
+        "feature_sources": {
+            "CPU_UTIL_P95": "cpu_pct proxy from DB CPU(s) / DB Time(s)",
+            "DB_TIME_PER_TXN": "load_profile.DB Time(s).per_transaction",
+            "READ_LATENCY_MS": "User I/O wait-class average wait",
+            "LOG_FILE_SYNC_MS": "wait event log file sync avg_wait_ms",
+            "TOP_SQL_LOAD_CONCENTRATION": "sum of top SQL pct_total values",
+            "AAS_PER_CPU": "derived only when host CPU count evidence exists",
+            "CLUSTER_WAIT_PCT_DB_TIME": "topology_signals.cluster_wait_pct_db_time",
+            "TRANSPORT_LAG_SEC": "topology_signals.transport_lag_sec",
+            "EXA_OFFLOAD_EFFICIENCY": "topology_signals.exa_offload_efficiency",
+        },
+        "topology_signals": topology,
+    }
+    LOGGER.info(
+        "Feature vector created: source_file=%s feature_count=%s scoring_feature_count=%s",
+        parse_result.run_metadata.source_file_name,
+        len(feature_json),
+        len(scoring_features),
+    )
+    return {
+        "feature_json": feature_json,
+        "normalization_json": normalization_json,
+        "explanation_json": explanation_json,
+    }
+
+
+def persist_deterministic_score(
+    conn: Any,
+    parse_result: ParseResult,
+    awr_id: int,
+    source_system_id: int,
+    feature_vector_id: int,
+    feature_vector_record: dict[str, Any],
+    scoring_model: dict[str, Any],
+    scoring_weights: list[dict[str, Any]],
+) -> None:
+    """Compute and persist one explainable deterministic score result."""
+
+    LOGGER.info(
+        "Score calculation started: AWR_ID=%s MODEL_ID=%s",
+        awr_id,
+        scoring_model["scoring_model_id"],
+    )
+    feature_json = _json_loads(feature_vector_record["feature_json"]) or {}
+    score_result_record = _build_score_result_record(
+        parse_result=parse_result,
+        awr_id=awr_id,
+        source_system_id=source_system_id,
+        feature_vector_id=feature_vector_id,
+        feature_json=feature_json,
+        scoring_model=scoring_model,
+        scoring_weights=scoring_weights,
+    )
+    if score_result_record is None:
+        LOGGER.info(
+            "Scoring skipped due to insufficient evidence: AWR_ID=%s",
+            awr_id,
+        )
+        return
+    insert_score_result(conn, score_result_record)
+    LOGGER.info(
+        "Score calculation completed: AWR_ID=%s total_score=%s confidence=%s workload_class=%s topology_class=%s platform_class=%s event_class=%s primary_signal_domain=%s",
+        awr_id,
+        score_result_record["total_score"],
+        score_result_record["confidence_score"],
+        score_result_record.get("workload_class"),
+        score_result_record.get("topology_class"),
+        score_result_record.get("platform_class"),
+        score_result_record.get("event_class"),
+        score_result_record.get("primary_signal_domain"),
+    )
+
+
+def _build_score_result_record(
+    parse_result: ParseResult,
+    awr_id: int,
+    source_system_id: int,
+    feature_vector_id: int,
+    feature_json: dict[str, Any],
+    scoring_model: dict[str, Any],
+    scoring_weights: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    component_rows = _score_weighted_components(feature_json, scoring_weights)
+    usable_components = [row for row in component_rows if row["raw_value"] is not None]
+    if not usable_components:
+        return None
+
+    total_weight = sum(row["weight_value"] for row in usable_components)
+    if total_weight <= 0:
+        return None
+
+    weighted_score = (
+        sum(row["weighted_points"] for row in usable_components) / total_weight
+    )
+    total_score = _round_score(weighted_score)
+    confidence_score = _compute_confidence_score(feature_json, usable_components)
+    risk_level = _classify_risk_level(
+        total_score,
+        scoring_model.get("threshold_json") or {},
+    )
+    workload_class = _derive_workload_class(parse_result)
+    topology_class = feature_json.get("topology_class")
+    platform_class = feature_json.get("platform_class")
+    event_class = feature_json.get("operational_event_class")
+
+    domain_totals = _aggregate_domain_scores(usable_components)
+    primary_signal_domain = _derive_primary_signal_domain(domain_totals)
+    severity_score = total_score
+    urgency_score = _round_score(
+        (0.65 * total_score)
+        + (
+            0.35
+            * max(
+                (row["weighted_points"] for row in usable_components),
+                default=0.0,
+            )
+        )
+    )
+    impact_numerator = (
+        domain_totals.get("CAPACITY", 0.0)
+        + domain_totals.get("CPU", 0.0)
+        + domain_totals.get("SQL", 0.0)
+    )
+    business_impact_score = _round_score(
+        (impact_numerator / max(total_weight, 1.0)) * 100.0
+    )
+
+    explanation_json = {
+        "summary": _build_score_summary(
+            scoring_model=scoring_model,
+            usable_components=usable_components,
+            total_score=total_score,
+            risk_level=risk_level,
+            confidence_score=confidence_score,
+        ),
+        "evidence": {
+            "feature_coverage": len(usable_components),
+            "feature_codes_used": [row["feature_code"] for row in usable_components],
+            "top_domains": sorted(
+                [
+                    {"domain": domain, "score": _round_score(score)}
+                    for domain, score in domain_totals.items()
+                ],
+                key=lambda row: row["score"],
+                reverse=True,
+            ),
+        },
+    }
+    contribution_json = {
+        "components": [
+            {
+                "feature_code": row["feature_code"],
+                "feature_name": row["feature_name"],
+                "feature_domain": row["feature_domain"],
+                "raw_value": row["raw_value"],
+                "transformed_value": row["transformed_value"],
+                "normalized_value": row["normalized_value"],
+                "weight_value": row["weight_value"],
+                "weighted_points": row["weighted_points"],
+                "feature_path": row["feature_path"],
+                "normalization_method": row["normalization_method"],
+                "transform_method": row["transform_method"],
+                "polarity": row["polarity"],
+            }
+            for row in usable_components
+        ]
+    }
+    scorecard_json = {
+        "model_code": scoring_model["model_code"],
+        "model_version": scoring_model["model_version"],
+        "decision_domain": scoring_model["target_decision_domain"],
+        "domain_totals": {
+            domain: _round_score(score) for domain, score in domain_totals.items()
+        },
+        "feature_vector_version": feature_json.get("feature_vector_version"),
+        "workload_class": workload_class,
+        "topology_class": topology_class,
+        "platform_class": platform_class,
+        "event_class": event_class,
+        "primary_signal_domain": primary_signal_domain,
+        "coverage_ratio": round(
+            len(usable_components) / max(len(scoring_weights), 1),
+            4,
+        ),
+    }
+    _, snap_end = _require_snapshot_window(parse_result)
+    LOGGER.info(
+        "Score classifications derived: AWR_ID=%s workload_class=%s topology_class=%s platform_class=%s event_class=%s primary_signal_domain=%s",
+        awr_id,
+        workload_class,
+        topology_class,
+        platform_class,
+        event_class,
+        primary_signal_domain,
+    )
+    return {
+        "awr_id": awr_id,
+        "source_system_id": source_system_id,
+        "feature_vector_id": feature_vector_id,
+        "scoring_model_id": scoring_model["scoring_model_id"],
+        "scored_at": snap_end,
+        "decision_domain": scoring_model["target_decision_domain"],
+        "risk_level": risk_level,
+        "total_score": total_score,
+        "confidence_score": confidence_score,
+        "severity_score": severity_score,
+        "urgency_score": urgency_score,
+        "business_impact_score": business_impact_score,
+        "workload_class": workload_class,
+        "topology_class": topology_class,
+        "platform_class": platform_class,
+        "event_class": event_class,
+        "primary_signal_domain": primary_signal_domain,
+        "explanation_json": _json_dumps(explanation_json),
+        "contribution_json": _json_dumps(contribution_json),
+        "scorecard_json": _json_dumps(scorecard_json),
+    }
+
+
+def _score_weighted_components(
+    feature_json: dict[str, Any],
+    scoring_weights: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    components: list[dict[str, Any]] = []
+    for weight in scoring_weights:
+        raw_value = _extract_feature_value_by_path(
+            feature_json,
+            weight["feature_path"],
+        )
+        transformed_value = _apply_transform(
+            raw_value,
+            weight["transform_method"],
+        )
+        normalized_value = _normalize_weight_feature(
+            feature_code=weight["feature_code"],
+            value=transformed_value,
+            method=weight["normalization_method"],
+            polarity=weight["polarity"],
+        )
+        weighted_points = (
+            round(normalized_value * 100.0 * weight["weight_value"], 6)
+            if normalized_value is not None
+            else 0.0
+        )
+        components.append(
+            {
+                "feature_code": weight["feature_code"],
+                "feature_name": weight["feature_name"],
+                "feature_domain": weight["feature_domain"] or "GENERAL",
+                "feature_path": weight["feature_path"],
+                "raw_value": raw_value,
+                "transformed_value": transformed_value,
+                "normalized_value": normalized_value,
+                "weight_value": weight["weight_value"],
+                "weighted_points": weighted_points,
+                "normalization_method": weight["normalization_method"],
+                "transform_method": weight["transform_method"],
+                "polarity": weight["polarity"],
+            }
+        )
+    return components
+
+
+def _augment_scoring_weights(
+    scoring_weights: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    present_codes = {
+        str(weight.get("feature_code") or "").strip()
+        for weight in scoring_weights
+    }
+    augmented_weights = list(scoring_weights)
+    added_count = 0
+    for fallback_weight in TOPOLOGY_SCORING_FALLBACK_WEIGHTS:
+        feature_code = fallback_weight["feature_code"]
+        if feature_code in present_codes:
+            continue
+        augmented_weights.append(dict(fallback_weight))
+        added_count += 1
+    if added_count:
+        LOGGER.info(
+            "Scoring weights augmented with deterministic topology/platform fallbacks: added=%s",
+            added_count,
+        )
+    return augmented_weights
+
+
+def _aggregate_domain_scores(components: list[dict[str, Any]]) -> dict[str, float]:
+    domain_totals: dict[str, float] = {}
+    for component in components:
+        domain = component["feature_domain"] or "GENERAL"
+        domain_totals[domain] = domain_totals.get(domain, 0.0) + component[
+            "weighted_points"
+        ]
+    return domain_totals
+
+
+def _derive_primary_signal_domain(domain_totals: dict[str, float]) -> str | None:
+    ranked_domains = [
+        (str(domain), float(score))
+        for domain, score in domain_totals.items()
+        if _safe_float(score) is not None and float(score) > 0.0
+    ]
+    if not ranked_domains:
+        return None
+    ranked_domains.sort(key=lambda item: item[1], reverse=True)
+    return ranked_domains[0][0]
+
+
+def _compute_confidence_score(
+    feature_json: dict[str, Any],
+    components: list[dict[str, Any]],
+) -> float:
+    coverage_ratio = len(components) / 6.0
+    coverage_score = min(max(coverage_ratio, 0.0), 1.0)
+    domain_values = {
+        "cpu": _safe_float(feature_json.get("CPU_UTIL_P95")),
+        "io": _safe_float(feature_json.get("USER_IO_PRESSURE")),
+        "commit": _safe_float(feature_json.get("COMMIT_PRESSURE")),
+        "concurrency": _safe_float(feature_json.get("CONCURRENCY_PRESSURE")),
+        "sql": _safe_float(feature_json.get("TOP_SQL_LOAD_CONCENTRATION")),
+    }
+    present_values = [value for value in domain_values.values() if value is not None]
+    conflict_penalty = 0.0
+    if len(present_values) >= 3:
+        dominant = max(present_values)
+        secondary = sorted(present_values, reverse=True)[1]
+        if dominant - secondary < 7.5:
+            conflict_penalty = 0.12
+
+    richness_score = 0.0
+    for feature_code in (
+        "HARD_PARSES_PER_SEC",
+        "PGA_SPILL_PRESSURE",
+        "TEMP_IO_PRESSURE",
+        "CLUSTER_WAIT_PCT_DB_TIME",
+        "TRANSPORT_LAG_SEC",
+        "EXA_OFFLOAD_EFFICIENCY",
+    ):
+        if _safe_float(feature_json.get(feature_code)) is not None:
+            richness_score += 0.08
+    consistency_score = (
+        0.22
+        if (domain_values["cpu"] or 0.0) >= (domain_values["io"] or 0.0)
+        else 0.16
+    )
+    total = (0.5 * coverage_score) + consistency_score + richness_score - conflict_penalty
+    return _round_score(min(max(total, 0.05), 0.99) * 100.0)
+
+
+def _classify_risk_level(total_score: float, thresholds: dict[str, Any]) -> str:
+    critical = _safe_float(thresholds.get("critical")) or 90.0
+    high = _safe_float(thresholds.get("high")) or 75.0
+    medium = _safe_float(thresholds.get("medium")) or 50.0
+    low = _safe_float(thresholds.get("low")) or 25.0
+    if total_score >= critical:
+        return "CRITICAL"
+    if total_score >= high:
+        return "HIGH"
+    if total_score >= medium:
+        return "MEDIUM"
+    if total_score >= low:
+        return "LOW"
+    return "LOW"
+
+
+def _build_score_summary(
+    scoring_model: dict[str, Any],
+    usable_components: list[dict[str, Any]],
+    total_score: float,
+    risk_level: str,
+    confidence_score: float,
+) -> str:
+    top_components = sorted(
+        usable_components,
+        key=lambda row: row["weighted_points"],
+        reverse=True,
+    )[:3]
+    driver_text = ", ".join(
+        f"{row['feature_code']}={_display_score_value(row['raw_value'])}"
+        for row in top_components
+    )
+    return (
+        f"Deterministic model {scoring_model['model_code']} produced a total score of {total_score:.2f} "
+        f"with risk level {risk_level} and confidence {confidence_score:.2f}. "
+        f"The strongest weighted drivers were {driver_text}."
+    )
+
+
+def _extract_feature_value_by_path(
+    feature_json: dict[str, Any],
+    feature_path: str | None,
+) -> float | None:
+    if not feature_path:
+        return None
+    normalized_path = feature_path.strip()
+    if normalized_path.startswith("$."):
+        normalized_path = normalized_path[2:]
+    value: Any = feature_json
+    for key in normalized_path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return _safe_float(value)
+
+
+def _apply_transform(value: float | None, transform_method: str | None) -> float | None:
+    if value is None:
+        return None
+    method = (transform_method or "NONE").upper()
+    if method == "NONE":
+        return value
+    if method == "LOG1P":
+        if value < 0:
+            return None
+        import math
+
+        return round(math.log1p(value), 6)
+    return value
+
+
+def _normalize_weight_feature(
+    feature_code: str,
+    value: float | None,
+    method: str | None,
+    polarity: str | None,
+) -> float | None:
+    if value is None:
+        return None
+    normalization = (method or "MINMAX").upper()
+    defaults = SCORING_NORMALIZATION_DEFAULTS.get(
+        feature_code,
+        {"min": 0.0, "max": 100.0},
+    )
+    if normalization == "ROBUST":
+        median = defaults.get("median", 0.0)
+        iqr = defaults.get("iqr", 1.0) or 1.0
+        normalized = (value - median) / iqr
+        normalized = normalized / 4.0
+        normalized = max(0.0, min(1.0, normalized))
+    else:
+        min_value = defaults.get("min", 0.0)
+        max_value = defaults.get("max", 100.0)
+        if max_value <= min_value:
+            return None
+        normalized = (value - min_value) / (max_value - min_value)
+        normalized = max(0.0, min(1.0, normalized))
+
+    normalized_polarity = (polarity or "HIGH_BAD").upper()
+    if normalized_polarity in {"LOW_BAD", "HIGH_GOOD"}:
+        normalized = 1.0 - normalized
+    return round(normalized, 6)
+
+
+def _extract_load_profile_transaction_metric(
+    parse_result: ParseResult,
+    metric_name: str,
+) -> float | None:
+    for metric in parse_result.cpu_metrics:
+        if metric.get("metric_group") != "load_profile":
+            continue
+        if str(metric.get("metric_name") or "").strip() != metric_name:
+            continue
+        return _safe_float(metric.get("per_transaction"))
+    return None
+
+
+def _extract_wait_class_avg_wait_ms(
+    parse_result: ParseResult,
+    wait_class: str,
+) -> float | None:
+    weighted_pairs: list[tuple[float, float]] = []
+    for row in parse_result.wait_events:
+        if str(row.get("wait_class") or "") != wait_class:
+            continue
+        avg_wait_ms = _safe_float(row.get("avg_wait_ms"))
+        pct_db_time = _safe_float(row.get("pct_db_time"))
+        if avg_wait_ms is None or pct_db_time is None:
+            continue
+        weighted_pairs.append((avg_wait_ms, pct_db_time))
+    if not weighted_pairs:
+        return None
+    numerator = sum(value * weight for value, weight in weighted_pairs)
+    denominator = sum(weight for _, weight in weighted_pairs)
+    if denominator <= 0:
+        return None
+    return round(numerator / denominator, 4)
+
+
+def _extract_host_cpu_metric(
+    parse_result: ParseResult,
+    metric_name: str,
+) -> float | None:
+    for metric in parse_result.cpu_metrics:
+        if metric.get("metric_group") != "host_cpu":
+            continue
+        if str(metric.get("metric_name") or "").strip() != metric_name:
+            continue
+        return _safe_float(metric.get("metric_value"))
+    return None
+
+
+def _derive_aas_per_cpu(parse_result: ParseResult) -> float | None:
+    # Keep this analytically honest: the current parser does not expose CPU-count
+    # evidence, so AAS/CPU remains null rather than being backfilled with a proxy.
+    return None
+
+
+def _flag_to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return 1.0 if bool(value) else 0.0
+
+
+def _display_score_value(value: Any) -> str:
+    numeric_value = _safe_float(value)
+    if numeric_value is None:
+        return "null"
+    return f"{numeric_value:.4f}"
+
+
+def _round_score(value: float | None) -> float:
+    if value is None:
+        return 0.0
+    return round(max(0.0, min(value, 100.0)), 4)
+
+
 def _compact_floats(values: list[float | None]) -> list[float]:
     return [value for value in values if value is not None]
 
@@ -1577,6 +2721,22 @@ def _json_dumps(value: Any) -> str | None:
     return json.dumps(value, default=str, sort_keys=True)
 
 
+def _json_loads(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    try:
+        return json.loads(value.read())
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _configure_logging() -> None:
     if logging.getLogger().handlers:
         return
@@ -1590,9 +2750,7 @@ def main(argv: list[str] | None = None) -> int:
     _configure_logging()
     args = argv if argv is not None else sys.argv[1:]
     input_dir = (
-        Path(args[0])
-        if args
-        else Path(os.getenv("AWR_INPUT_DIR", "data/input"))
+        Path(args[0]) if args else Path(os.getenv("AWR_INPUT_DIR", "data/input"))
     )
     result = process_awr_batch(input_dir=input_dir)
     print(json.dumps(result, indent=2, default=str))

@@ -1,0 +1,83 @@
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.18.0.0.0
+WORKLOAD REPOSITORY REPORT - ADG SAMPLE
+
+Snapshot Period Summary
+DB Name         DB Id      Instance       Inst Num  Startup Time             Release      RAC
+------------ ----------- ------------- --------- ------------------------ ----------- ---
+FINDB        1234567890 FINDB_STBY            1 24-Mar-26 03:15:19      19.18.0.0.0 NO
+
+Host Name    Platform
+------------ ------------------------------------------------------------
+exa-adg-node01 Linux x86 64-bit
+
+Begin Snap: 12237  29-Mar-26 06:00:00
+  End Snap: 12238  29-Mar-26 07:00:00
+   Elapsed:               60.00 (mins)
+   DB Time:            375.0 (mins)
+
+Workload Note
+-------------
+Anomaly: failover window. Former standby becomes active after role transition; application throughput temporarily drops.
+
+Data Guard Role Summary
+-----------------------
+Reported role context: TRANSITIONING
+Protection mode: MAXIMUM PERFORMANCE
+
+Load Profile
+~~~~~~~~~~~~                            Per Second       Per Transaction
+                                   ---------------    ---------------
+                 DB Time(s):              375.0               0.00
+                  DB CPU(s):              198.0               0.00
+                  Redo size:                  0.0                0.0
+               Transactions:                0.0
+
+Foreground Wait Events
+~~~~~~~~~~~~~~~~~~~~~~
+                                                               Avg
+                                                      Wait   wait   % DB
+Event                                   Waits   Time (s)   (ms)   time Wait Class
+-------------------------------- ------------ ---------- ------ ------ ------------------------------
+DB CPU                                                11,880          52.8                            CPU
+LNS wait on SENDREQ                             1          0   0.00    0.0                        Network
+RFS write                                 195,720        325   1.66    1.4                     System I/O
+managed recovery process wait             147,350        420   2.85    1.9                  Configuration
+
+Data Guard Statistics
+~~~~~~~~~~~~~~~~~~~~~
+Statistic                                      Value
+------------------------------------------- ----------------
+transport lag (seconds)                                  465
+apply lag (seconds)                                      420
+redo transport status                                LAGGING
+apply status                                        APPLYING
+estimated data loss exposure (seconds)                   465
+observer status                                 RECONNECTING
+
+Role Transition Indicators
+--------------------------
+ORA-16830 style symptoms simulated: fast-start failover / role transition window.
+Client throughput drops as services reconnect to the new primary.
+
+SQL ordered by Elapsed Time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SQL Id        Elapsed Time (s)  Executions  Elap/Exec(ms)  %Total   Module
+------------- ----------------- ---------- -------------- -------  ------------------
+8f7a1xk3d9abc             2,925          1     2925000.00    13.0  OrderService
+b9d2k3l4m5xyz             2,250          1     2250000.00    10.0  OrderService
+c7k9d2l8p3abc             1,350          1     1350000.00     6.0  CheckoutService
+d4n7s1v2q8mno               900          1      900000.00     4.0  PaymentService
+
+Transactions and Redo
+~~~~~~~~~~~~~~~~~~~~~
+User commits:                                  0
+User rollbacks:                               0
+Transactions/sec:                           0.0
+Redo generated per sec:                     0.0 MB
+
+Anomaly Flags
+~~~~~~~~~~~~~
+- adg_failover_event
+
+End of Report

@@ -1,0 +1,88 @@
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.18.0.0.0
+WORKLOAD REPOSITORY REPORT - RAC SAMPLE
+
+Snapshot Period Summary
+DB Name         DB Id      Instance     Inst Num  Startup Time             Release      RAC
+------------ ----------- ----------- --------- ------------------------ ----------- ---
+FINDB        1234567890 FINDB1              1 24-Mar-26 03:15:19      19.18.0.0.0 YES
+
+Host Name    Platform
+------------ ------------------------------------------------------------
+exa-rac-node01 Linux x86 64-bit
+
+CPU          Cores     Sockets     Memory(GB)
+---------- ---------- ---------- ------------
+64                32          2          512
+
+Begin Snap: 11231  29-Mar-26 00:00:00
+  End Snap: 11232  29-Mar-26 01:00:00
+   Elapsed:               60.00 (mins)
+   DB Time:            305.0 (mins)
+
+Workload Note
+-------------
+Healthy 2-node RAC baseline with balanced service placement.
+
+Cluster Summary
+---------------
+2-node Oracle RAC on Exadata
+Instance under report: FINDB1
+Services: OLTP_APP, CHECKOUT_API, REPORTING
+
+Load Profile
+~~~~~~~~~~~~                            Per Second       Per Transaction
+                                   ---------------    ---------------
+                 DB Time(s):              305.0               0.80
+                  DB CPU(s):              210.0               0.55
+                  Redo size:        131,072,000.0          344,926.3
+               Transactions:              380.0
+
+Foreground Wait Events
+~~~~~~~~~~~~~~~~~~~~~~
+                                                               Avg
+                                                      Wait   wait   % DB
+Event                                   Waits   Time (s)   (ms)   time Wait Class
+-------------------------------- ------------ ---------- ------ ------ ------------------------------
+DB CPU                                                12,600          68.9                            CPU
+cell single block physical read        10,310,000      2,165   0.21   11.8                       User I/O
+gc cr grant 2-way                         253,000        110   0.43    0.6                        Cluster
+gc current block 2-way                     99,000         55   0.56    0.3                        Cluster
+log file sync                           1,359,792      1,115   0.82    6.1                         Commit
+enq: TX - row lock contention              25,200        140   5.56    0.8                    Application
+latch: cache buffers chains               147,000         70   0.48    0.4                    Concurrency
+
+RAC Statistics
+~~~~~~~~~~~~~~
+Statistic                                      Value
+------------------------------------------- ----------------
+gc cr blocks received                              2,024,000
+gc current blocks received                           792,000
+gc blocks lost                                             0
+global cache average cr get time (ms)                  0.435
+global cache average current get time (ms)             0.556
+interconnect bytes sent                      362,838,837,166
+interconnect bytes received                  270,296,608,494
+
+SQL ordered by Elapsed Time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SQL Id        Elapsed Time (s)  Executions  Elap/Exec(ms)  %Total   Module
+------------- ----------------- ---------- -------------- -------  ------------------
+8f7a1xk3d9abc             2,562 229,057,920           0.01    14.0  OrderService
+b9d2k3l4m5xyz             2,013 179,974,080           0.01    11.0  OrderService
+c7k9d2l8p3abc             1,281 114,528,960           0.01     7.0  CheckoutService
+d4n7s1v2q8mno               915 81,806,400           0.01     5.0  PaymentService
+q8w7e6r5t4y3u               732 65,445,119           0.01     4.0  Reporting
+
+Transactions and Redo
+~~~~~~~~~~~~~~~~~~~~~
+User commits:                          1,359,792
+User rollbacks:                           8,208
+Transactions/sec:                         380.0
+Redo generated per sec:                   125.0 MB
+
+Anomaly Flags
+~~~~~~~~~~~~~
+- none
+
+End of Report
