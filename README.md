@@ -46,12 +46,10 @@ AWR (.out files)
 ```mermaid
 flowchart LR
     A[AWR Files] --> B[Parsing Pipeline]
-    B --> C[Structured Metrics & Metadata]
-    C --> D[Autonomous Database (ADB)]
-    D --> E[Intelligence Layer
-(Analysis + Scoring)]
-    E --> F[Agentic Decision Engine
-(LLM + Rules)]
+    B --> C[Structured Metrics and Metadata]
+    C --> D[Autonomous Database ADB]
+    D --> E[Intelligence Layer - Analysis and Scoring]
+    E --> F[Agentic Decision Engine - LLM and Rules]
     F --> G[Dashboard / HTML Output]
 ```
 
