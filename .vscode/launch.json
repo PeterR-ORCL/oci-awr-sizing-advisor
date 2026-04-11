@@ -37,7 +37,7 @@
 
     {
       "name": "Run AWR → ADB Loader (Full Pipeline)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "src.ingest.awr_adb_loader",
       "console": "integratedTerminal",
@@ -50,7 +50,7 @@
 
     {
       "name": "AWR Rebuild Feature Vectors",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "src.ingest.awr_adb_loader",
       "console": "integratedTerminal",
@@ -65,7 +65,7 @@
 
     {
       "name": "AWR DB Trend Analysis (FINDB)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "src.ingest.awr_adb_loader",
       "console": "integratedTerminal",
@@ -81,7 +81,7 @@
 
     {
       "name": "AWR DB Trend Analysis (DEBUG)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "src.ingest.awr_adb_loader",
       "console": "integratedTerminal",
@@ -97,7 +97,7 @@
 
     {
       "name": "AWR Trend Analysis (Single Metric Debug)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "src.ingest.awr_adb_loader",
       "console": "integratedTerminal",

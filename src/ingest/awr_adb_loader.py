@@ -33,6 +33,7 @@ def _resolve_log_level() -> int:
     resolved_level = getattr(logging, raw_level, logging.INFO)
     return resolved_level if isinstance(resolved_level, int) else logging.INFO
 
+
 PIPELINE_NAME = "oci-awr-agentic-ai-sizing-advisor"
 PIPELINE_VERSION = "1.0.0"
 SNAPSHOT_TIME_FORMATS = (
@@ -283,8 +284,8 @@ def get_db_connection() -> DbConnection:
             + ", ".join(sorted(missing_env))
         )
 
-    LOGGER.info("ADB connect config: user=%s dsn=%s", user, dsn)
-    LOGGER.info(
+    LOGGER.debug("ADB connect config: user=%s dsn=%s", user, dsn)
+    LOGGER.debug(
         "ADB connect wallet: tns_admin=%s wallet_password_present=%s",
         config_dir,
         bool(wallet_password),
@@ -445,6 +446,18 @@ def finalize_ingest_run(
         success_count,
         error_count,
     )
+
+
+def _derive_operation_status(
+    processed_count: int,
+    error_count: int,
+    downstream_error_count: int = 0,
+) -> str:
+    if error_count and processed_count == 0:
+        return "FAILED"
+    if error_count or downstream_error_count:
+        return "COMPLETED_WITH_ERRORS"
+    return "COMPLETED"
 
 
 def parse_awr_file(file_path: str | Path) -> ParseResult:
@@ -800,7 +813,7 @@ def build_report_record(
         "parser_output_json": _json_dumps(parse_result.to_dict()),
         "parser_warnings_json": _json_dumps(parse_result.parse_warnings),
     }
-    LOGGER.info(
+    LOGGER.debug(
         "Prepared report timestamps: snap_time_begin=%r (%s), snap_time_end=%r (%s)",
         report_record["snap_time_begin"],
         type(report_record["snap_time_begin"]).__name__,
@@ -906,7 +919,7 @@ def insert_report(conn: Any, report_record: dict[str, Any]) -> int:
     )
     for field_name in timestamp_fields:
         field_value = report_record.get(field_name)
-        LOGGER.info(
+        LOGGER.debug(
             "Report timestamp bind %s=%r type=%s",
             field_name,
             field_value,
@@ -914,7 +927,7 @@ def insert_report(conn: Any, report_record: dict[str, Any]) -> int:
         )
 
     with conn.cursor() as cursor:
-        LOGGER.info(
+        LOGGER.debug(
             "Executing AWR_REPORT insert with timestamps: snap_time_begin=%r (%s), "
             "snap_time_end=%r (%s)",
             report_record.get("snap_time_begin"),
@@ -1807,8 +1820,19 @@ def process_awr_batch(
             LOGGER.exception(
                 "Scoring model initialization failed; ingest will continue without scoring"
             )
+            downstream_error_count = 1
+            downstream_errors = [
+                {
+                    "stage": "scoring_model_initialization",
+                    "error_type": "ScoringInitializationError",
+                    "error_message": "Scoring model initialization failed during ingest.",
+                }
+            ]
             scoring_model = None
             scoring_weights = []
+        else:
+            downstream_error_count = 0
+            downstream_errors: list[dict[str, Any]] = []
 
         file_count = len(awr_files)
         success_count = 0
@@ -1899,6 +1923,18 @@ def process_awr_batch(
                             "Scoring failed for AWR_ID=%s; ingest will continue without persisted score",
                             awr_id,
                         )
+                        downstream_error_count += 1
+                        downstream_errors.append(
+                            {
+                                "stage": "scoring",
+                                "awr_id": awr_id,
+                                "file_name": Path(file_path).name,
+                                "error_type": "ScorePersistenceError",
+                                "error_message": (
+                                    "Deterministic scoring failed after raw ingest commit boundary."
+                                ),
+                            }
+                        )
                 elif scoring_model and not scoring_weights:
                     LOGGER.info(
                         "Scoring skipped: AWR_ID=%s model_id=%s has no enabled weights",
@@ -1937,12 +1973,11 @@ def process_awr_batch(
                 }
                 errors.append(error_entry)
 
-        if error_count and success_count:
-            final_status = "COMPLETED_WITH_ERRORS"
-        elif error_count and not success_count:
-            final_status = "FAILED"
-        else:
-            final_status = "COMPLETED"
+        final_status = _derive_operation_status(
+            processed_count=success_count,
+            error_count=error_count,
+            downstream_error_count=downstream_error_count,
+        )
 
         trend_analysis_results: list[dict[str, Any]] = []
         if affected_databases:
@@ -1955,6 +1990,30 @@ def process_awr_batch(
             except Exception:  # noqa: BLE001
                 db_conn.rollback()
                 LOGGER.exception("DB trend analysis failed after ingest batch")
+                downstream_error_count += 1
+                downstream_errors.append(
+                    {
+                        "stage": "db_trend_analysis",
+                        "error_type": "TrendAnalysisError",
+                        "error_message": "DB trend analysis failed after ingest batch.",
+                        "affected_database_count": len(affected_databases),
+                    }
+                )
+                final_status = _derive_operation_status(
+                    processed_count=success_count,
+                    error_count=error_count,
+                    downstream_error_count=downstream_error_count,
+                )
+
+        summary_notes = (
+            f"Processed {file_count} file(s); "
+            f"{success_count} succeeded, {skipped_count} skipped as duplicates, "
+            f"{error_count} failed."
+        )
+        if downstream_error_count:
+            summary_notes += (
+                f" {downstream_error_count} downstream derived step(s) failed after raw ingest commits."
+            )
 
         finalize_ingest_run(
             conn=db_conn,
@@ -1963,14 +2022,17 @@ def process_awr_batch(
             file_count=file_count,
             success_count=success_count,
             error_count=error_count,
-            notes=(
-                f"Processed {file_count} file(s); "
-                f"{success_count} succeeded, {skipped_count} skipped as duplicates, "
-                f"{error_count} failed."
-            ),
-            error_json=errors or None,
+            notes=summary_notes,
+            error_json=(errors + downstream_errors) or None,
         )
-        LOGGER.info("ADB persistence complete")
+        LOGGER.info(
+            "ADB persistence complete: status=%s success=%s skipped=%s errors=%s downstream_errors=%s",
+            final_status,
+            success_count,
+            skipped_count,
+            error_count,
+            downstream_error_count,
+        )
         return {
             "ingest_run_id": ingest_run_id,
             "status": final_status,
@@ -1978,7 +2040,9 @@ def process_awr_batch(
             "success_count": success_count,
             "skipped_count": skipped_count,
             "error_count": error_count,
+            "downstream_error_count": downstream_error_count,
             "errors": errors,
+            "downstream_errors": downstream_errors,
             "trend_analysis_results": trend_analysis_results,
         }
     except Exception:  # noqa: BLE001
@@ -2535,8 +2599,19 @@ def rebuild_feature_vectors(
             LOGGER.exception(
                 "Scoring model initialization failed for feature rebuild"
             )
+            downstream_error_count = 1
+            downstream_errors = [
+                {
+                    "stage": "scoring_model_initialization",
+                    "error_type": "ScoringInitializationError",
+                    "error_message": "Scoring model initialization failed for feature rebuild.",
+                }
+            ]
             scoring_model = None
             scoring_weights = []
+        else:
+            downstream_error_count = 0
+            downstream_errors: list[dict[str, Any]] = []
 
         candidate_reports = load_reports_for_feature_rebuild(
             conn=db_conn,
@@ -2646,16 +2721,51 @@ def rebuild_feature_vectors(
             except Exception:  # noqa: BLE001
                 db_conn.rollback()
                 LOGGER.exception("DB trend analysis failed after feature rebuild")
+                downstream_error_count += 1
+                downstream_errors.append(
+                    {
+                        "stage": "db_trend_analysis",
+                        "error_type": "TrendAnalysisError",
+                        "error_message": "DB trend analysis failed after feature rebuild.",
+                        "affected_database_count": len(affected_databases),
+                    }
+                )
+
+        candidate_count = len(candidate_reports)
+        processed_count = updated_count + inserted_count
+        no_candidates = candidate_count == 0
+        status = _derive_operation_status(
+            processed_count=processed_count,
+            error_count=error_count,
+            downstream_error_count=downstream_error_count,
+        )
+        if no_candidates:
+            notes = "No candidate reports matched rebuild selection."
+        else:
+            notes = (
+                f"Processed {processed_count} feature vector rebuild candidate(s); "
+                f"{error_count} failed."
+            )
+        if downstream_error_count:
+            notes += (
+                f" {downstream_error_count} downstream derived step(s) failed after feature rebuild commits."
+            )
 
         return {
             "mode": FEATURE_REBUILD_MODE,
-            "candidate_count": len(candidate_reports),
+            "status": status,
+            "candidate_count": candidate_count,
+            "processed_count": processed_count,
             "updated_count": updated_count,
             "inserted_count": inserted_count,
             "skipped_count": skipped_count,
+            "no_candidates": no_candidates,
             "score_regenerated_count": score_regenerated_count,
             "error_count": error_count,
+            "downstream_error_count": downstream_error_count,
             "errors": errors,
+            "downstream_errors": downstream_errors,
+            "notes": notes,
             "promoted_metric_keys": list(PROMOTED_ENGINEERED_FEATURE_KEYS),
             "trend_analysis_results": trend_analysis_results,
         }
@@ -2890,6 +3000,7 @@ def _aggregate_datafile_metric(
 def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
     derived = extract_derived_pressure_metrics(parse_result)
     topology = parse_result.topology_signals or {}
+    storage_index_savings = _safe_float(topology.get("exa_storage_index_savings"))
     base_features = {
         "cpu_pct": _compute_cpu_pct(parse_result),
         "db_cpu_pct_db_time": _compute_cpu_pct(parse_result),
@@ -3008,12 +3119,10 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "smart_scan_flag": _flag_to_float(topology.get("smart_scan_flag")),
         "exa_cell_io_pct_db_time": _safe_float(topology.get("exa_cell_io_pct_db_time")),
         "exa_offload_efficiency": _safe_float(topology.get("exa_offload_efficiency")),
-        "exa_storage_index_savings": _safe_float(
-            topology.get("exa_storage_index_savings")
-        ),
+        "exa_storage_index_savings": storage_index_savings,
         "storage_index_savings_pct": (
-            round(_safe_float(topology.get("exa_storage_index_savings")) * 100.0, 4)
-            if _safe_float(topology.get("exa_storage_index_savings")) is not None
+            round(storage_index_savings * 100.0, 4)
+            if storage_index_savings is not None
             else None
         ),
         "cell_single_block_latency_ms": _extract_exact_wait_event_avg_wait_ms(
@@ -3794,12 +3903,17 @@ def _compute_workarea_execution_pct(
     onepass = _safe_float(workarea_histogram.get("onepass_executions"))
     multipass = _safe_float(workarea_histogram.get("multipass_executions"))
     numerator = _safe_float(workarea_histogram.get(numerator_key))
-    if None in {optimal, onepass, multipass, numerator}:
+    if (
+        optimal is None
+        or onepass is None
+        or multipass is None
+        or numerator is None
+    ):
         return None
-    total = float(optimal) + float(onepass) + float(multipass)
+    total = optimal + onepass + multipass
     if total <= 0:
         return None
-    return round((float(numerator) / total) * 100.0, 4)
+    return round((numerator / total) * 100.0, 4)
 
 
 def _extract_host_cpu_metric(
