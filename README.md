@@ -1,4 +1,4 @@
-# OCI AWR Agentic AI Sizing Advisor
+# Agentic AI AWR Advisor
 
 <p align="center">
   <b>From AWR → Decision → Action</b><br/>
