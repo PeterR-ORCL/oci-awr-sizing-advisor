@@ -16,6 +16,22 @@
 
 ---
 
+# 🚀 Executive Summary (ADDED)
+
+This system represents a **new category of database intelligence platform**.
+
+It transforms Oracle AWR reports into:
+
+- Deterministic performance diagnostics  
+- Autonomous decision recommendations  
+- OCI-aware infrastructure sizing  
+- Future ML-ready feature vectors  
+
+> This is not reporting.  
+> This is a **decision system for database performance and cloud architecture.**
+
+---
+
 ## Executive Overview
 
 The Agentic AI  AWR Sizing Advisor is a **deterministic + agentic AI system** that transforms Oracle AWR reports into:
@@ -92,6 +108,21 @@ flowchart LR
 
 ---
 
+# ☁️ Object Storage Ingestion Flow (ADDED)
+
+```mermaid
+flowchart LR
+    A[AWR Upload] --> B[OCI Object Storage]
+    B --> C[Ingestion Pipeline]
+    C --> D[Parser Engine]
+    D --> E[Feature Vector Layer]
+    E --> F[ADB State Layer]
+    F --> G[Decision Engine]
+    G --> H[Insights + Recommendations]
+```
+
+---
+
 ## Feature Vector System
 
 Each AWR snapshot is transformed into a **feature vector** stored in:
@@ -119,6 +150,17 @@ Feature vectors enable:
 - Scoring  
 - Trend analysis  
 - ML readiness  
+
+---
+
+# 🧠 Vector Intelligence Layer (ADDED)
+
+The feature vector layer is the foundation for:
+
+- Similarity search  
+- Pattern clustering  
+- Workload fingerprinting  
+- Future supervised ML models  
 
 ---
 
@@ -289,6 +331,20 @@ Enables:
 
 ---
 
+# 🔁 Learning Loop (ADDED)
+
+```mermaid
+flowchart LR
+    A[AWR Data] --> B[Analysis Engine]
+    B --> C[Recommendations]
+    C --> D[Actions Taken]
+    D --> E[New AWR Data]
+    E --> F[Outcome Tracking]
+    F --> G[Model Improvement]
+```
+
+---
+
 ## Agentic Model
 
 This is not a chatbot.
@@ -345,6 +401,7 @@ This IS:
 - Trend Engine: Complete  
 - Anomaly Detection: Refined  
 - ADB Integration: Complete  
+- Object Storage Integration: Complete  
 
 Next:
 
