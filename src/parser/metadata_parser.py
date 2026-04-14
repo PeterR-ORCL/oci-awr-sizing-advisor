@@ -451,3 +451,115 @@ def _to_float(value: str) -> float | None:
         return float(value.replace(",", ""))
     except (AttributeError, ValueError):
         return None
+
+
+DATA_GUARD_LAG_PATTERNS = {
+    "transport_lag_sec": (
+        re.compile(
+            r"transport lag\s*[:=]?\s*([0-9:\s]+(?:day[s]?\s+[0-9:]+)?)",
+            re.IGNORECASE,
+        ),
+    ),
+    "apply_lag_sec": (
+        re.compile(
+            r"apply lag\s*[:=]?\s*([0-9:\s]+(?:day[s]?\s+[0-9:]+)?)",
+            re.IGNORECASE,
+        ),
+    ),
+}
+
+
+def _extract_snapshot_time(text: str, label: str) -> str | None:
+    """Extract a begin or end snapshot time using simple text patterns."""
+
+    patterns = (
+        rf"{label}\s+snap(?:shot)?\s*[:=]\s*(.+)",
+        rf"{label}\s+snapshot\s+time\s*[:=]\s*(.+)",
+    )
+    raw_value = _search_patterns(text, patterns)
+    return _normalize_snapshot_time(raw_value)
+
+
+def _normalize_snapshot_time(value: str | None) -> str | None:
+    """Normalize supported snapshot timestamp formats to ISO-like text."""
+
+    if not value:
+        return None
+
+    cleaned_value = value.strip()
+    candidates = [cleaned_value]
+    oracle_match = re.search(
+        r"(\d{2}-[A-Za-z]{3}-\d{2}\s+\d{2}:\d{2}:\d{2})",
+        cleaned_value,
+    )
+    if oracle_match:
+        candidates.append(oracle_match.group(1))
+
+    for candidate in candidates:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%d-%b-%y %H:%M:%S"):
+            try:
+                parsed = datetime.strptime(candidate, fmt)
+            except ValueError:
+                continue
+            return parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+    return None
+
+
+def extract_dataguard_lag_metrics(lines: list[str]) -> dict[str, float | None]:
+    """Extract deterministic Data Guard lag metrics from report text."""
+
+    text = "\n".join(lines)
+    return {
+        "transport_lag_sec": _extract_duration_metric(
+            text,
+            DATA_GUARD_LAG_PATTERNS["transport_lag_sec"],
+        ),
+        "apply_lag_sec": _extract_duration_metric(
+            text,
+            DATA_GUARD_LAG_PATTERNS["apply_lag_sec"],
+        ),
+    }
+
+
+def _extract_duration_metric(
+    text: str,
+    patterns: tuple[re.Pattern[str], ...],
+) -> float | None:
+    """Return the first matched duration metric normalized to seconds."""
+
+    for pattern in patterns:
+        match = pattern.search(text)
+        if match is None:
+            continue
+        return _duration_to_seconds(match.group(1))
+    return None
+
+
+def _duration_to_seconds(value: str) -> float | None:
+    """Convert common Oracle duration text into seconds."""
+
+    candidate = " ".join(value.strip().split())
+    if not candidate:
+        return None
+
+    day_match = re.fullmatch(
+        r"(\d+)\s+day[s]?\s+(\d{1,2}):(\d{2}):(\d{2})",
+        candidate,
+        re.IGNORECASE,
+    )
+    if day_match:
+        days = int(day_match.group(1))
+        hours = int(day_match.group(2))
+        minutes = int(day_match.group(3))
+        seconds = int(day_match.group(4))
+        return float((((days * 24) + hours) * 60 + minutes) * 60 + seconds)
+
+    time_match = re.fullmatch(r"(\d{1,2}):(\d{2}):(\d{2})", candidate)
+    if time_match:
+        hours = int(time_match.group(1))
+        minutes = int(time_match.group(2))
+        seconds = int(time_match.group(3))
+        return float((hours * 60 + minutes) * 60 + seconds)
+
+    return _to_float(candidate)

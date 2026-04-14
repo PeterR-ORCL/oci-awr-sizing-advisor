@@ -14,6 +14,7 @@ class AwrSectionDefinition:
     extractor_id: str
     required: bool = False
     section_kind: str = "functional"
+    completeness_role: str = "optional_core"
 
 
 SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
@@ -26,6 +27,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_awr_metadata",
         required=True,
         section_kind="functional",
+        completeness_role="required",
     ),
     AwrSectionDefinition(
         canonical_name="cpu",
@@ -38,6 +40,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_cpu_section",
         required=True,
         section_kind="functional",
+        completeness_role="required",
     ),
     AwrSectionDefinition(
         canonical_name="waits",
@@ -49,6 +52,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_waits_section",
         required=True,
         section_kind="functional",
+        completeness_role="required",
     ),
     AwrSectionDefinition(
         canonical_name="top_sql",
@@ -62,6 +66,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_sql_section",
         required=False,
         section_kind="functional",
+        completeness_role="optional_core",
     ),
     AwrSectionDefinition(
         canonical_name="io",
@@ -77,11 +82,15 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_io_related_sections",
         required=False,
         section_kind="functional",
+        completeness_role="optional_core",
     ),
     AwrSectionDefinition(
         canonical_name="sessions",
         aliases=(
             "session statistics",
+            "instance activity statistics",
+            "key instance activity stats",
+            "instance activity stats",
             "sql ordered by version count",
             "logons cumulative",
             "activity during the snapshot period",
@@ -89,6 +98,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_session_related_sections",
         required=False,
         section_kind="functional",
+        completeness_role="optional_core",
     ),
     AwrSectionDefinition(
         canonical_name="cluster_summary",
@@ -98,6 +108,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_topology_signals",
         required=False,
         section_kind="functional",
+        completeness_role="neutral",
     ),
     AwrSectionDefinition(
         canonical_name="rac_statistics",
@@ -107,6 +118,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_topology_signals",
         required=False,
         section_kind="functional",
+        completeness_role="neutral",
     ),
     AwrSectionDefinition(
         canonical_name="transactions_redo",
@@ -116,6 +128,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_topology_signals",
         required=False,
         section_kind="functional",
+        completeness_role="neutral",
     ),
     AwrSectionDefinition(
         canonical_name="cluster",
@@ -129,11 +142,14 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_topology_signals",
         required=False,
         section_kind="functional",
+        completeness_role="optional_contextual",
     ),
     AwrSectionDefinition(
         canonical_name="dataguard",
         aliases=(
+            "data guard statistics",
             "data guard",
+            "replication statistics",
             "transport lag",
             "apply lag",
             "managed recovery",
@@ -142,6 +158,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_topology_signals",
         required=False,
         section_kind="functional",
+        completeness_role="optional_contextual",
     ),
     AwrSectionDefinition(
         canonical_name="exadata",
@@ -155,6 +172,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_topology_signals",
         required=False,
         section_kind="functional",
+        completeness_role="optional_contextual",
     ),
     AwrSectionDefinition(
         canonical_name="workload_note",
@@ -164,6 +182,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_annotation_text_section",
         required=False,
         section_kind="annotation",
+        completeness_role="neutral",
     ),
     AwrSectionDefinition(
         canonical_name="anomaly_flags",
@@ -173,6 +192,7 @@ SECTION_REGISTRY: tuple[AwrSectionDefinition, ...] = (
         extractor_id="parse_annotation_labels_section",
         required=False,
         section_kind="annotation",
+        completeness_role="neutral",
     ),
 )
 

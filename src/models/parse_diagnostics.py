@@ -16,6 +16,7 @@ class UnknownParserElement:
     context_after: list[str] = field(default_factory=list)
     source_file_name: str | None = None
     source_file_path: str | None = None
+    classification_hint: str | None = None
 
 
 @dataclass(slots=True)
@@ -28,12 +29,29 @@ class ParseDiagnostics:
     sections_missing: list[str] = field(default_factory=list)
     required_sections_missing: list[str] = field(default_factory=list)
     optional_sections_missing: list[str] = field(default_factory=list)
+    optional_core_sections_missing: list[str] = field(default_factory=list)
+    contextual_sections_relevant: list[str] = field(default_factory=list)
+    contextual_sections_missing: list[str] = field(default_factory=list)
+    synthetic_sections_missing: list[str] = field(default_factory=list)
     annotation_sections_found: list[str] = field(default_factory=list)
     annotation_sections_missing: list[str] = field(default_factory=list)
     unknown_sections: list[UnknownParserElement] = field(default_factory=list)
+    suppressed_heading_candidates: list[UnknownParserElement] = field(default_factory=list)
     required_section_count: int = 0
     optional_section_count: int = 0
     annotation_section_count: int = 0
+    observed_section_count: int = 0
+    missing_section_count: int = 0
+    observed_section_rate: float | None = None
+    core_section_count: int = 0
+    core_section_observed_count: int = 0
+    core_section_missing_count: int = 0
+    core_section_observed_rate: float | None = None
+    contextual_section_count: int = 0
+    contextual_section_relevant_count: int = 0
+    contextual_section_observed_count: int = 0
+    contextual_section_missing_count: int = 0
+    contextual_section_observed_rate: float | None = None
     parse_completeness_ratio: float | None = None
     parse_quality: str | None = None
 

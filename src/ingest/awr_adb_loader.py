@@ -71,6 +71,21 @@ DB_TREND_ANALYSIS_MODE = "DB_TREND_ANALYSIS"
 SOURCE_MODE_LOCAL = "LOCAL"
 SOURCE_MODE_OBJECT_STORAGE = "OBJECT_STORAGE"
 _UNSET = object()
+LOW_MATERIALITY_READ_LATENCY_MS = 1.5
+LOW_MATERIALITY_USER_IO_PCT = 12.0
+LOW_MATERIALITY_LOG_FILE_SYNC_MS = 3.0
+LOW_MATERIALITY_COMMIT_PCT = 6.0
+NATIVE_RAC_TEXT_PATTERNS = (
+    "global cache",
+    "cache fusion",
+    " gc cr",
+    " gc current",
+    "gc buffer busy",
+    " gcs ",
+    " ges ",
+    "interconnect",
+    "cluster",
+)
 PROMOTED_ENGINEERED_FEATURE_KEYS = (
     "WRITE_LATENCY_MS",
     "TEMP_WRITE_LATENCY_MS",
@@ -778,7 +793,7 @@ def build_source_system_record(parse_result: ParseResult) -> dict[str, Any]:
     """Map parsed metadata to one AWR_SOURCE_SYSTEM row."""
 
     metadata = parse_result.run_metadata
-    topology = parse_result.topology_signals or {}
+    topology = _ensure_native_feature_inputs(parse_result)
     db_name = metadata.database_name
     dbid = _to_int(metadata.db_id)
     instance_name = metadata.instance_name
@@ -3859,10 +3874,14 @@ def _extract_load_profile_metric(
     parse_result: ParseResult,
     metric_name: str,
 ) -> float | None:
+    normalized_metric_name = _normalize_load_profile_metric_name(metric_name)
     for metric in parse_result.cpu_metrics:
         if metric.get("metric_group") != "load_profile":
             continue
-        if str(metric.get("metric_name") or "").strip() != metric_name:
+        metric_name_value = _normalize_load_profile_metric_name(
+            str(metric.get("metric_name") or "").strip()
+        )
+        if metric_name_value != normalized_metric_name:
             continue
         return _safe_float(metric.get("per_second"))
     return None
@@ -3930,7 +3949,7 @@ def _aggregate_datafile_metric(
 
 def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
     derived = extract_derived_pressure_metrics(parse_result)
-    topology = parse_result.topology_signals or {}
+    topology = _ensure_native_feature_inputs(parse_result)
     storage_index_savings = _safe_float(topology.get("exa_storage_index_savings"))
     base_features = {
         "cpu_pct": _compute_cpu_pct(parse_result),
@@ -4072,6 +4091,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "platform_class": topology.get("platform_class"),
         "operational_event_class": topology.get("operational_event_class"),
     }
+    _apply_low_signal_feature_suppression(base_features)
     scoring_features = {
         "CPU_UTIL_P95": base_features["cpu_pct"],
         "DB_CPU_PCT_DB_TIME": base_features["db_cpu_pct_db_time"],
@@ -4620,13 +4640,222 @@ def _extract_load_profile_transaction_metric(
     parse_result: ParseResult,
     metric_name: str,
 ) -> float | None:
+    normalized_metric_name = _normalize_load_profile_metric_name(metric_name)
     for metric in parse_result.cpu_metrics:
         if metric.get("metric_group") != "load_profile":
             continue
-        if str(metric.get("metric_name") or "").strip() != metric_name:
+        metric_name_value = _normalize_load_profile_metric_name(
+            str(metric.get("metric_name") or "").strip()
+        )
+        if metric_name_value != normalized_metric_name:
             continue
         return _safe_float(metric.get("per_transaction"))
     return None
+
+
+LOAD_PROFILE_METRIC_ALIASES = {
+    "DB Time (s)": "DB Time(s)",
+    "DB CPU (s)": "DB CPU(s)",
+    "Redo size (bytes)": "Redo size",
+    "Physical read (blocks)": "Physical reads",
+    "Physical write (blocks)": "Physical writes",
+    "Parses (SQL)": "Parses",
+    "Hard parses (SQL)": "Hard parses",
+    "Executes (SQL)": "Executions",
+}
+
+
+def _normalize_load_profile_metric_name(metric_name: str) -> str:
+    """Normalize native load-profile labels to canonical feature names."""
+
+    normalized_name = " ".join(metric_name.strip().split())
+    return LOAD_PROFILE_METRIC_ALIASES.get(normalized_name, normalized_name)
+
+
+def _ensure_native_feature_inputs(parse_result: ParseResult) -> dict[str, Any]:
+    """Supplement native parser output with deterministic fallback feature inputs."""
+
+    source_lines = _load_native_source_lines(parse_result)
+    if source_lines:
+        _ensure_native_cpu_metrics(parse_result, source_lines)
+    return _ensure_topology_lag_signals(parse_result, source_lines)
+
+
+def _load_native_source_lines(parse_result: ParseResult) -> list[str]:
+    """Read native AWR source lines when the original report path is available."""
+
+    source_file_path = str(parse_result.run_metadata.source_file_path or "").strip()
+    if not source_file_path:
+        return []
+
+    source_path = Path(source_file_path)
+    if not source_path.exists() or not source_path.is_file():
+        return []
+
+    try:
+        return source_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return []
+
+
+def _ensure_native_cpu_metrics(
+    parse_result: ParseResult,
+    source_lines: list[str],
+) -> None:
+    """Backfill core CPU load-profile metrics from native AWR text when missing."""
+
+    for metric_label in ("DB Time (s)", "DB CPU (s)"):
+        metric_name = _normalize_load_profile_metric_name(metric_label)
+        if _extract_load_profile_metric(parse_result, metric_name) is not None:
+            continue
+        metric_row = _extract_native_load_profile_row(source_lines, metric_label)
+        if metric_row is None:
+            continue
+        parse_result.cpu_metrics.append(metric_row)
+
+
+def _extract_native_load_profile_row(
+    source_lines: list[str],
+    metric_label: str,
+) -> dict[str, Any] | None:
+    """Extract one native load-profile row directly from raw report text."""
+
+    pattern = re.compile(
+        rf"^\s*{re.escape(metric_label)}\s*:\s*"
+        r"([0-9,]+(?:\.\d+)?)"
+        r"(?:\s+([0-9,]+(?:\.\d+)?))?",
+    )
+    for line in source_lines:
+        match = pattern.match(line)
+        if match is None:
+            continue
+        per_second = _safe_float(match.group(1))
+        per_transaction = _safe_float(match.group(2)) if match.group(2) else None
+        if per_second is None:
+            return None
+        return {
+            "metric_name": _normalize_load_profile_metric_name(metric_label),
+            "per_second": per_second,
+            "per_transaction": per_transaction,
+            "metric_source_section": "native_fallback",
+            "metric_group": "load_profile",
+        }
+    return None
+
+
+def _ensure_topology_lag_signals(
+    parse_result: ParseResult,
+    source_lines: list[str] | None = None,
+) -> dict[str, Any]:
+    """Supplement topology signals with deterministic native RAC and Data Guard values."""
+
+    from src.parser.metadata_parser import extract_dataguard_lag_metrics
+
+    topology = dict(parse_result.topology_signals or {})
+    if (
+        topology.get("transport_lag_sec") is not None
+        and topology.get("apply_lag_sec") is not None
+        and topology.get("is_rac") is not None
+        and topology.get("interconnect_stress_flag") is not None
+        and topology.get("rac_contention_flag") is not None
+    ):
+        parse_result.topology_signals = topology
+        return topology
+
+    resolved_source_lines = source_lines or _load_native_source_lines(parse_result)
+    if not resolved_source_lines:
+        parse_result.topology_signals = topology
+        return topology
+
+    lag_metrics = extract_dataguard_lag_metrics(resolved_source_lines)
+    transport_lag_sec = _safe_float(lag_metrics.get("transport_lag_sec"))
+    apply_lag_sec = _safe_float(lag_metrics.get("apply_lag_sec"))
+
+    if topology.get("transport_lag_sec") is None and transport_lag_sec is not None:
+        topology["transport_lag_sec"] = transport_lag_sec
+    if topology.get("apply_lag_sec") is None and apply_lag_sec is not None:
+        topology["apply_lag_sec"] = apply_lag_sec
+    if transport_lag_sec is not None or apply_lag_sec is not None:
+        topology.setdefault("is_dataguard", True)
+        topology.setdefault(
+            "redo_transport_issue_flag",
+            bool((transport_lag_sec or 0.0) > 0.0 or (apply_lag_sec or 0.0) > 0.0),
+        )
+
+    cluster_wait_pct = _sum_wait_class_pct(parse_result, "Cluster")
+    gc_cr_wait_pct = _sum_event_pct(parse_result, ("gc cr",))
+    gc_current_wait_pct = _sum_event_pct(parse_result, ("gc current",))
+    gc_buffer_busy_pct = _sum_event_pct(parse_result, ("gc buffer busy",))
+    normalized_text = f" {' '.join(' '.join(resolved_source_lines).lower().split())} "
+    native_rac_detected = any(
+        pattern in normalized_text for pattern in NATIVE_RAC_TEXT_PATTERNS
+    )
+    derived_is_rac = bool(
+        native_rac_detected
+        or (cluster_wait_pct or 0.0) > 0.0
+        or (gc_cr_wait_pct or 0.0) > 0.0
+        or (gc_current_wait_pct or 0.0) > 0.0
+        or (gc_buffer_busy_pct or 0.0) > 0.0
+    )
+    if derived_is_rac:
+        topology["is_rac"] = bool(topology.get("is_rac") or derived_is_rac)
+        topology["interconnect_stress_flag"] = bool(
+            topology.get("interconnect_stress_flag")
+            or (cluster_wait_pct or 0.0) >= 8.0
+            or (gc_cr_wait_pct or 0.0) + (gc_current_wait_pct or 0.0) >= 8.0
+            or "interconnect" in normalized_text
+        )
+        topology["rac_contention_flag"] = bool(
+            topology.get("rac_contention_flag")
+            or (gc_buffer_busy_pct or 0.0) >= 2.0
+            or (cluster_wait_pct or 0.0) >= 10.0
+        )
+
+    parse_result.topology_signals = topology
+    return topology
+
+
+def _apply_low_signal_feature_suppression(base_features: dict[str, Any]) -> None:
+    """Suppress low-materiality IO and COMMIT signals that create native false positives."""
+
+    read_latency_ms = _safe_float(base_features.get("read_latency_ms"))
+    user_io_pct = _safe_float(base_features.get("user_io_pct"))
+    temp_spill_pct = _safe_float(base_features.get("temp_spill_pct"))
+    sorts_disk_pct = _safe_float(base_features.get("sorts_disk_pct"))
+    log_file_sync_ms = _safe_float(base_features.get("log_file_sync_ms"))
+    commit_pct = _safe_float(base_features.get("commit_pct"))
+
+    if (
+        read_latency_ms is not None
+        and read_latency_ms < LOW_MATERIALITY_READ_LATENCY_MS
+        and (user_io_pct is None or user_io_pct < LOW_MATERIALITY_USER_IO_PCT)
+    ):
+        base_features["read_latency_ms"] = None
+        base_features["user_io_pct"] = None
+
+    if (
+        (temp_spill_pct or 0.0) >= 25.0
+        or (sorts_disk_pct or 0.0) >= 20.0
+    ) and (
+        read_latency_ms is None
+        or read_latency_ms < 20.0
+    ) and (
+        user_io_pct is None
+        or user_io_pct < 50.0
+    ):
+        base_features["read_latency_ms"] = None
+        base_features["user_io_pct"] = None
+
+    if (
+        log_file_sync_ms is not None
+        and log_file_sync_ms < LOW_MATERIALITY_LOG_FILE_SYNC_MS
+        and (commit_pct is None or commit_pct < LOW_MATERIALITY_COMMIT_PCT)
+    ):
+        base_features["log_file_sync_ms"] = None
+        base_features["log_write_latency_ms"] = None
+        base_features["commit_pct"] = None
+
+
 
 
 def _extract_wait_class_avg_wait_ms(

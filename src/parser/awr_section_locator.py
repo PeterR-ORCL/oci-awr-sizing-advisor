@@ -110,25 +110,55 @@ def _build_parse_diagnostics(
     source_file_path: str | None,
 ) -> ParseDiagnostics:
     registry_names = [definition.canonical_name for definition in registry]
-    functional_sections = [
-        definition for definition in registry if definition.section_kind == "functional"
-    ]
-    annotation_sections = [
-        definition for definition in registry if definition.section_kind == "annotation"
-    ]
+    normalized_lines = [_normalize_line(line) for line in lines]
     sections_found = list(section_map.keys())
     sections_missing = [
         section_name for section_name in registry_names if section_name not in section_map
     ]
+
+    required_sections = [
+        definition for definition in registry if definition.completeness_role == "required"
+    ]
+    optional_core_sections = [
+        definition
+        for definition in registry
+        if definition.completeness_role == "optional_core"
+    ]
+    contextual_sections = [
+        definition
+        for definition in registry
+        if definition.completeness_role == "optional_contextual"
+    ]
+    neutral_sections = [
+        definition for definition in registry if definition.completeness_role == "neutral"
+    ]
+    annotation_sections = [
+        definition for definition in registry if definition.section_kind == "annotation"
+    ]
+
     required_missing = [
         definition.canonical_name
-        for definition in functional_sections
-        if definition.required and definition.canonical_name not in section_map
+        for definition in required_sections
+        if definition.canonical_name not in section_map
     ]
-    optional_missing = [
+    optional_core_missing = [
         definition.canonical_name
-        for definition in functional_sections
-        if not definition.required and definition.canonical_name not in section_map
+        for definition in optional_core_sections
+        if definition.canonical_name not in section_map
+    ]
+    contextual_relevant = [
+        definition.canonical_name
+        for definition in contextual_sections
+        if _is_contextually_relevant(definition, section_map, lines, normalized_lines)
+    ]
+    contextual_missing = [
+        section_name for section_name in contextual_relevant if section_name not in section_map
+    ]
+    synthetic_missing = [
+        definition.canonical_name
+        for definition in neutral_sections
+        if definition.section_kind == "functional"
+        and definition.canonical_name not in section_map
     ]
     annotation_found = [
         definition.canonical_name
@@ -146,20 +176,47 @@ def _build_parse_diagnostics(
         source_file_name=source_file_name,
         source_file_path=source_file_path,
     )
-    functional_found_count = sum(
-        1 for definition in functional_sections if definition.canonical_name in section_map
+    suppressed_heading_candidates = _detect_suppressed_heading_candidates(
+        lines=lines,
+        registry=registry,
+        section_map=section_map,
+        source_file_name=source_file_name,
+        source_file_path=source_file_path,
     )
-    completeness_ratio = (
-        round(functional_found_count / len(functional_sections), 4)
-        if functional_sections
+
+    core_sections = required_sections + optional_core_sections
+    core_found_count = sum(
+        1 for definition in core_sections if definition.canonical_name in section_map
+    )
+    core_section_count = len(core_sections)
+    contextual_relevant_count = len(contextual_relevant)
+    contextual_observed_count = sum(
+        1 for section_name in contextual_relevant if section_name in section_map
+    )
+    observed_section_count = core_found_count + contextual_observed_count
+    missing_section_count = (
+        (core_section_count - core_found_count)
+        + (contextual_relevant_count - contextual_observed_count)
+    )
+    denominator = observed_section_count + missing_section_count
+    observed_rate = round(observed_section_count / denominator, 4) if denominator else None
+    core_observed_rate = (
+        round(core_found_count / core_section_count, 4) if core_section_count else None
+    )
+    contextual_observed_rate = (
+        round(contextual_observed_count / contextual_relevant_count, 4)
+        if contextual_relevant_count
         else None
     )
+
     if required_missing:
         parse_quality = "INCOMPLETE"
-    elif unknown_sections or optional_missing:
+    elif unknown_sections:
         parse_quality = "PARTIAL"
-    else:
+    elif core_found_count == core_section_count and not contextual_missing:
         parse_quality = "COMPLETE"
+    else:
+        parse_quality = "PARTIAL"
 
     return ParseDiagnostics(
         source_file_name=source_file_name,
@@ -167,14 +224,31 @@ def _build_parse_diagnostics(
         sections_found=sections_found,
         sections_missing=sections_missing,
         required_sections_missing=required_missing,
-        optional_sections_missing=optional_missing,
+        optional_sections_missing=optional_core_missing + contextual_missing,
+        optional_core_sections_missing=optional_core_missing,
+        contextual_sections_relevant=contextual_relevant,
+        contextual_sections_missing=contextual_missing,
+        synthetic_sections_missing=synthetic_missing,
         annotation_sections_found=annotation_found,
         annotation_sections_missing=annotation_missing,
         unknown_sections=unknown_sections,
-        required_section_count=len([definition for definition in functional_sections if definition.required]),
-        optional_section_count=len([definition for definition in functional_sections if not definition.required]),
+        suppressed_heading_candidates=suppressed_heading_candidates,
+        required_section_count=len(required_sections),
+        optional_section_count=len(optional_core_sections) + len(contextual_sections),
         annotation_section_count=len(annotation_sections),
-        parse_completeness_ratio=completeness_ratio,
+        observed_section_count=observed_section_count,
+        missing_section_count=missing_section_count,
+        observed_section_rate=observed_rate,
+        core_section_count=core_section_count,
+        core_section_observed_count=core_found_count,
+        core_section_missing_count=core_section_count - core_found_count,
+        core_section_observed_rate=core_observed_rate,
+        contextual_section_count=len(contextual_sections),
+        contextual_section_relevant_count=contextual_relevant_count,
+        contextual_section_observed_count=contextual_observed_count,
+        contextual_section_missing_count=contextual_relevant_count - contextual_observed_count,
+        contextual_section_observed_rate=contextual_observed_rate,
+        parse_completeness_ratio=observed_rate,
         parse_quality=parse_quality,
     )
 
@@ -218,10 +292,102 @@ def _detect_unknown_sections(
                 context_after=following_context,
                 source_file_name=source_file_name,
                 source_file_path=source_file_path,
+                classification_hint="header_candidate",
             )
         )
 
     return unknown_sections
+
+
+def _detect_suppressed_heading_candidates(
+    lines: list[str],
+    registry: tuple[AwrSectionDefinition, ...],
+    section_map: AwrSectionMap,
+    source_file_name: str | None,
+    source_file_path: str | None,
+) -> list[UnknownParserElement]:
+    known_start_lines = {
+        bounds["start_line"]
+        for bounds in section_map.values()
+        if isinstance(bounds.get("start_line"), int)
+    }
+    suppressed: list[UnknownParserElement] = []
+
+    for zero_index, line in enumerate(lines):
+        line_number = zero_index + 1
+        stripped_line = line.strip()
+        if line_number in known_start_lines or not stripped_line.startswith("*"):
+            continue
+
+        normalized_line = _normalize_line(stripped_line)
+        matched_pattern = None
+        for definition in registry:
+            matched_pattern = _match_alias(normalized_line, definition.aliases)
+            if matched_pattern is not None:
+                break
+        if matched_pattern is None:
+            continue
+
+        previous_context = [
+            context_line.rstrip()
+            for context_line in lines[max(0, zero_index - 2) : zero_index]
+            if context_line.strip()
+        ]
+        following_context = [
+            context_line.rstrip()
+            for context_line in lines[zero_index + 1 : zero_index + 3]
+            if context_line.strip()
+        ]
+        suppressed.append(
+            UnknownParserElement(
+                parser_stage="section_locator",
+                raw_text=stripped_line,
+                line_number=line_number,
+                context_before=previous_context,
+                context_after=following_context,
+                source_file_name=source_file_name,
+                source_file_path=source_file_path,
+                classification_hint="suppressed_toc_entry",
+            )
+        )
+
+    return suppressed
+
+
+def _is_contextually_relevant(
+    definition: AwrSectionDefinition,
+    section_map: AwrSectionMap,
+    lines: list[str],
+    normalized_lines: list[str],
+) -> bool:
+    if definition.canonical_name == "cluster":
+        return _has_strong_cluster_context(normalized_lines)
+    if definition.canonical_name == "dataguard":
+        return _has_strong_dataguard_context(lines)
+    if definition.canonical_name in section_map:
+        return True
+    return any(_match_alias(line, definition.aliases) for line in normalized_lines)
+
+
+def _has_strong_cluster_context(normalized_lines: list[str]) -> bool:
+    strong_markers = (
+        "gc cr request",
+        "gc current block busy",
+        "gc buffer busy acquire",
+        "ges message buffer allocation",
+        "cluster wait",
+        "cache fusion",
+    )
+    return any(any(marker in line for marker in strong_markers) for line in normalized_lines)
+
+
+def _has_strong_dataguard_context(lines: list[str]) -> bool:
+    lag_pattern = re.compile(r"^(Transport Lag|Apply Lag)\s+(?!00:00:00)(\S+)")
+    for line in lines:
+        stripped_line = line.strip()
+        if lag_pattern.search(stripped_line):
+            return True
+    return False
 
 
 def _looks_like_unknown_section_header(lines: list[str], zero_index: int) -> bool:
@@ -236,6 +402,8 @@ def _looks_like_known_section_candidate(
 ) -> bool:
     line = lines[zero_index].strip()
     if not line or _is_separator_line(line):
+        return False
+    if line.startswith("*"):
         return False
     if not re.search(r"[a-zA-Z]", line):
         return False
