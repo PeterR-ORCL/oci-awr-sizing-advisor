@@ -161,6 +161,43 @@ def build_decision(
     if mix01_cpu_warning_override:
         severity_score = min(max(severity_score, 25.0), 59.0)
 
+    # Phase 5 severity calibration: keep moderate single-domain scenarios in
+    # WARNING status while preserving severe cases as CRITICAL.
+    transport_lag_sec = _safe_float(feature_json.get("TRANSPORT_LAG_SEC"))
+    apply_lag_sec = _safe_float(feature_json.get("APPLY_LAG_SEC"))
+    cluster_wait_pct = _safe_float(feature_json.get("CLUSTER_WAIT_PCT_DB_TIME"))
+    commit_pressure = _safe_float(feature_json.get("COMMIT_PRESSURE"))
+
+    io_moderate_cap = (
+        primary_issue == "IO"
+        and read_latency_ms is not None
+        and read_latency_ms < 10.0
+        and user_io_pressure is not None
+        and user_io_pressure < 60.0
+    )
+    commit_moderate_cap = (
+        primary_issue == "COMMIT"
+        and log_file_sync_ms is not None
+        and log_file_sync_ms < 8.0
+        and commit_pressure is not None
+        and commit_pressure < 40.0
+    )
+    rac_moderate_cap = (
+        primary_issue == "RAC"
+        and cluster_wait_pct is not None
+        and cluster_wait_pct < 45.0
+    )
+    adg_moderate_cap = (
+        primary_issue == "ADG"
+        and transport_lag_sec is not None
+        and transport_lag_sec < 180.0
+        and apply_lag_sec is not None
+        and apply_lag_sec < 240.0
+    )
+
+    if io_moderate_cap or commit_moderate_cap or rac_moderate_cap or adg_moderate_cap:
+        severity_score = min(max(severity_score, OK_STATUS_THRESHOLD), 59.0)
+
     overall_status = _status_from_severity(severity_score)
     secondary_issues = [
         domain

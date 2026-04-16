@@ -1,9 +1,15 @@
 filename,scenario_name,expected_primary_issue,expected_status,expected_secondary_issues,notes
+awr_cpu_moderate.out,CPU-MODERATE,CPU,WARNING,,Injected moderate CPU pressure with dominant SQL CPU consumption and minimal foreground waits.
 awr_cpu_severe.out,CPU-SEVERE,CPU,CRITICAL,,Injected severe CPU pressure with dominant SQL CPU consumption and minimal foreground waits.
+awr_io_moderate.out,IO-MODERATE,IO,WARNING,,Injected moderate read-latency increase with db file sequential read dominating DB time.
 awr_io_severe.out,IO-SEVERE,IO,CRITICAL,,Injected severe read-latency increase with db file sequential read dominating DB time.
+awr_memory_moderate.out,MEMORY-MODERATE,MEMORY,WARNING,,Injected moderate PGA spill pressure with advisory-driven improvement potential and cache inefficiency.
 awr_memory_severe.out,MEMORY-SEVERE,MEMORY,CRITICAL,,Injected severe PGA spill pressure with advisory-driven improvement potential and cache inefficiency.
+awr_commit_moderate.out,COMMIT-MODERATE,COMMIT,WARNING,,Injected moderate commit pressure with elevated log file sync and redo generation.
 awr_commit_severe.out,COMMIT-SEVERE,COMMIT,CRITICAL,,Injected severe commit pressure with elevated log file sync and redo generation.
+awr_rac_moderate.out,RAC-MODERATE,RAC,WARNING,,Injected moderate RAC global cache contention with interconnect-sensitive gc events.
 awr_rac_severe.out,RAC-SEVERE,RAC,CRITICAL,,Injected severe RAC global cache contention with interconnect-sensitive gc events.
+awr_adg_moderate.out,ADG-MODERATE,ADG,WARNING,,Injected moderate Active Data Guard transport/apply lag with replication throughput imbalance.
 awr_adg_severe.out,ADG-SEVERE,ADG,CRITICAL,,Injected severe Active Data Guard transport/apply lag with replication throughput imbalance.
 awr_mix_cpu_io.out,MIX-01,CPU,WARNING,IO,CPU and IO both elevated with no single dominant metric; tie-break should resolve to CPU.
 awr_mix_io_memory.out,MIX-02,IO,WARNING,MEMORY,IO latency and memory spill pressure both present; IO should remain primary.

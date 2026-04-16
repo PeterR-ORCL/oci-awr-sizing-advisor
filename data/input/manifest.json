@@ -1,7 +1,15 @@
 {
-  "dataset": "strict15",
-  "report_count": 15,
+  "dataset": "full21",
+  "report_count": 21,
   "reports": [
+    {
+      "filename": "awr_cpu_moderate.out",
+      "scenario_name": "CPU-MODERATE",
+      "expected_primary_issue": "CPU",
+      "expected_status": "WARNING",
+      "expected_secondary_issues": [],
+      "notes": "Injected moderate CPU pressure with dominant SQL CPU consumption and minimal foreground waits."
+    },
     {
       "filename": "awr_cpu_severe.out",
       "scenario_name": "CPU-SEVERE",
@@ -9,6 +17,14 @@
       "expected_status": "CRITICAL",
       "expected_secondary_issues": [],
       "notes": "Injected severe CPU pressure with dominant SQL CPU consumption and minimal foreground waits."
+    },
+    {
+      "filename": "awr_io_moderate.out",
+      "scenario_name": "IO-MODERATE",
+      "expected_primary_issue": "IO",
+      "expected_status": "WARNING",
+      "expected_secondary_issues": [],
+      "notes": "Injected moderate read-latency increase with db file sequential read dominating DB time."
     },
     {
       "filename": "awr_io_severe.out",
@@ -19,12 +35,28 @@
       "notes": "Injected severe read-latency increase with db file sequential read dominating DB time."
     },
     {
+      "filename": "awr_memory_moderate.out",
+      "scenario_name": "MEMORY-MODERATE",
+      "expected_primary_issue": "MEMORY",
+      "expected_status": "WARNING",
+      "expected_secondary_issues": [],
+      "notes": "Injected moderate PGA spill pressure with advisory-driven improvement potential and cache inefficiency."
+    },
+    {
       "filename": "awr_memory_severe.out",
       "scenario_name": "MEMORY-SEVERE",
       "expected_primary_issue": "MEMORY",
       "expected_status": "CRITICAL",
       "expected_secondary_issues": [],
       "notes": "Injected severe PGA spill pressure with advisory-driven improvement potential and cache inefficiency."
+    },
+    {
+      "filename": "awr_commit_moderate.out",
+      "scenario_name": "COMMIT-MODERATE",
+      "expected_primary_issue": "COMMIT",
+      "expected_status": "WARNING",
+      "expected_secondary_issues": [],
+      "notes": "Injected moderate commit pressure with elevated log file sync and redo generation."
     },
     {
       "filename": "awr_commit_severe.out",
@@ -35,12 +67,28 @@
       "notes": "Injected severe commit pressure with elevated log file sync and redo generation."
     },
     {
+      "filename": "awr_rac_moderate.out",
+      "scenario_name": "RAC-MODERATE",
+      "expected_primary_issue": "RAC",
+      "expected_status": "WARNING",
+      "expected_secondary_issues": [],
+      "notes": "Injected moderate RAC global cache contention with interconnect-sensitive gc events."
+    },
+    {
       "filename": "awr_rac_severe.out",
       "scenario_name": "RAC-SEVERE",
       "expected_primary_issue": "RAC",
       "expected_status": "CRITICAL",
       "expected_secondary_issues": [],
       "notes": "Injected severe RAC global cache contention with interconnect-sensitive gc events."
+    },
+    {
+      "filename": "awr_adg_moderate.out",
+      "scenario_name": "ADG-MODERATE",
+      "expected_primary_issue": "ADG",
+      "expected_status": "WARNING",
+      "expected_secondary_issues": [],
+      "notes": "Injected moderate Active Data Guard transport/apply lag with replication throughput imbalance."
     },
     {
       "filename": "awr_adg_severe.out",
