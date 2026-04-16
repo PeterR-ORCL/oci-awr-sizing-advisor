@@ -9,6 +9,10 @@ from src.analysis.recommendation_catalog import (
 )
 from src.models.decision import AwrDecision
 from src.models.recommendation import ActionRecommendation, Recommendation
+from src.recommendation.recommendation_engine import (
+    Recommendation as Phase6Recommendation,
+    generate_recommendations as generate_phase6_recommendations,
+)
 
 RECOMMENDATION_ORDER = (
     "topology_event",
@@ -384,53 +388,16 @@ def _to_float(value: Any) -> float | None:
 
 def generate_decision_recommendations(
     decision: AwrDecision,
-) -> list[ActionRecommendation]:
-    """Generate 1 to 3 deterministic recommendations from one decision object."""
+) -> list[Phase6Recommendation]:
+    """Generate deterministic Phase 6 recommendations from one decision object."""
 
-    candidate_issues = _ordered_unique_issues(decision)
-    ranked_candidates = _rank_recommendation_candidates(candidate_issues, decision)
-    recommendations: list[ActionRecommendation] = []
-    seen_issues: set[str] = set()
-
-    for priority, issue in enumerate(
-        ranked_candidates[:MAX_DECISION_RECOMMENDATIONS],
-        start=1,
-    ):
-        if issue in seen_issues:
-            continue
-        template = RECOMMENDATION_TEMPLATES[issue]
-        recommendations.append(
-            ActionRecommendation(
-                priority=priority,
-                issue=issue,
-                action=template.action,
-                impact=template.impact,
-                confidence=_recommendation_confidence(
-                    decision.confidence,
-                    priority,
-                ),
-                evidence=_recommendation_evidence(decision, issue),
-            )
-        )
-        seen_issues.add(issue)
-
-    if not recommendations:
-        primary_template = RECOMMENDATION_TEMPLATES[decision.primary_issue]
-        recommendations.append(
-            ActionRecommendation(
-                priority=1,
-                issue=decision.primary_issue,
-                action=primary_template.action,
-                impact=primary_template.impact,
-                confidence=_recommendation_confidence(decision.confidence, 1),
-                evidence=_recommendation_evidence(
-                    decision,
-                    decision.primary_issue,
-                ),
-            )
-        )
-
-    return recommendations
+    return generate_phase6_recommendations(
+        primary_issue=decision.primary_issue,
+        secondary_issues=list(decision.secondary_issues),
+        overall_status=decision.overall_status,
+        severity=decision.severity_score,
+        feature_vector=decision.evidence.get("feature_evidence") if decision.evidence else {},
+    )
 
 
 def _ordered_unique_issues(decision: AwrDecision) -> list[str]:
