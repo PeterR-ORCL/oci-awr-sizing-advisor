@@ -8,7 +8,7 @@ from src.analysis.recommendation_catalog import (
     RECOMMENDATION_TEMPLATES,
 )
 from src.models.decision import AwrDecision
-from src.models.recommendation import ActionRecommendation, Recommendation
+from src.models.recommendation import Recommendation
 from src.recommendation.recommendation_engine import (
     Recommendation as Phase6Recommendation,
     generate_recommendations as generate_phase6_recommendations,

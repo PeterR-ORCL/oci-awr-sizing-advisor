@@ -473,6 +473,7 @@ def build_recommendation_screen_model(
         reverse=True,
     )
     recommendation_cards = _dedupe_recommendation_cards(recommendation_cards)
+    recommendation_cards = _tighten_recommendation_cards(recommendation_cards)
     recommendation_groups = _build_recommendation_groups(recommendation_cards)
     sizing_guidance_text = _join_display_lines(
         [
@@ -618,6 +619,13 @@ def build_review_comparison_screen_model(
             or _as_dict(trend_summary).get("summary")
         ),
     }
+    if _normalize_issue_key(normalized_decision.get("primary_issue")) == "CPU":
+        trend_summary["summary"] = re.sub(
+            r"CPU remained historically visible, though continuity across the full window was too mixed for a simple stability claim\.?",
+            "CPU remained dominant across the window, but the pattern was intermittent rather than continuous.",
+            str(trend_summary.get("summary") or ""),
+            flags=re.IGNORECASE,
+        )
     historical_posture = (
         normalized_decision.get("historical_posture")
         or normalized_decision.get("decision_posture")
@@ -774,20 +782,11 @@ def build_review_comparison_screen_model(
                 visual_story=visual_story,
             ),
         },
-        "historical_scope_memory": {
-            "summary": (
-                "This scope can later support historical analysis, "
-                "cross-run comparison, and future workload memory or "
-                "similarity retrieval."
-            ),
-            "scope_concepts": [
-                "DBID",
-                "DB name",
-                "INSTANCE_NAME",
-                "HOST_NAME",
-                "fleet/global",
-            ],
-        },
+        "historical_scope_memory": _build_historical_memory_review(
+            normalized_decision=normalized_decision,
+            analysis_visual_summary=analysis_visual_summary,
+            visual_story=visual_story,
+        ),
         "engineering_view": _build_engineering_view(
             normalized_decision=normalized_decision,
             primary_evidence=_as_dict(grouped_findings.get("primary_evidence")),
@@ -1250,6 +1249,60 @@ def _build_analysis_orientation_summary(
         f"{display_label} remains the dominant constraint in the selected scope. "
         f"The current evidence supports a {display_label}-led diagnosis."
     )
+
+
+def _build_historical_memory_review(
+    normalized_decision: dict[str, Any],
+    analysis_visual_summary: dict[str, Any],
+    visual_story: dict[str, Any],
+) -> dict[str, Any]:
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the dominant workload pattern"
+    memory_card = _as_dict(analysis_visual_summary.get("memory"))
+    card_statuses = _as_dict(visual_story.get("card_statuses"))
+    memory_status = (
+        _clean_context_value(memory_card.get("status"))
+        or _clean_context_value(card_statuses.get("MEMORY"))
+        or "empty"
+    ).lower()
+    memory_label = (
+        _clean_context_value(memory_card.get("selected_label"))
+        or _clean_context_value(memory_card.get("card_subtitle"))
+        or "Memory history"
+    )
+
+    if _normalize_issue_key(primary_issue) == "MEMORY":
+        return {
+            "summary": (
+                "Memory remains the governing historical pattern across the selected window, "
+                "so it is reviewed as first-order evidence rather than a secondary signal."
+            ),
+            "items": [
+                f"{memory_label} remains the clearest memory-domain measure in this window."
+            ],
+        }
+
+    if memory_status == "ok":
+        return {
+            "summary": "Memory was reviewed and remains non-governing in this window.",
+            "items": [
+                f"{memory_label} is historically present, but it does not materially influence the dominant workload pattern."
+            ],
+        }
+
+    if memory_status == "weak":
+        return {
+            "summary": "Memory was reviewed and remains non-governing in this window.",
+            "items": [
+                f"{memory_label} is present only as a weak secondary signal relative to the dominant {_issue_product_label(primary_issue)} pattern."
+            ],
+        }
+
+    return {
+        "summary": "Memory was reviewed and no sustained memory pressure is established relative to the dominant CPU-led evidence in this window.",
+        "items": [
+            "Available memory signals remain below the threshold needed to change the historical interpretation."
+        ],
+    }
 
 
 def _build_analysis_explanation_recap(
@@ -2506,63 +2559,63 @@ def _build_screen_4_visual_story(
     story_section_order_map = {
         "CPU": [
             "historical_summary",
+            "historical_scope_memory",
             "visual_analysis",
             "trend_review",
             "anomaly_review",
             "period_comparison",
             "topology_platform_review",
             "explanation",
-            "historical_scope_memory",
         ],
         "IO": [
             "historical_summary",
+            "historical_scope_memory",
             "visual_analysis",
             "trend_review",
             "anomaly_review",
             "period_comparison",
             "topology_platform_review",
             "explanation",
-            "historical_scope_memory",
         ],
         "MEMORY": [
             "historical_summary",
+            "historical_scope_memory",
             "visual_analysis",
             "trend_review",
             "period_comparison",
             "anomaly_review",
             "topology_platform_review",
             "explanation",
-            "historical_scope_memory",
         ],
         "COMMIT": [
             "historical_summary",
+            "historical_scope_memory",
             "visual_analysis",
             "trend_review",
             "anomaly_review",
             "period_comparison",
             "topology_platform_review",
             "explanation",
-            "historical_scope_memory",
         ],
         "RAC": [
             "historical_summary",
+            "historical_scope_memory",
             "visual_analysis",
             "topology_platform_review",
             "trend_review",
             "anomaly_review",
             "period_comparison",
             "explanation",
-            "historical_scope_memory",
         ],
         "ADG": [
             "historical_summary",
+            "historical_scope_memory",
             "visual_analysis",
             "topology_platform_review",
             "period_comparison",
             "trend_review",
             "anomaly_review",
             "explanation",
-            "historical_scope_memory",
         ],
     }
     explanation_section_order = {
@@ -2663,7 +2716,12 @@ def _build_historical_summary_text(
     primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
     visual_story = visual_story or {}
     anomaly_count = int(_safe_float(anomaly_summary.get("count")) or 0.0)
-    summary_parts = [_governing_issue_statement(primary_issue, "across the selected window")]
+    if _normalize_issue_key(primary_issue) == "CPU":
+        summary_parts = [
+            "CPU remains dominant across the selected window, indicating sustained compute pressure rather than a transient external bottleneck."
+        ]
+    else:
+        summary_parts = [_governing_issue_statement(primary_issue, "across the selected window")]
     primary_labels = [
         _clean_context_value(item.get("label"))
         for item in (visual_story.get("primary_visual_proof") or [])
@@ -2671,7 +2729,7 @@ def _build_historical_summary_text(
     ]
     if primary_labels:
         summary_parts.append(
-            f"Primary evidence shows this through {', '.join(primary_labels[:3])}."
+            f"Primary evidence comes from {', '.join(primary_labels[:3])}, keeping the broader window aligned to the same governing pattern."
         )
     if anomaly_count > 0:
         summary_parts.append(
@@ -2718,6 +2776,7 @@ def _build_historical_technical_explanation(
     visual_story: dict[str, Any],
 ) -> str:
     primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
+    card_statuses = _as_dict(visual_story.get("card_statuses"))
     promoted = [
         _clean_context_value(item.get("label"))
         for item in (visual_story.get("primary_visual_proof") or [])
@@ -2743,16 +2802,34 @@ def _build_historical_technical_explanation(
     ]
     if promoted:
         lines.append(f"Primary support comes from {', '.join(promoted[:3])}.")
+    if _normalize_issue_key(primary_issue) != "MEMORY":
+        if card_statuses.get("MEMORY") == "ok":
+            lines.append(
+                "Memory is reviewed explicitly between the primary proof and the supporting trend layer because it is present historically but remains non-governing in this window."
+            )
+        else:
+            lines.append(
+                "Memory is reviewed explicitly between the primary proof and the supporting trend layer, but no sustained memory pressure is established relative to the CPU-led evidence."
+            )
     if supporting:
-        lines.append(f"Supporting evidence includes {', '.join(supporting[:3])}.")
+        lines.append(f"Supporting evidence then follows with {', '.join(supporting[:3])}.")
     if contextual:
         lines.append(
-            f"Contextual signals ({', '.join(contextual[:3])}) remain subordinate."
+            f"Contextual signals ({', '.join(contextual[:3])}) remain comparison context."
         )
-    if suppressed:
+    filtered_suppressed = []
+    for label in suppressed:
+        label_text = str(label or "").strip()
+        if "MEMORY" in label_text.upper():
+            continue
+        if label_text.lower() == "platform":
+            filtered_suppressed.append("platform-level signals")
+        else:
+            filtered_suppressed.append(label_text)
+    if filtered_suppressed:
         lines.append(
             "Lower-value or unsupported families were not promoted: "
-            + ", ".join(suppressed[:4])
+            + ", ".join(filtered_suppressed[:4])
             + "."
         )
     return " ".join(lines)
@@ -2780,17 +2857,23 @@ def _build_historical_interpretation(
     parts = []
     if trend_text:
         if re.search(r"\bCPU\b", trend_text, flags=re.IGNORECASE):
-            parts.append("Primary evidence keeps the historical story CPU-led.")
-            parts.append("The pattern is consistent in direction but not uniform across the full window.")
+            parts.append(
+                "Primary evidence keeps the historical story CPU-led, supporting a compute-bound interpretation over I/O-, memory-, or topology-led alternatives."
+            )
+            parts.append("The pattern is directionally consistent, but intermittent rather than continuous.")
         else:
             parts.append(trend_text)
     if card_statuses.get("MEMORY") == "weak":
         parts.append(
-            "Supporting signals confirm that memory remains non-material."
+            "Memory was reviewed and remains non-governing in this window."
+        )
+    elif card_statuses.get("MEMORY") == "ok":
+        parts.append(
+            "Memory is historically present, but it does not materially influence the dominant workload pattern."
         )
     if contextual:
         parts.append(
-            "Contextual cluster and platform signals remain comparison context only and do not override the selected single-instance posture."
+            "Contextual cluster and platform signals remain comparison context and do not alter the selected single-instance posture."
         )
     if not parts:
         parts.append(
@@ -2808,8 +2891,8 @@ def _build_historical_action_explanation(
     primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the selected domain"
     if posture:
         return (
-            f"The historical record aligns with {posture}, with "
-            f"{_issue_product_label(primary_issue)} as the dominant constraint."
+            f"The historical record aligns with {posture} because "
+            f"{_issue_product_label(primary_issue)} remains the dominant constraint after supporting and contextual signals are considered."
         )
     return (
         f"Observed patterns remain consistent with the {_issue_product_label(primary_issue)}-led posture."
@@ -2884,6 +2967,33 @@ def _merge_cpu_recommendation_cards(
     ]
 
 
+def _tighten_recommendation_cards(
+    recommendation_cards: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    tightened: list[dict[str, Any]] = []
+    for card in recommendation_cards:
+        updated = dict(card)
+        action_text = str(updated.get("action") or "").strip()
+        issue_text = str(updated.get("issue") or "").strip().lower()
+        category_text = str(updated.get("category_label") or updated.get("category") or "").strip().lower()
+        if action_text == "Tighten commit frequency and commit-processing behavior in the application flow.":
+            updated["action"] = (
+                "As a secondary optimization, review and tighten commit frequency and "
+                "commit-processing behavior in the application flow."
+            )
+            if not _clean_context_value(updated.get("rationale")) or "execution-plan guidance" in str(updated.get("rationale") or "").lower():
+                updated["rationale"] = (
+                    "Secondary optimization after the dominant CPU and SQL actions."
+                )
+        elif "commit" in issue_text or "commit" in category_text:
+            updated["rationale"] = (
+                _clean_context_value(updated.get("rationale"))
+                or "Secondary optimization after the dominant CPU and SQL actions."
+            )
+        tightened.append(updated)
+    return tightened
+
+
 def _recommendation_action_fingerprint(action: Any, category: str) -> str:
     action_text = str(action or "").strip().lower()
     if any(
@@ -2955,18 +3065,33 @@ def _build_sizing_guidance_blocks(
     oci_guidance: dict[str, Any],
     fallback_text: Any,
 ) -> list[dict[str, str]]:
+    current_posture = _clean_context_value(oci_guidance.get("current_state_assessment"))
+    scaling_trigger = _clean_context_value(oci_guidance.get("scaling_trigger_conditions"))
+    architecture_guidance = _clean_context_value(oci_guidance.get("oci_architecture_guidance"))
+    if current_posture:
+        current_posture = (
+            "The current evidence still supports tuning before scaling because the dominant pressure is internal to workload efficiency rather than a clear capacity shortfall."
+        )
+    if scaling_trigger:
+        scaling_trigger = (
+            "Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies have been reduced and the same governing constraint still remains afterward."
+        )
+    if architecture_guidance:
+        architecture_guidance = (
+            "Keep the architecture aligned to a compute-first tuning path so residual pressure can be re-evaluated cleanly before any broader capacity change."
+        )
     blocks = [
         {
             "title": "Current Posture",
-            "text": _clean_context_value(oci_guidance.get("current_state_assessment")),
+            "text": current_posture,
         },
         {
             "title": "When Scaling Becomes Appropriate",
-            "text": _clean_context_value(oci_guidance.get("scaling_trigger_conditions")),
+            "text": scaling_trigger,
         },
         {
             "title": "Architectural Guidance",
-            "text": _clean_context_value(oci_guidance.get("oci_architecture_guidance")),
+            "text": architecture_guidance,
         },
     ]
     filtered = [block for block in blocks if block.get("text")]

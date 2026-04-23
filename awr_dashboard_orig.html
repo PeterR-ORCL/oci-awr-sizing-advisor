@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AWR Sizing Advisor Dashboard</title>
+  <style>
+    :root {
+      --bg: #08111d;
+      --panel: #0f1b2d;
+      --panel-soft: rgba(15, 27, 45, 0.95);
+      --panel-strong: #14243a;
+      --text: #e8eef7;
+      --muted: #9fb0c7;
+      --line: #233754;
+      --accent: #5ad1ff;
+      --accent-soft: rgba(90, 209, 255, 0.12);
+      --high: #ff6b6b;
+      --medium: #f6b84c;
+      --low: #7fb3d5;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(90, 209, 255, 0.10), transparent 28%),
+        linear-gradient(180deg, #08111d 0%, #07101a 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(
+        135deg,
+        rgba(20, 36, 58, 0.98),
+        rgba(10, 20, 34, 0.96)
+      );
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+      margin-bottom: 24px;
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+    .hero-meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .card {
+      grid-column: span 12;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+    .card.primary {
+      background: linear-gradient(
+        135deg,
+        rgba(24, 42, 66, 0.98),
+        rgba(14, 27, 46, 0.98)
+      );
+      border-color: rgba(90, 209, 255, 0.38);
+    }
+    .card.secondary {
+      background: rgba(12, 22, 36, 0.88);
+    }
+    .card.prominent {
+      background: linear-gradient(
+        135deg,
+        rgba(20, 36, 58, 0.96),
+        rgba(13, 24, 40, 0.96)
+      );
+      border-color: rgba(90, 209, 255, 0.34);
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 21px;
+    }
+    .decision-banner {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(90, 209, 255, 0.36);
+      background: rgba(90, 209, 255, 0.12);
+      color: #ecf9ff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .decision-banner.do-not-scale {
+      border-color: rgba(127, 179, 213, 0.40);
+      background: rgba(127, 179, 213, 0.16);
+      color: #eef7ff;
+    }
+    .decision-banner.scale-now {
+      border-color: rgba(255, 107, 107, 0.40);
+      background: rgba(255, 107, 107, 0.16);
+      color: #fff2f2;
+    }
+    .decision-banner.defer {
+      border-color: rgba(246, 184, 76, 0.40);
+      background: rgba(246, 184, 76, 0.16);
+      color: #fff7ea;
+    }
+    .decision-banner.insufficient {
+      border-color: rgba(159, 176, 199, 0.40);
+      background: rgba(159, 176, 199, 0.14);
+      color: #eef3f8;
+    }
+    .card p {
+      margin: 0;
+    }
+    .section-kicker {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .narrative {
+      color: var(--text);
+    }
+    .narrative > p,
+    .narrative > ol,
+    .narrative > ul,
+    .narrative > div {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+    .narrative > :last-child {
+      margin-bottom: 0;
+    }
+    .executive-summary {
+      display: grid;
+      gap: 12px;
+    }
+    .executive-summary .decision-banner {
+      margin-bottom: 0;
+      width: fit-content;
+    }
+    .executive-summary .rationale {
+      color: var(--text);
+    }
+    .executive-summary .key-signals {
+      margin-top: 0;
+    }
+    .confidence-section {
+      display: grid;
+      gap: 10px;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .confidence-section.high {
+      background: #ffe5e5;
+      color: #341516;
+    }
+    .confidence-section.medium {
+      background: #fff9e6;
+      color: #3b2f13;
+    }
+    .confidence-section.low {
+      background: #f0f0f0;
+      color: #252525;
+    }
+    .confidence-section h2,
+    .confidence-section p {
+      margin: 0;
+    }
+    .risk-section {
+      display: grid;
+      gap: 10px;
+    }
+    .risk-section h2,
+    .risk-section p {
+      margin: 0;
+    }
+    .risk-section ul {
+      margin-top: 0;
+    }
+    .subgrid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .half {
+      grid-column: span 12;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 13px 14px;
+      background: rgba(20, 36, 58, 0.7);
+    }
+    .item h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .severity {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .severity.high {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.24);
+      border: 1px solid rgba(255, 107, 107, 0.36);
+    }
+    .severity.medium {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.24);
+      border: 1px solid rgba(246, 184, 76, 0.36);
+    }
+    .severity.low {
+      color: #eff7ff;
+      background: rgba(127, 179, 213, 0.16);
+      border: 1px solid rgba(127, 179, 213, 0.36);
+    }
+    ul, ol {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+    li {
+      margin: 4px 0;
+    }
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .decision-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(11, 21, 35, 0.65);
+    }
+    .decision-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .evidence-pane {
+      grid-column: span 12;
+    }
+    .evidence-pane h3 {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .scalar-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .provider-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: var(--accent-soft);
+    }
+    .provider-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scalar-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .scalar-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scalar-value {
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .scalar-note {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .chart-panel {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(20, 36, 58, 0.62);
+      min-height: 320px;
+    }
+    .chart-panel h3 {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+    .violin-panel {
+      background: linear-gradient(
+        135deg,
+        rgba(18, 31, 50, 0.96),
+        rgba(11, 21, 35, 0.96)
+      );
+      border-color: rgba(90, 209, 255, 0.28);
+    }
+    .violin-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+    .violin-group {
+      margin-top: 20px;
+    }
+    .violin-group:first-child {
+      margin-top: 0;
+    }
+    .violin-group h3 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+    .violin-group-note {
+      margin: 0 0 18px;
+      color: rgba(216, 228, 242, 0.82);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .violin-chart-card {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(16, 28, 45, 0.72);
+      min-height: 320px;
+    }
+    .violin-chart-card h3 {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+    .violin-chart {
+      height: 260px;
+    }
+    .violin-panel-empty {
+      min-height: 180px;
+    }
+    .chart-canvas {
+      position: relative;
+      height: 240px;
+    }
+    .chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      border: 1px dashed rgba(159, 176, 199, 0.22);
+      border-radius: 12px;
+      background: rgba(11, 21, 35, 0.45);
+    }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+    @media (min-width: 700px) {
+      .violin-chart-card {
+        grid-column: span 6;
+      }
+    }
+    @media (min-width: 900px) {
+      .half {
+        grid-column: span 6;
+      }
+      .chart-panel {
+        grid-column: span 6;
+      }
+      .violin-chart-card {
+        grid-column: span 4;
+      }
+    }
+    @media (min-width: 1200px) {
+      .violin-chart-card {
+        grid-column: span 3;
+      }
+    }
+    @media (max-width: 780px) {
+      .decision-grid,
+      .provider-grid,
+      .scalar-grid {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 28px;
+      }
+    }
+  
+    .decision-banner.tune-first {
+      border-color: rgba(246, 184, 76, 0.40);
+      background: rgba(246, 184, 76, 0.16);
+      color: #fff7ea;
+    }
+    .decision-banner.investigate {
+      border-color: rgba(255, 159, 67, 0.40);
+      background: rgba(255, 159, 67, 0.16);
+      color: #fff5ea;
+    }
+    .decision-banner.recovering-monitor {
+      border-color: rgba(102, 187, 106, 0.40);
+      background: rgba(102, 187, 106, 0.16);
+      color: #effbef;
+    }
+    .decision-banner.scale-candidate {
+      border-color: rgba(90, 209, 255, 0.40);
+      background: rgba(90, 209, 255, 0.16);
+      color: #eef9ff;
+    }
+    .confidence-card {
+      background: rgba(16, 28, 45, 0.72);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .confidence-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid #000000;
+    }
+    .confidence-pill.high {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.24);
+    }
+    .confidence-pill.medium {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.24);
+    }
+    .confidence-pill.low {
+      color: #eff7ff;
+      background: rgba(127, 179, 213, 0.16);
+    }
+    .chart-note {
+      margin: -4px 0 12px;
+      color: rgba(216, 228, 242, 0.78);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .chart-sparse-note {
+      margin: 10px 0 0;
+      color: rgba(216, 228, 242, 0.74);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .chart-domain-group {
+      margin-top: 20px;
+    }
+    .chart-domain-group:first-of-type {
+      margin-top: 14px;
+    }
+    .chart-domain-heading {
+      margin: 0 0 12px;
+      color: rgba(216, 228, 242, 0.92);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">AWR Sizing Advisor</div>
+      <h1>AWR Sizing Advisor Dashboard</h1>
+      <div class="hero-meta">Generated: Apr 10, 2026, 9:28 PM</div>
+    </section>
+
+    <div class="grid">
+      
+      <section id="analysis-context" class="card secondary">
+        <div class="section-kicker">Analysis Context</div>
+        <h2>Analysis Information</h2>
+        <div class="provider-grid">
+          <div class="provider-box"><strong>Hostname</strong><div>exa-rac-node01<br>exa-rac-node02<br>+1 more</div></div>
+          <div class="provider-box"><strong>Operating System</strong><div>Linux x86 64-bit</div></div>
+          <div class="provider-box"><strong>Source Database</strong><div>FINDB | DBID 1234567890</div></div>
+          <div class="provider-box"><strong>Number of Instances</strong><div>3</div></div>
+          <div class="provider-box"><strong>Database Version</strong><div>19.18.0.0.0</div></div>
+          <div class="provider-box"><strong>Database Role</strong><div>Not explicitly identified in AWR</div></div>
+          <div class="provider-box"><strong>Cumulative OCPUs / Cores</strong><div>64 cores</div></div>
+          <div class="provider-box"><strong>Memory per Instance</strong><div>512 GB</div></div>
+          <div class="provider-box"><strong>Platform Detected</strong><div>Exadata</div></div>
+          <div class="provider-box"><strong>Topology Detected</strong><div>RAC, Data Guard</div></div>
+          <div class="provider-box"><strong>Snapshot Start</strong><div>Mar 29, 2026, 12:00 AM</div></div>
+          <div class="provider-box"><strong>Snapshot End</strong><div>Mar 29, 2026, 10:00 AM</div></div>
+          <div class="provider-box"><strong>Total Number of Reports / Total Snapshot Window</strong><div>10 / 10h</div></div>
+          <div class="provider-box"><strong>Last Snapshot</strong><div>Mar 29, 2026, 9:00 AM to 10:00 AM</div></div>
+        </div>
+      </section>
+      <section id="ai-summary" class="card primary">
+        <div class="section-kicker">Agentic AI Advisory Layer</div>
+        <h2>Executive Summary</h2>
+        
+    <div class="executive-summary">
+      <div class="decision-banner investigate">INVESTIGATE FURTHER</div>
+      <p class="rationale">Across the full 10-snapshot window, the workload remained predominantly CPU-led, with average CPU at 65.2%, average User I/O at 10.9%, and average Top SQL concentration (top 3 share) at 24.0%. The window spans RAC on Exadata and includes Data Guard transition behavior. The latest interval remains aligned with that broader picture, showing CPU at 70.1%, User I/O at 10.7%, and Top SQL concentration (top 3 share) at 23.0%, with Exadata behavior and Data Guard context, so the posture remains INVESTIGATE FURTHER before immediate scaling.</p>
+      
+        <p class="section-kicker">Latest interval deterministic evidence</p>
+        <ul class="key-signals">
+        <li>Operational event: Failover Event</li><li>CPU: 70.1% DB time</li><li>Top SQL concentration (top 3 share): 29.0%</li><li>User I/O: 10.7%</li><li>Exadata cell waits: 10.7% DB time</li>
+      </ul>
+    </div>
+    
+      </section>
+
+      <section id="ai-technical" class="card primary">
+        <h2>Technical Narrative</h2>
+        <div class="narrative">
+          <p>Multi-Snapshot Summary<br>10 snapshots were analyzed in chronological order. Across the full window, the workload remained primarily CPU-led, with multi-snapshot summary values of average CPU 65.2%, average User I/O 10.9%, and average Top SQL concentration (top 3 share) 24.0%. The same broad workload shape persisted throughout the series rather than rotating between unrelated bottlenecks.</p><p>The worst pressure interval was 2026-03-29 08:00 -&gt; 09:00, while the latest interval was 2026-03-29 09:00 -&gt; 10:00. 10 anomaly/event window(s) were detected, led by Failover Event / Role Transition / Post-Failover Recovery in 2026-03-29 09:00 -&gt; 10:00. CPU pressure held broadly steady over the period reviewed. User I/O held broadly steady across the same period. Available populated intervals suggest commit latency remained broadly steady. Available populated intervals suggest concurrency remained broadly steady. Top SQL concentration remained effectively unchanged across the analysis window, indicating a persistent concentrated SQL footprint rather than an episodic spike. Sparse populated intervals suggest cluster waits worsened. Sparse populated intervals suggest combined GC wait pressure, defined as GC Current + GC CR, worsened. Exadata cell-wait pressure held broadly steady across the interval series.</p><p>The broader picture remains more important than any single interval: the latest snapshot should be read as confirmation, moderation, or departure from that pattern rather than as the full story by itself. The window includes operational-event phases such as Interconnect Stress, Post Failover Recovery, Failover Event. RAC behavior is present across the window, with cluster waits averaging 2.15% and combined GC current + GC CR wait pressure averaging 2.15%. Data Guard role is Not explicitly identified in AWR, but explicit transport/apply lag values were unavailable across the window. Exadata behavior is present across the window, with cell-related waits averaging 10.9% of DB time. Detailed latest-interval metrics are shown separately in the Latest Snapshot Assessment.</p><p>Trend Findings</p><ul><li>CPU pressure held broadly steady over the period reviewed.</li><li>User I/O held broadly steady across the same period.</li><li>Available populated intervals suggest commit latency remained broadly steady.</li><li>Available populated intervals suggest concurrency remained broadly steady.</li><li>Top SQL concentration remained effectively unchanged across the analysis window, indicating a persistent concentrated SQL footprint rather than an episodic spike.</li><li>Sparse populated intervals suggest cluster waits worsened.</li><li>Sparse populated intervals suggest combined GC wait pressure, defined as GC Current + GC CR, worsened.</li><li>Exadata cell-wait pressure held broadly steady across the interval series.</li></ul><p>Anomaly Windows</p><ul><li>2026-03-29 09:00 -&gt; 10:00: Failover Event / Role Transition / Post-Failover Recovery (high) — Deterministic topology-event evidence places this interval inside a transition/recovery phase.</li><li>2026-03-29 08:00 -&gt; 09:00: Failover Event / Role Transition / Post-Failover Recovery (high) — Deterministic topology-event evidence places this interval inside a transition/recovery phase.</li><li>2026-03-29 07:00 -&gt; 08:00: Failover Event / Role Transition / Post-Failover Recovery (high) — Deterministic topology-event evidence places this interval inside a transition/recovery phase.</li><li>2026-03-29 06:00 -&gt; 07:00: Failover Event / Role Transition / Post-Failover Recovery (high) — Deterministic topology-event evidence places this interval inside a transition/recovery phase.</li><li>2026-03-29 05:00 -&gt; 06:00: Role Transition / Post-Failover Recovery (high) — Deterministic topology-event evidence places this interval inside a transition/recovery phase.</li><li>2026-03-29 04:00 -&gt; 05:00: Interconnect Stress (medium) — Deterministic topology/event classification flagged interconnect stress in this interval.</li><li>2026-03-29 03:00 -&gt; 04:00: Interconnect Stress (medium) — Deterministic topology/event classification flagged interconnect stress in this interval.</li><li>2026-03-29 02:00 -&gt; 03:00: Interconnect Stress (medium) — Deterministic topology/event classification flagged interconnect stress in this interval.</li><li>2026-03-29 01:00 -&gt; 02:00: Interconnect Stress (medium) — Deterministic topology/event classification flagged interconnect stress in this interval.</li><li>2026-03-29 00:00 -&gt; 01:00: Interconnect Stress (medium) — Deterministic topology/event classification flagged interconnect stress in this interval.</li></ul><p>Topology Assessment<br>The window includes operational-event phases such as Interconnect Stress, Post Failover Recovery, Failover Event. RAC behavior is present across the window, with cluster waits averaging 2.15% and combined GC current + GC CR wait pressure averaging 2.15%. Data Guard role is Not explicitly identified in AWR, but explicit transport/apply lag values were unavailable across the window. Exadata behavior is present across the window, with cell-related waits averaging 10.9% of DB time.</p><p>Data Guard Findings<br>Data Guard transition or replication-state evidence is present, but explicit transport/apply lag values are unavailable in this interval. Those values should be interpreted as replication-state evidence rather than generic CPU or I/O pressure.</p><p>Exadata Findings<br>Exadata-specific behavior is present, with cell-related waits at 10.7% and offload efficiency at 0%. That means storage behavior should be interpreted through smart-scan/offload effects rather than generic storage assumptions.</p><p>Operational Event Interpretation<br>Operational event classification is Failover Event, so the latest interval should be read in the context of topology transition behavior as well as workload behavior.</p><p>Latest Snapshot Assessment<br>Latest snapshot (2026-03-29 09:00 -&gt; 10:00) metrics: CPU 70.1%, User I/O 10.7%, commit 6.5%, concurrency Unavailable, and Top SQL concentration (top 3 share) 29.0%. CPU remained the primary driver in this interval at 70.1% of DB time. SQL concentration remained material, indicating that a small set of statements still accounted for a disproportionate share of work in the current interval. User I/O remained visible at 10.7%, keeping access-path efficiency in scope for this interval. Commit pressure remained visible at 6.5%, which keeps transaction behavior in scope for the current interval. Data Guard transition or replication-state evidence is present, but explicit transport/apply lag values are unavailable in this interval. Exadata-specific execution paths are present in the current interval, with cell-related waits at 10.7% and offload efficiency at 0%. This interval also sits inside Failover Event.</p><p>Deterministic narrative retained the provider response as a secondary input for wording consistency.</p>
+        </div>
+      </section>
+
+      <section id="ai-root-cause" class="card primary">
+        <h2>Root Cause Interpretation</h2>
+        <div class="narrative">
+          CPU pressure is the primary constraint, with the latest interval still showing DB CPU at 70.1% of DB time. SQL concentration remains material in OrderService, with the leading three statements accounting for 29.0% of elapsed SQL time in the latest snapshot. User I/O is still present and is led by cell single block physical read, which is more consistent with access-path and single-block read pressure than with a broad platform-wide capacity ceiling. Commit pressure is also visible through log file sync behavior, keeping transaction design and commit frequency in scope. Data Guard transition or replication-state evidence is present, but explicit transport/apply lag values are unavailable in this interval. That points to replication health or transition state rather than to a simple workload shortfall. Exadata behavior is also present, with cell-related waits at 10.7% and offload efficiency at 0%. Those signals should be interpreted as engineered-system behavior rather than generic storage pressure. Concurrency is not currently a material driver. Together these drivers support INVESTIGATE FURTHER because they point first to tunable workload behavior, topology state, and platform-specific execution paths rather than to an immediate need for capacity expansion.
+        </div>
+      </section>
+
+      <section id="ai-action-plan" class="card primary">
+        <h2>Recommended Action Plan</h2>
+        <div class="narrative">
+          <p>Decision Posture:</p><ul><li>INVESTIGATE FURTHER: The latest snapshot sits inside a failover or role-transition event, so topology state should be stabilized before generic scaling conclusions are drawn.</li><li>Supporting guidance: Do not scale now until the current primary posture is resolved.</li></ul><ul><li>Treat the current snapshot as an operational transition event first. Validate failover, role-transition, and recovery state before interpreting the interval as a pure workload-sizing signal. Next step: Start by confirming whether the interval is inside failover or role-transition recovery behavior.</li><li>Validate Data Guard role, transition state, and replication health before treating this interval as a pure sizing problem. Next step: Review broker status, alert history, and redo transport/apply state for the interval.</li><li>Reduce CPU demand immediately by tuning the highest-load SQL and execution paths. CPU saturation is limiting throughput and must be treated as the primary performance constraint. Next step: Start with the SQL statements and code paths consuming the most DB CPU.</li><li>Prioritize the top elapsed-time SQL statements immediately. A small number of statements dominate the workload and are the correct first tuning target. Next step: Start with the top elapsed-time SQL IDs and the module that owns the highest elapsed-time share.</li><li>Reduce physical read demand by correcting SQL and access paths before escalating storage as the primary cause. The first priority is to remove unnecessary I/O from the workload itself. Next step: Start with the SQL statements and objects responsible for the highest physical read demand.</li></ul>
+        </div>
+      </section>
+
+      <section id="ai-sizing" class="card primary">
+        <h2>OCI Sizing Considerations</h2>
+        <div class="narrative">
+          <p>The workload is CPU-bound and driven by a small number of high-impact SQL paths in OrderService. User I/O and commit latency are secondary contributors. The current state supports tuning first, not immediate scaling. Deterministic posture: INVESTIGATE FURTHER (HIGH confidence).</p><p>Scaling becomes appropriate only after the CPU-heavy SQL paths, concentrated statements, physical read demand, and commit behavior have been tuned and the same dominant constraints still remain.</p><p>Keep the architecture aligned to a compute-first tuning path. Use an OCI database deployment pattern that can scale CPU cleanly if residual pressure remains after SQL and transaction tuning. Treat storage and broader architectural changes as secondary unless the post-tuning workload still shows persistent I/O pressure.</p>
+        </div>
+      </section>
+
+      <section id="ai-confidence" class="card primary">
+        <div class="confidence-section confidence-card high">
+          <h2>Confidence Assessment</h2>
+          <p><span class="confidence-pill high">HIGH</span></p>
+          <p>Reason: Across 10 snapshots, CPU remained the dominant repeated signal. User I/O and commit pressure both followed a stable pattern over the same window. Multiple anomaly windows recur across the history. The latest interval stays aligned with that broader picture, with CPU at 70.1% and Top SQL concentration (top 3 share) at 23.0%. Data Guard role and replication-state evidence are explicitly present and were interpreted separately from generic workload pressure. Taken together, the repeated dominant pattern, the isolated anomaly behavior, and the latest interval all reinforce the same posture with very little contradiction.</p>
+        </div>
+      </section>
+
+      <section id="ai-risk" class="card primary">
+        
+    <div class="risk-section">
+      <h2>Risk of Being Wrong</h2>
+      <p><strong>Main Risks:</strong></p>
+      <ul>
+        <li>Single-interval signals can still dominate if history is sparse.</li><li>Missing metrics remain excluded rather than inferred.</li><li>Point-in-time improvements may hide recurring spikes outside the sampled intervals.</li>
+      </ul>
+      <p class="risk-reduction">
+        <strong>What would reduce this risk:</strong><br>
+        more AWR intervals, ASH data, SQL execution plan history, workload trend data, and peak vs non-peak comparison.
+      </p>
+    </div>
+    
+      </section>
+
+      <section id="performance-charts" class="card secondary">
+        <div class="section-kicker">Visual Signals</div>
+        <h2>Performance Charts</h2>
+        <div class="chart-grid">
+          <section class="chart-panel">
+            <h3>DB Time Breakdown</h3>
+            <div class="chart-canvas"><canvas id="dbTimeBreakdownChart"></canvas></div>
+          </section>
+          <section class="chart-panel">
+            <h3>Top SQL Contributors (% Elapsed SQL Time)</h3>
+            <div class="chart-canvas"><canvas id="topSqlContributionChart"></canvas></div>
+          </section>
+        </div>
+      </section>
+
+      
+      <section id="workload-violin-panel" class="card secondary violin-panel">
+        <div class="section-kicker">Distribution Panels</div>
+        <h2>Distribution Analysis</h2>
+
+        <div class="violin-group violin-group-workload">
+          <h3>Workload Distributions</h3>
+          <p class="violin-group-note">Cluster-level workload values aggregated per snapshot</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Cluster CPU % DB Time</h3>
+                <div id="violinClusterCpuPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Cluster Top 3 SQL Share %</h3>
+                <div id="violinClusterTopSqlConcentrationPct" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+        <div class="violin-group violin-group-topology">
+          <h3>Topology Distributions</h3>
+          <p class="violin-group-note">Cluster-level RAC and Data Guard measures across snapshots; the combined GC trend is the summed GC current + GC CR pressure</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Cluster Wait % DB Time</h3>
+                <div id="violinClusterWaitPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>GC Current Wait %</h3>
+                <div id="violinGcCurrentWaitPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>GC CR Wait %</h3>
+                <div id="violinGcCrWaitPct" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+        <div class="violin-group violin-group-platform">
+          <h3>Platform Distributions</h3>
+          <p class="violin-group-note">Cluster-level Exadata measures shown only when real platform evidence exists</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Exadata Cell Single Block Read %</h3>
+                <div id="violinCellSingleBlockReadPct" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+        <div class="violin-group violin-group-rac-instance">
+          <h3>Per-Instance RAC Distributions</h3>
+          <p class="violin-group-note">Per-instance RAC values across nodes and snapshots. These are not mixed with cluster-level distributions</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC CPU</h3>
+                <div id="violinPerInstanceRacCpuPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC Cluster Wait</h3>
+                <div id="violinPerInstanceRacClusterWaitPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC GC Current Wait</h3>
+                <div id="violinPerInstanceRacGcCurrentPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC GC CR Wait</h3>
+                <div id="violinPerInstanceRacGcCrPct" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+      </section>
+    
+
+      
+      <section id="time-series-charts" class="card secondary">
+        <div class="section-kicker">Multi-Snapshot Trends</div>
+        <h2>Time-Series Charts</h2>
+          <div class="chart-domain-group">
+            <div class="chart-domain-heading">CPU</div>
+            <div class="chart-grid">
+            <section class="chart-panel">
+              <h3>CPU Util P95</h3>
+              <div class="chart-canvas">
+                <canvas id="cpu_util_p95_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>DB CPU % DB Time</h3>
+              <div class="chart-canvas">
+                <canvas id="db_cpu_pct_db_time_trendChart"></canvas>
+              </div>
+            </section>
+            </div>
+          </div>
+          <div class="chart-domain-group">
+            <div class="chart-domain-heading">IO</div>
+            <div class="chart-grid">
+            <section class="chart-panel">
+              <h3>Read Latency</h3>
+              <div class="chart-canvas">
+                <canvas id="read_latency_ms_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>Commit / Log File Sync</h3>
+              <div class="chart-canvas">
+                <canvas id="log_file_sync_ms_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>Redo Generation Rate</h3>
+              <div class="chart-canvas">
+                <canvas id="redo_generation_per_sec_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>User I/O Pressure</h3>
+              <div class="chart-canvas">
+                <canvas id="user_io_pressure_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>Commit Pressure</h3>
+              <div class="chart-canvas">
+                <canvas id="commit_pressure_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>Top 3 SQL Share</h3>
+              <div class="chart-canvas">
+                <canvas id="top_sql_load_concentration_trendChart"></canvas>
+              </div>
+            </section>
+            </div>
+          </div>
+          <div class="chart-domain-group">
+            <div class="chart-domain-heading">MEMORY</div>
+            <div class="chart-grid">
+            <section class="chart-panel">
+              <h3>Concurrency Pressure</h3>
+              <div class="chart-canvas">
+                <canvas id="concurrency_pressure_trendChart"></canvas>
+              </div>
+            </section>
+            </div>
+          </div>
+          <div class="chart-domain-group">
+            <div class="chart-domain-heading">NETWORK</div>
+            <div class="chart-grid">
+            <section class="chart-panel">
+              <h3>Network Wait %</h3>
+              <div class="chart-canvas">
+                <canvas id="network_wait_pct_db_time_trendChart"></canvas>
+              </div>
+            </section>
+            </div>
+          </div>
+          <div class="chart-domain-group">
+            <div class="chart-domain-heading">RAC</div>
+            <div class="chart-grid">
+            <section class="chart-panel">
+              <h3>Cluster Wait %</h3>
+              <div class="chart-canvas">
+                <canvas id="cluster_wait_pct_db_time_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>GC CR Wait %</h3>
+              <div class="chart-canvas">
+                <canvas id="gc_cr_wait_pct_db_time_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>GC Current Wait %</h3>
+              <div class="chart-canvas">
+                <canvas id="gc_current_wait_pct_db_time_trendChart"></canvas>
+              </div>
+            </section>
+            </div>
+          </div>
+          <div class="chart-domain-group">
+            <div class="chart-domain-heading">EXADATA</div>
+            <div class="chart-grid">
+            <section class="chart-panel">
+              <h3>Exadata Cell I/O %</h3>
+              <div class="chart-canvas">
+                <canvas id="exa_cell_io_pct_db_time_trendChart"></canvas>
+              </div>
+            </section>
+            <section class="chart-panel">
+              <h3>Cell Single-Block Latency</h3>
+              <div class="chart-canvas">
+                <canvas id="cell_single_block_latency_ms_trendChart"></canvas>
+              </div>
+            </section>
+            </div>
+          </div>
+      </section>
+      <section id="derived-scalar-metrics" class="card secondary">
+        <div class="section-kicker">Deterministic Metrics</div>
+        <h2>Derived Scalar Metrics</h2>
+        <p class="scalar-note">No derived scalar-only metrics were available for this analysis window.</p>
+      </section>
+
+      <section id="decision-layer" class="card prominent">
+        <div class="section-kicker">Decision Layer</div>
+        <h2>Agentic Decision</h2>
+        <div class="decision-grid">
+          
+    <div class="decision-box">
+      <strong>Primary Decision</strong>
+      <div>Stabilize topology, failover, and Data Guard transition state first, then tune the highest-impact CPU-heavy SQL paths. Current decision posture: INVESTIGATE FURTHER.</div>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Execution Plan</strong>
+      <ol><li>Tune the highest CPU-consuming SQL and execution paths first.</li><li>Prioritize the top elapsed-time OrderService SQL statements immediately.</li><li>Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.</li><li>Tighten commit frequency and commit-processing behavior in the application flow.</li><li>Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.</li></ol>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Defer / Do Not Do</strong>
+      <ol><li>Do not scale now.</li><li>Do not treat storage as the first remedy.</li><li>Do not prioritize concurrency ahead of CPU, SQL concentration, User I/O, or commit latency.</li></ol>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Scaling Posture</strong>
+      <div>INVESTIGATE FURTHER</div>
+    </div>
+    
+    <div class="decision-box">
+      <strong>Confidence Level</strong>
+      <div>High</div>
+    </div>
+    
+        </div>
+      </section>
+
+      <section id="supporting-evidence" class="card secondary">
+        <div class="section-kicker">Deterministic Layer</div>
+        <h2>Supporting Evidence</h2>
+        <div class="subgrid">
+          <section class="half evidence-pane">
+            <h3>Key Issues</h3>
+            <div class="stack">
+              
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>topology_event</h3>
+              <p>An operational topology event is present, so the current interval should be interpreted in the context of failover/role-transition behavior.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity medium">MEDIUM</span></div>
+              <h3>dg_replication_state</h3>
+              <p>Data Guard transition or replication-state evidence is present, but explicit transport/apply lag values are unavailable in this interval.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>cpu_pressure</h3>
+              <p>CPU is the dominant bottleneck, consuming 70.1% of total DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>sql_concentration (top 3 SQL share)</h3>
+              <p>SQL concentration is high, with the top 3 SQL statements accounting for 29.0% of total elapsed SQL time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>io_pressure</h3>
+              <p>User I/O is a significant contributor, with &#x27;cell single block physical read&#x27; accounting for 10.7% of DB time.</p>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>commit_pressure</h3>
+              <p>Commit latency is material, with log file sync consuming 6.5% of DB time.</p>
+            </article>
+            
+            </div>
+          </section>
+
+          <section class="half evidence-pane">
+            <h3>Deterministic Recommendations</h3>
+            <div class="stack">
+              
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>topology_event</h3>
+              <p><strong>Recommendation:</strong> Treat the current snapshot as an operational transition event first. Validate failover, role-transition, and recovery state before interpreting the interval as a pure workload-sizing signal.</p>
+              <p><strong>Rationale:</strong> Failover, switchover, or post-failover recovery evidence is present, so topology state must be stabilized before generic scaling conclusions are trusted.</p>
+              <p><strong>Next Step:</strong> Start by confirming whether the interval is inside failover or role-transition recovery behavior.</p>
+              <ul><li>Validate current database role and cluster/replication state first.</li><li>Check whether the interval sits inside failover or role-transition recovery activity.</li><li>Delay sizing actions until the platform has returned to a steady operating state.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity medium">MEDIUM</span></div>
+              <h3>dg_replication_state</h3>
+              <p><strong>Recommendation:</strong> Validate Data Guard role, transition state, and replication health before treating this interval as a pure sizing problem.</p>
+              <p><strong>Rationale:</strong> Deterministic topology evidence indicates Data Guard transition or replication-state activity, but explicit transport/apply lag values are unavailable.</p>
+              <p><strong>Next Step:</strong> Review broker status, alert history, and redo transport/apply state for the interval.</p>
+              <ul><li>Validate redo transport health, network path quality, and standby recovery progress.</li><li>Check whether apply lag is driven by backlog, transport delay, or post-transition catch-up.</li><li>Separate primary workload symptoms from replication-lag symptoms before sizing decisions are made.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>cpu_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce CPU demand immediately by tuning the highest-load SQL and execution paths. CPU saturation is limiting throughput and must be treated as the primary performance constraint.</p>
+              <p><strong>Rationale:</strong> DB CPU is consuming 70.1% of total DB time, which shows CPU is saturated enough to cap workload throughput.</p>
+              <p><strong>Next Step:</strong> Start with the SQL statements and code paths consuming the most DB CPU.</p>
+              <ul><li>Tune the top CPU-consuming SQL statements first and remove avoidable row processing.</li><li>Validate execution plans and eliminate inefficient plan regressions on the busiest statements.</li><li>Reduce unnecessary parse, execute, and fetch activity in the highest-volume application paths.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>sql_concentration (top 3 SQL share)</h3>
+              <p><strong>Recommendation:</strong> Prioritize the top elapsed-time SQL statements immediately. A small number of statements dominate the workload and are the correct first tuning target.</p>
+              <p><strong>Rationale:</strong> The top 3 SQL statements account for 29.0% of total elapsed SQL time.</p>
+              <p><strong>Next Step:</strong> Start with the top elapsed-time SQL IDs and the module that owns the highest elapsed-time share.</p>
+              <ul><li>Review execution plans for the top elapsed-time SQL IDs first.</li><li>Tune the dominant statements before spending time on lower-impact workload areas.</li><li>Stabilize plan quality and remove inefficient access paths, joins, or repeated executions.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>io_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce physical read demand by correcting SQL and access paths before escalating storage as the primary cause. The first priority is to remove unnecessary I/O from the workload itself.</p>
+              <p><strong>Rationale:</strong> &#x27;cell single block physical read&#x27; is consuming 10.7% of DB time, which makes User I/O a material performance constraint driven by read demand.</p>
+              <p><strong>Next Step:</strong> Start with the SQL statements and objects responsible for the highest physical read demand.</p>
+              <ul><li>Tune the SQL statements driving the highest physical read volume first.</li><li>Validate indexing, join strategy, and access path quality for the hottest objects.</li><li>Review storage latency only after SQL and object access patterns have been validated.</li></ul>
+            </article>
+            
+            <article class="item">
+              <div class="meta"><span class="severity high">HIGH</span></div>
+              <h3>commit_pressure</h3>
+              <p><strong>Recommendation:</strong> Reduce commit frequency and tighten redo path performance immediately. Commit processing is gating throughput and must be shortened at the application and redo layers.</p>
+              <p><strong>Rationale:</strong> log file sync is consuming 6.5% of DB time, which shows commit processing is materially gating workload throughput.</p>
+              <p><strong>Next Step:</strong> Start by reviewing commit frequency in the application transaction flow.</p>
+              <ul><li>Review commit frequency in the application flow and batch small transactions where appropriate.</li><li>Validate redo log sizing, switch behavior, and redo device latency.</li><li>Remove unnecessary commit calls inside tight execution loops.</li></ul>
+            </article>
+            
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">Generated at Apr 10, 2026, 9:28 PM</div>
+  </div>
+  <script id="chart-payload" type="application/json">
+{
+  "db_time_breakdown": {
+    "labels": [
+      "CPU",
+      "User I/O",
+      "Commit",
+      "Concurrency",
+      "Other"
+    ],
+    "values": [
+      70.1,
+      10.7,
+      6.5,
+      0.0,
+      12.7
+    ],
+    "colors": [
+      "rgba(255, 107, 107, 0.72)",
+      "rgba(246, 184, 76, 0.72)",
+      "rgba(212, 174, 82, 0.72)",
+      "rgba(127, 179, 213, 0.72)",
+      "rgba(130, 148, 171, 0.58)"
+    ]
+  },
+  "top_sql_contribution": {
+    "labels": [
+      "8f7a1xk3d9abc",
+      "b9d2k3l4m5xyz",
+      "c7k9d2l8p3abc"
+    ],
+    "values": [
+      13.0,
+      10.0,
+      6.0
+    ],
+    "colors": [
+      "rgba(255, 107, 107, 0.68)",
+      "rgba(246, 184, 76, 0.68)",
+      "rgba(127, 179, 213, 0.68)"
+    ]
+  },
+  "violin_panel": {
+    "workload": {
+      "cluster_cpu_pct_db_time": [
+        68.852,
+        70.833,
+        64.186,
+        57.03,
+        68.586,
+        67.442,
+        52.8,
+        60.976,
+        70.854,
+        70.142
+      ],
+      "cluster_execs_per_sec": [],
+      "cluster_read_iops": [],
+      "cluster_read_mb_per_sec": [],
+      "cluster_write_iops": [],
+      "cluster_write_mb_per_sec": [],
+      "cluster_user_io_pct_db_time": [],
+      "cluster_top_sql_concentration_pct": [
+        32.0,
+        32.0,
+        32.0,
+        32.0,
+        32.0,
+        29.0,
+        29.0,
+        29.0,
+        29.0,
+        29.0
+      ],
+      "cluster_pga_spill_pressure": [],
+      "cluster_temp_io_pressure": [],
+      "cluster_hard_parses_per_sec": [],
+      "cluster_log_file_sync_ms": []
+    },
+    "topology": {
+      "cluster_wait_pct_db_time": [
+        1.1,
+        3.2
+      ],
+      "gc_current_wait_pct_db_time": [
+        40.0,
+        80.0
+      ],
+      "gc_cr_wait_pct_db_time": [
+        70.0,
+        2.4
+      ],
+      "transport_lag_sec": [],
+      "apply_lag_sec": []
+    },
+    "platform": {
+      "cell_single_block_read_pct_db_time": [
+        19.7,
+        18.4,
+        16.8,
+        16.9,
+        19.8,
+        16.4,
+        19.0,
+        18.5,
+        17.9
+      ],
+      "smart_scan_pct_db_time": []
+    },
+    "rac_instance": {
+      "per_instance_cpu_pct_db_time": [
+        68.852,
+        70.833,
+        64.186,
+        57.03,
+        68.586,
+        67.442,
+        52.8,
+        60.976,
+        70.854,
+        70.142
+      ],
+      "per_instance_cluster_wait_pct_db_time": [
+        1.1,
+        3.2
+      ],
+      "per_instance_gc_current_wait_pct_db_time": [
+        40.0,
+        80.0
+      ],
+      "per_instance_gc_cr_wait_pct_db_time": [
+        70.0,
+        2.4
+      ]
+    }
+  },
+  "time_series_charts": {
+    "snapshot_labels": [
+      "2026-03-29 00:00 -> 01:00",
+      "2026-03-29 01:00 -> 02:00",
+      "2026-03-29 02:00 -> 03:00",
+      "2026-03-29 03:00 -> 04:00",
+      "2026-03-29 04:00 -> 05:00",
+      "2026-03-29 05:00 -> 06:00",
+      "2026-03-29 06:00 -> 07:00",
+      "2026-03-29 07:00 -> 08:00",
+      "2026-03-29 08:00 -> 09:00",
+      "2026-03-29 09:00 -> 10:00"
+    ],
+    "cpu_util_p95_trend": [
+      68.8525,
+      70.8333,
+      64.186,
+      57.0297,
+      68.5864,
+      67.4419,
+      52.8,
+      60.9756,
+      70.8543,
+      70.1422
+    ],
+    "db_cpu_pct_db_time_trend": [
+      68.8525,
+      70.8333,
+      64.186,
+      57.0297,
+      68.5864,
+      67.4419,
+      52.8,
+      60.9756,
+      70.8543,
+      70.1422
+    ],
+    "read_latency_ms_trend": [
+      0.21,
+      0.22,
+      0.23,
+      0.26,
+      0.22,
+      0.24,
+      null,
+      0.25,
+      0.23,
+      0.23
+    ],
+    "log_file_sync_ms_trend": [
+      null,
+      0.89,
+      0.96,
+      null,
+      null,
+      1.22,
+      null,
+      1.08,
+      0.98,
+      1.01
+    ],
+    "redo_generation_per_sec_trend": [
+      131072000.0,
+      157286400.0,
+      169869312.0,
+      176160768.0,
+      161480704.0,
+      207618048.0,
+      0.0,
+      123731968.0,
+      152043520.0,
+      163577856.0
+    ],
+    "user_io_pressure_trend": [
+      11.8,
+      11.0,
+      10.1,
+      10.2,
+      11.9,
+      9.9,
+      null,
+      11.4,
+      11.1,
+      10.7
+    ],
+    "commit_pressure_trend": [
+      null,
+      6.7,
+      6.3,
+      null,
+      null,
+      8.5,
+      null,
+      5.3,
+      6.3,
+      6.5
+    ],
+    "top_sql_load_concentration_trend": [
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      23.0,
+      23.0,
+      23.0,
+      23.0,
+      23.0
+    ],
+    "concurrency_pressure_trend": [
+      null,
+      0.4,
+      0.4,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "network_wait_pct_db_time_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      0.7,
+      0.0,
+      0.0,
+      0.0,
+      0.2
+    ],
+    "cluster_wait_pct_db_time_trend": [
+      null,
+      1.1,
+      3.2,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "gc_cr_wait_pct_db_time_trend": [
+      null,
+      0.7,
+      2.4,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "gc_current_wait_pct_db_time_trend": [
+      null,
+      0.4,
+      0.8,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "exa_cell_io_pct_db_time_trend": [
+      11.8,
+      11.0,
+      10.1,
+      10.2,
+      11.9,
+      9.9,
+      null,
+      11.4,
+      11.1,
+      10.7
+    ],
+    "cell_single_block_latency_ms_trend": [
+      0.21,
+      0.22,
+      0.23,
+      0.26,
+      0.22,
+      0.24,
+      null,
+      0.25,
+      0.23,
+      0.23
+    ]
+  }
+}
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script>
+    const chartPayloadElement = document.getElementById('chart-payload');
+    let chartPayload = {};
+    try {
+      if (chartPayloadElement) {
+        chartPayload = JSON.parse(chartPayloadElement.textContent.trim());
+      }
+    } catch (e) {
+      console.error("Chart payload invalid", e);
+    }
+
+    const chartTextColor = '#d9e4f2';
+    const chartMutedColor = 'rgba(159, 176, 199, 0.28)';
+    let dbChart = null;
+    let sqlChart = null;
+
+    function showChartFallback(canvasId, message = 'No data available') {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) {
+        return;
+      }
+
+      const parent = canvas.parentElement;
+      if (!parent) {
+        return;
+      }
+
+      parent.innerHTML = '<div class="chart-empty">' + message + '</div>';
+    }
+
+    function computeMean(values) {
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function computeMedian(values) {
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+      }
+      return sorted[middle];
+    }
+
+    function computeQuantile(values, quantile) {
+      const sorted = [...values].sort((a, b) => a - b);
+      if (sorted.length === 0) {
+        return NaN;
+      }
+      const position = (sorted.length - 1) * quantile;
+      const lower = Math.floor(position);
+      const upper = Math.ceil(position);
+      if (lower === upper) {
+        return sorted[lower];
+      }
+      const weight = position - lower;
+      return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+    }
+
+    function formatMetricValue(value) {
+      if (!Number.isFinite(value)) {
+        return '';
+      }
+      if (Math.abs(value) >= 100) {
+        return value.toFixed(0);
+      }
+      if (Math.abs(value) >= 10) {
+        return value.toFixed(1);
+      }
+      return value.toFixed(2).replace(/\.?0+$/, '');
+    }
+
+    function buildDoughnutChart() {
+      const payload = chartPayload.db_time_breakdown;
+      if (
+        !payload
+        || !Array.isArray(payload.labels)
+        || !Array.isArray(payload.values)
+        || payload.labels.length === 0
+        || payload.labels.length !== payload.values.length
+      ) {
+        showChartFallback('dbTimeBreakdownChart');
+        return;
+      }
+
+      const ctx = document.getElementById('dbTimeBreakdownChart');
+      if (!ctx) {
+        showChartFallback('dbTimeBreakdownChart');
+        return;
+      }
+
+      if (dbChart) dbChart.destroy();
+      dbChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderColor: '#0f1b2d',
+            borderWidth: 2,
+            hoverOffset: 4,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: chartTextColor,
+                boxWidth: 12,
+                padding: 16,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function buildBarChart() {
+      const payload = chartPayload.top_sql_contribution;
+      if (
+        !payload
+        || !Array.isArray(payload.labels)
+        || !Array.isArray(payload.values)
+        || payload.labels.length === 0
+        || payload.labels.length !== payload.values.length
+      ) {
+        showChartFallback('topSqlContributionChart');
+        return;
+      }
+
+      const ctx = document.getElementById('topSqlContributionChart');
+      if (!ctx) {
+        showChartFallback('topSqlContributionChart');
+        return;
+      }
+
+      if (sqlChart) sqlChart.destroy();
+      sqlChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderRadius: 8,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false,
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                display: false,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                color: chartMutedColor,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function buildViolinChart(containerId, title, samples, color, payloadKey) {
+      if (!Array.isArray(samples) || samples.length < 2) {
+        return;
+      }
+
+      const container = document.getElementById(containerId);
+      if (!container) {
+        return;
+      }
+
+      const meanValue = computeMean(samples);
+      const medianValue = computeMedian(samples);
+      const q1Value = computeQuantile(samples, 0.25);
+      const q3Value = computeQuantile(samples, 0.75);
+      const maxValue = Math.max(...samples);
+      const minValue = Math.min(...samples);
+      const sampleCount = samples.length;
+      const lowSampleExtremaKeys = new Set([
+        'cluster_wait_pct_db_time',
+        'gc_current_wait_pct_db_time',
+        'gc_cr_wait_pct_db_time',
+        'per_instance_cluster_wait_pct_db_time',
+        'per_instance_gc_current_wait_pct_db_time',
+        'per_instance_gc_cr_wait_pct_db_time',
+      ]);
+      const showExtremaMarkers = (
+        maxValue !== minValue
+        && (
+          sampleCount >= 4
+          || (sampleCount >= 2 && lowSampleExtremaKeys.has(payloadKey))
+        )
+      );
+      const stats = [
+        formatMetricValue(meanValue),
+        formatMetricValue(medianValue),
+        formatMetricValue(q1Value),
+        formatMetricValue(q3Value),
+        formatMetricValue(minValue),
+        formatMetricValue(maxValue),
+      ];
+      const hoverOffsets = [-0.18, -0.12, -0.06, 0, 0.06, 0.12, 0.18];
+      const hoverX = [];
+      const hoverY = [];
+      const customData = [];
+
+      samples.forEach(function (sample) {
+        hoverOffsets.forEach(function (offset) {
+          hoverX.push(offset);
+          hoverY.push(sample);
+          customData.push(stats);
+        });
+      });
+
+      Plotly.purge(container);
+      Plotly.newPlot(
+        container,
+        [
+          {
+            type: 'violin',
+            y: samples,
+            x0: 0,
+            name: '',
+            box: {
+              visible: true,
+              fillcolor: 'rgba(225, 232, 240, 0.22)',
+              line: {
+                color: 'rgba(225, 232, 240, 0.55)',
+                width: 1,
+              },
+            },
+            meanline: {
+              visible: true,
+              color: '#0b0f14',
+              width: 2,
+            },
+            line: {
+              color: color,
+              width: 1.5,
+            },
+            fillcolor: color,
+            opacity: 0.55,
+            points: false,
+            hoverinfo: 'skip',
+            hovertemplate: null,
+            hoveron: 'points',
+            showlegend: false,
+          },
+          {
+            type: 'scatter',
+            mode: 'markers+text',
+            x: [0.1],
+            y: [meanValue],
+            text: ['Mean ' + formatMetricValue(meanValue)],
+            textposition: 'middle right',
+            textfont: {
+              color: '#f7d792',
+              size: 10,
+            },
+            marker: {
+              color: '#f6b84c',
+              symbol: 'diamond',
+              size: 9,
+              line: {
+                color: '#fff3d6',
+                width: 1,
+              },
+            },
+            hoverinfo: 'skip',
+            showlegend: false,
+          },
+          ...(showExtremaMarkers ? [
+            {
+              type: 'scatter',
+              mode: 'markers+text',
+              x: [0.12],
+              y: [maxValue],
+              text: ['Max ' + formatMetricValue(maxValue)],
+              textposition: 'top right',
+              textfont: {
+                color: 'rgba(255, 214, 214, 0.92)',
+                size: 9,
+              },
+              marker: {
+                color: '#ff7f7f',
+                symbol: 'diamond',
+                size: 8,
+                line: {
+                  color: '#ffd7d7',
+                  width: 1,
+                },
+              },
+              hoverinfo: 'skip',
+              showlegend: false,
+            },
+            {
+              type: 'scatter',
+              mode: 'markers+text',
+              x: [-0.09],
+              y: [minValue],
+              text: ['Min ' + formatMetricValue(minValue)],
+              textposition: 'bottom right',
+              textfont: {
+                color: 'rgba(220, 230, 242, 0.82)',
+                size: 9,
+              },
+              marker: {
+                color: 'rgba(216, 228, 242, 0.82)',
+                symbol: 'diamond',
+                size: 8,
+                line: {
+                  color: '#e8eef7',
+                  width: 1,
+                },
+              },
+              hoverinfo: 'skip',
+              showlegend: false,
+            },
+          ] : []),
+          {
+            type: 'scatter',
+            mode: 'markers',
+            x: hoverX,
+            y: hoverY,
+            customdata: customData,
+            marker: {
+              color: 'rgba(0, 0, 0, 0)',
+              size: 22,
+            },
+            hovertemplate:
+              'Value: %{y}<br>' +
+              'Mean: %{customdata[0]} | Median: %{customdata[1]}<br>' +
+              'Q1-Q3: %{customdata[2]} - %{customdata[3]}<br>' +
+              'Min-Max: %{customdata[4]} - %{customdata[5]}' +
+              '<extra></extra>',
+            showlegend: false,
+          },
+        ],
+        {
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(11, 21, 35, 0.35)',
+          hovermode: 'closest',
+          margin: {
+            l: 56,
+            r: 14,
+            t: 6,
+            b: 20,
+          },
+          font: {
+            color: chartTextColor,
+          },
+          xaxis: {
+            color: chartTextColor,
+            gridcolor: 'rgba(0,0,0,0)',
+            range: [-0.35, 0.35],
+            zeroline: false,
+            showticklabels: false,
+          },
+          yaxis: {
+            color: chartTextColor,
+            gridcolor: chartMutedColor,
+            zeroline: false,
+          },
+          hoverlabel: {
+            bgcolor: 'rgba(11, 21, 35, 0.94)',
+            bordercolor: 'rgba(159, 176, 199, 0.28)',
+            font: {
+              color: '#e8eef7',
+              size: 11,
+            },
+          },
+        },
+        {
+          displayModeBar: false,
+          responsive: true,
+        },
+      );
+    }
+
+
+    const timeSeriesChartSpecs = [{"key":"cpu_util_p95_trend","title":"CPU Util P95","label":"CPU util %","color":"rgba(255, 107, 107, 0.92)","container_id":"cpu_util_p95_trendChart","domain":"CPU"},{"key":"db_cpu_pct_db_time_trend","title":"DB CPU % DB Time","label":"DB CPU % DB time","color":"rgba(255, 82, 82, 0.92)","container_id":"db_cpu_pct_db_time_trendChart","domain":"CPU"},{"key":"read_latency_ms_trend","title":"Read Latency","label":"Read latency ms","color":"rgba(255, 159, 67, 0.92)","container_id":"read_latency_ms_trendChart","domain":"IO"},{"key":"log_file_sync_ms_trend","title":"Commit / Log File Sync","label":"Log file sync ms","color":"rgba(246, 184, 76, 0.92)","container_id":"log_file_sync_ms_trendChart","domain":"IO"},{"key":"redo_generation_per_sec_trend","title":"Redo Generation Rate","label":"Redo bytes/s","color":"rgba(255, 214, 102, 0.92)","container_id":"redo_generation_per_sec_trendChart","domain":"IO"},{"key":"user_io_pressure_trend","title":"User I/O Pressure","label":"User I/O % DB time","color":"rgba(255, 171, 64, 0.92)","container_id":"user_io_pressure_trendChart","domain":"IO"},{"key":"commit_pressure_trend","title":"Commit Pressure","label":"Commit % DB time","color":"rgba(255, 202, 40, 0.92)","container_id":"commit_pressure_trendChart","domain":"IO"},{"key":"top_sql_load_concentration_trend","title":"Top 3 SQL Share","label":"Top 3 SQL share %","color":"rgba(186, 104, 200, 0.92)","container_id":"top_sql_load_concentration_trendChart","domain":"IO"},{"key":"concurrency_pressure_trend","title":"Concurrency Pressure","label":"Concurrency % DB time","color":"rgba(77, 208, 225, 0.92)","container_id":"concurrency_pressure_trendChart","domain":"MEMORY"},{"key":"network_wait_pct_db_time_trend","title":"Network Wait %","label":"Network % DB time","color":"rgba(3, 169, 244, 0.92)","container_id":"network_wait_pct_db_time_trendChart","domain":"NETWORK"},{"key":"cluster_wait_pct_db_time_trend","title":"Cluster Wait %","label":"Cluster waits % DB time","color":"rgba(129, 199, 132, 0.92)","container_id":"cluster_wait_pct_db_time_trendChart","domain":"RAC"},{"key":"gc_cr_wait_pct_db_time_trend","title":"GC CR Wait %","label":"GC CR % DB time","color":"rgba(77, 182, 172, 0.92)","container_id":"gc_cr_wait_pct_db_time_trendChart","domain":"RAC"},{"key":"gc_current_wait_pct_db_time_trend","title":"GC Current Wait %","label":"GC current % DB time","color":"rgba(38, 166, 154, 0.92)","container_id":"gc_current_wait_pct_db_time_trendChart","domain":"RAC"},{"key":"exa_cell_io_pct_db_time_trend","title":"Exadata Cell I/O %","label":"Cell I/O % DB time","color":"rgba(171, 71, 188, 0.92)","container_id":"exa_cell_io_pct_db_time_trendChart","domain":"EXADATA"},{"key":"cell_single_block_latency_ms_trend","title":"Cell Single-Block Latency","label":"Single-block latency ms","color":"rgba(126, 87, 194, 0.92)","container_id":"cell_single_block_latency_ms_trendChart","domain":"EXADATA"}];
+    const timeSeriesCharts = [];
+
+    function setSparseSeriesNote(containerId, message) {
+      const canvas = document.getElementById(containerId);
+      if (!canvas) {
+        return;
+      }
+      const chartPanel = canvas.closest('.chart-panel');
+      if (!chartPanel) {
+        return;
+      }
+      let note = chartPanel.querySelector('.chart-sparse-note');
+      if (!message) {
+        if (note) {
+          note.remove();
+        }
+        return;
+      }
+      if (!note) {
+        note = document.createElement('p');
+        note.className = 'chart-sparse-note';
+        chartPanel.appendChild(note);
+      }
+      note.textContent = message;
+    }
+
+    function formatCompactIntervalLabel(label) {
+      const text = String(label || '').trim();
+      const intervalMatch = text.match(/(\d{2}:\d{2})\s*->\s*(\d{2}:\d{2})/);
+      if (intervalMatch) {
+        return `${intervalMatch[1]}-${intervalMatch[2]}`;
+      }
+      return text;
+    }
+
+    function buildLineChart(containerId, title, labels, values, color, labelText) {
+      const canvas = document.getElementById(containerId);
+      if (!canvas) {
+        return;
+      }
+
+      const numericValues = values.filter((value) => Number.isFinite(value));
+      if (!Array.isArray(labels) || labels.length < 2 || numericValues.length < 2) {
+        setSparseSeriesNote(containerId, '');
+        showChartFallback(containerId, 'Insufficient history');
+        return;
+      }
+
+      const coverageRatio = labels.length > 0
+        ? (numericValues.length / labels.length)
+        : 0;
+      const isSparseSeries = numericValues.length < 3 || coverageRatio < 0.6;
+      setSparseSeriesNote(
+        containerId,
+        isSparseSeries
+          ? `Sparse series: ${numericValues.length} populated snapshots across ${labels.length} intervals`
+          : '',
+      );
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return;
+      }
+
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: labelText || title,
+            data: values,
+            borderColor: color,
+            backgroundColor: isSparseSeries
+              ? color.replace('0.92', '0.08')
+              : color.replace('0.92', '0.18'),
+            pointBackgroundColor: color,
+            pointBorderColor: '#0f1b2d',
+            pointRadius: isSparseSeries ? 5 : 4,
+            pointHoverRadius: isSparseSeries ? 6 : 5,
+            borderWidth: isSparseSeries ? 2 : 3,
+            tension: isSparseSeries ? 0 : 0.25,
+            spanGaps: false,
+            fill: isSparseSeries ? false : true,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              callbacks: {
+                title: function(items) {
+                  if (!items || !items.length) {
+                    return '';
+                  }
+                  return labels[items[0].dataIndex] || '';
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: chartTextColor,
+                maxRotation: 0,
+                autoSkip: true,
+                callback: function(value, index) {
+                  return formatCompactIntervalLabel(labels[index]);
+                },
+              },
+              grid: {
+                color: chartMutedColor,
+              },
+            },
+            y: {
+              ticks: {
+                color: chartTextColor,
+              },
+              grid: {
+                color: chartMutedColor,
+              },
+            },
+          },
+        },
+      });
+
+      timeSeriesCharts.push(chart);
+    }
+
+    function buildTimeSeriesCharts() {
+      const payload = chartPayload.time_series_charts || {};
+      const labels = payload.snapshot_labels || [];
+      timeSeriesCharts.splice(0, timeSeriesCharts.length).forEach((chart) => chart.destroy());
+
+      timeSeriesChartSpecs.forEach((spec) => {
+        buildLineChart(
+          spec.container_id,
+          spec.title,
+          labels,
+          payload[spec.key] || [],
+          spec.color,
+          spec.label
+        );
+      });
+    }
+
+    function buildViolinPanel() {
+      const payload = chartPayload.violin_panel || {};
+      const violinConfigs = [{"payload_key": "cluster_cpu_pct_db_time", "container_id": "violinClusterCpuPct", "title": "Cluster CPU % DB Time", "color": "rgba(255, 107, 107, 0.72)", "group_key": "workload"}, {"payload_key": "cluster_top_sql_concentration_pct", "container_id": "violinClusterTopSqlConcentrationPct", "title": "Cluster Top 3 SQL Share %", "color": "rgba(186, 104, 200, 0.72)", "group_key": "workload"}, {"payload_key": "cluster_wait_pct_db_time", "container_id": "violinClusterWaitPct", "title": "Cluster Wait % DB Time", "color": "rgba(255, 127, 80, 0.72)", "group_key": "topology"}, {"payload_key": "gc_current_wait_pct_db_time", "container_id": "violinGcCurrentWaitPct", "title": "GC Current Wait %", "color": "rgba(244, 162, 97, 0.72)", "group_key": "topology"}, {"payload_key": "gc_cr_wait_pct_db_time", "container_id": "violinGcCrWaitPct", "title": "GC CR Wait %", "color": "rgba(233, 196, 106, 0.72)", "group_key": "topology"}, {"payload_key": "cell_single_block_read_pct_db_time", "container_id": "violinCellSingleBlockReadPct", "title": "Exadata Cell Single Block Read %", "color": "rgba(56, 176, 0, 0.72)", "group_key": "platform"}, {"payload_key": "per_instance_cpu_pct_db_time", "container_id": "violinPerInstanceRacCpuPct", "title": "Per-Instance RAC CPU", "color": "rgba(249, 65, 68, 0.72)", "group_key": "rac_instance"}, {"payload_key": "per_instance_cluster_wait_pct_db_time", "container_id": "violinPerInstanceRacClusterWaitPct", "title": "Per-Instance RAC Cluster Wait", "color": "rgba(243, 114, 44, 0.72)", "group_key": "rac_instance"}, {"payload_key": "per_instance_gc_current_wait_pct_db_time", "container_id": "violinPerInstanceRacGcCurrentPct", "title": "Per-Instance RAC GC Current Wait", "color": "rgba(248, 150, 30, 0.72)", "group_key": "rac_instance"}, {"payload_key": "per_instance_gc_cr_wait_pct_db_time", "container_id": "violinPerInstanceRacGcCrPct", "title": "Per-Instance RAC GC CR Wait", "color": "rgba(249, 199, 79, 0.72)", "group_key": "rac_instance"}];
+
+      violinConfigs.forEach(function (config) {
+        const containerId = config.container_id;
+        const title = config.title;
+        const payloadKey = config.payload_key;
+        const groupKey = config.group_key;
+        const color = config.color;
+        const groupPayload = payload[groupKey] || {};
+        buildViolinChart(
+          containerId,
+          title,
+          groupPayload[payloadKey],
+          color,
+          payloadKey,
+        );
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      buildDoughnutChart();
+      buildBarChart();
+      buildViolinPanel();
+      buildTimeSeriesCharts();
+    });
+  </script>
+</body>
+</html>

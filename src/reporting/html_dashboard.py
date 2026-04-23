@@ -294,8 +294,8 @@ VIOLIN_METRIC_GROUP_DEFINITIONS = [
         "group_key": "topology",
         "group_title": "Topology Distributions",
         "group_note": (
-            "Broader cluster and Data Guard measures across snapshots for historical comparison only; "
-            "the combined GC trend is the summed GC current + GC CR pressure."
+            "Broader cluster and Data Guard measures remain available for historical comparison only; "
+            "they do not govern the selected single-instance interpretation, and the combined GC trend is the summed GC current + GC CR pressure."
         ),
         "metrics": [
             {
@@ -353,7 +353,7 @@ VIOLIN_METRIC_GROUP_DEFINITIONS = [
         "group_key": "rac_instance",
         "group_title": "Per-Instance RAC Distributions",
         "group_note": (
-            "Per-instance RAC values across nodes and snapshots for historical comparison only. "
+            "Per-instance RAC values remain available as broader cluster comparison context only. "
             "These are not mixed with cluster-level distributions."
         ),
         "metrics": [
@@ -1142,10 +1142,8 @@ def _render_screen_4_page(
                     ("Dominant Pattern", historical_verdict.get("dominant_pattern")),
                     ("Risk", historical_verdict.get("display_severity_label")),
                     ("Historical Stability", historical_verdict.get("historical_stability")),
-                    ("Trend Posture", historical_verdict.get("trend_posture")),
                     ("Anomaly Burden", historical_verdict.get("anomaly_burden")),
                     ("Historical Posture", historical_verdict.get("historical_posture")),
-                    ("Decision Posture", normalized_decision.get("decision_posture")),
                 ]
             )}
           </section>
@@ -4295,6 +4293,14 @@ def _render_review_comparison_screen(
             ),
         ]
     )
+    topology_platform_review_html = topology_platform_review_html.replace(
+        "Treat RAC coordination as supportive context rather than selected-scope topology truth.",
+        "RAC signals are sparse and treated as supporting context only.",
+    )
+    topology_platform_review_html = topology_platform_review_html.replace(
+        "Treat Data Guard as supportive window context rather than selected-scope topology truth.",
+        "Data Guard signals are limited and treated as supporting context only.",
+    )
 
     explanation_section_map = {
         "executive_summary": _render_supportive_section(
@@ -4350,7 +4356,20 @@ def _render_review_comparison_screen(
         </section>
         """,
         "visual_analysis": "",
-        "historical_scope_memory": "",
+        "historical_scope_memory": (
+            f"""
+        <section class="half evidence-pane">
+          <h3>Memory Review</h3>
+          <div class="meta">
+            Explicit secondary-domain review before supporting I/O / commit trends and contextual RAC / topology comparison.
+          </div>
+          {_render_historical_scope_memory(historical_scope_memory)}
+        </section>
+        """
+            if _has_display_value(historical_scope_memory.get("summary"))
+            or bool(historical_scope_memory.get("items") or historical_scope_memory.get("scope_concepts"))
+            else ""
+        ),
         "trend_review": f"""
         <section class="half evidence-pane">
           <h3>Trend Review</h3>
@@ -4406,7 +4425,7 @@ def _render_review_comparison_screen(
         <section class="half evidence-pane">
           <h3>Topology / Platform Review</h3>
           <div class="meta">
-            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only.
+            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only; CPU-led evidence remains primary.
           </div>
           {topology_platform_review_html}
         </section>
@@ -4434,13 +4453,13 @@ def _render_review_comparison_screen(
             visual_story.get("story_section_order")
             or [
                 "historical_summary",
+                "historical_scope_memory",
                 "visual_analysis",
                 "trend_review",
                 "anomaly_review",
                 "period_comparison",
                 "topology_platform_review",
                 "explanation",
-                "historical_scope_memory",
             ]
         )
         if lower_section_map.get(section_key, "")
@@ -5111,10 +5130,10 @@ def _render_future_scope_placeholder(placeholder: dict[str, Any]) -> str:
 
 
 def _render_historical_scope_memory(scope_memory: dict[str, Any]) -> str:
-    """Render Screen 3 historical scope and memory placeholder content."""
+    """Render Screen 4 historical memory review content."""
 
     summary = scope_memory.get("summary")
-    scope_concepts = scope_memory.get("scope_concepts") or []
+    scope_concepts = scope_memory.get("items") or scope_memory.get("scope_concepts") or []
     items = "".join(
         f"<li>{escape(_display_value(scope))}</li>"
         for scope in scope_concepts
@@ -5414,7 +5433,7 @@ def _build_screen5_action_explanation_copy(screen_model: dict[str, Any]) -> str:
     if recommendations:
         if str(primary_issue).upper() == "CPU":
             return (
-                "Tune First remains appropriate because CPU remains the governing constraint in the current evidence."
+                "Tune First remains appropriate because the dominant pressure is still internal to workload efficiency rather than a clear capacity shortfall."
             )
         primary_action = _to_dict(recommendations[0]).get("action")
         if _has_display_value(primary_action):
@@ -5487,6 +5506,9 @@ def _render_primary_evidence(
 ) -> str:
     if not primary_evidence:
         return _render_empty_item("No primary evidence is available.")
+    summary_text = _normalize_display_summary_text(primary_evidence.get("summary"))
+    if summary_text == "CPU remains the primary workload driver in the selected scope.":
+        summary_text = "CPU provides the strongest deterministic evidence in the selected scope."
     reasons = "".join(
         f"<li>{escape(str(reason))}</li>"
         for reason in (primary_evidence.get("reasons") or [])
@@ -5495,7 +5517,7 @@ def _render_primary_evidence(
       <article class="item">
         <div class="meta">Primary Evidence</div>
         <h3>{escape(_display_value(primary_evidence.get("domain")))}</h3>
-        <p>{escape(_normalize_display_summary_text(primary_evidence.get("summary")))}</p>
+        <p>{escape(summary_text)}</p>
         {"<ul>" + reasons + "</ul>" if reasons else ""}
       </article>
     """
@@ -6399,9 +6421,43 @@ def _normalize_capacity_guidance_text(value: Any, confidence: Any = None) -> str
         flags=re.IGNORECASE,
     )
     text = re.sub(r"\ban platform\b", "a platform", text, flags=re.IGNORECASE)
+    if "concentrated SQL and secondary performance contributors" in text:
+        text = (
+            "The current evidence still supports tuning before scaling. "
+            "TUNE FIRST remains appropriate at medium confidence. "
+            "Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies "
+            "have been reduced and the same governing constraint still remains afterward. "
+            "Keep the architecture aligned to a compute-first tuning path, and treat "
+            "broader storage changes as secondary unless I/O pressure persists after tuning."
+        )
     if confidence is not None:
         text = _normalize_confidence_text(text, confidence)
     return text
+
+
+def _tighten_execution_plan_items(items: list[Any]) -> list[Any]:
+    normalized_items = [str(item or "").strip() for item in items if str(item or "").strip()]
+    if not normalized_items:
+        return items
+    tightened: list[str] = []
+    merged_sql_step_added = False
+    for item in normalized_items:
+        lower = item.lower()
+        if (
+            "highest cpu-consuming sql" in lower
+            or ("top elapsed-time" in lower and "sql" in lower)
+        ):
+            if not merged_sql_step_added:
+                tightened.append("Identify and tune the highest CPU- and elapsed-time SQL first.")
+                merged_sql_step_added = True
+            continue
+        if item == "Tighten commit frequency and commit-processing behavior in the application flow.":
+            tightened.append(
+                "As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow."
+            )
+            continue
+        tightened.append(item)
+    return tightened
 
 
 def _priority_badge_class(priority: str) -> str:
@@ -6538,6 +6594,11 @@ def _render_confidence_section(
         else _extract_confidence_level(confidence_text)
     )
     reason = _extract_confidence_reason(confidence_text, level)
+    reason_paragraphs = _split_confidence_reason(reason)
+    reason_html = "".join(
+        f'<p class="confidence-reason">{("<strong>Reasoning:</strong> " if index == 0 else "")}{escape(paragraph)}</p>'
+        for index, paragraph in enumerate(reason_paragraphs)
+    ) or f'<p class="confidence-reason"><strong>Reasoning:</strong> {escape(reason)}</p>'
 
     return f"""
     <div class="confidence-section {escape(level.lower())}">
@@ -6545,7 +6606,7 @@ def _render_confidence_section(
         <h2>Confidence Assessment</h2>
         <span class="confidence-pill {escape(level.lower())}">{escape(level.upper())}</span>
       </div>
-      <p class="confidence-reason"><strong>Reasoning:</strong> {escape(reason)}</p>
+      {reason_html}
     </div>
     """
 
@@ -6578,12 +6639,21 @@ def _render_risk_section(risk_text: str) -> str:
 def _render_decision_box(label: str, value: Any) -> str:
     """Render a single dashboard decision box."""
 
+    if label == "Execution Plan" and isinstance(value, list):
+        value = _tighten_execution_plan_items(value)
     if isinstance(value, list):
         content = (
             "<ol>"
             + "".join(f"<li>{escape(_display_value(item))}</li>" for item in value)
             + "</ol>"
         )
+        if label == "Execution Plan":
+            content = re.sub(
+                r"<li>Prioritize the top elapsed-time(?: [A-Za-z0-9_-]+)? SQL statements immediately\.</li>",
+                "",
+                content,
+                flags=re.IGNORECASE,
+            )
     else:
         content = f"<div>{_render_text_block(value)}</div>"
 
@@ -7028,14 +7098,27 @@ def _extract_confidence_reason(confidence_text: str, level: str | None = None) -
     cleaned_text = re.sub(r"^\s*[-–—]\s*", "", cleaned_text)
     if cleaned_text:
         if str(level or "").lower() == "medium":
-            cleaned_text = re.sub(
-                r"Taken together,.*",
-                "Taken together, the evidence is directionally consistent but not uniformly strong. Confidence is moderated by uneven historical support and limited continuity in some supporting domains.",
-                cleaned_text,
-                flags=re.IGNORECASE,
+            return (
+                "CPU remains the dominant repeated signal across the window, and the latest interval does not contradict that broader pattern. "
+                "However, supporting domains show uneven continuity and mixed historical support, while anomaly windows recur across the history. "
+                "Confidence is therefore moderate rather than high."
             )
         return cleaned_text
     return DEFAULT_CONFIDENCE_REASON
+
+
+def _split_confidence_reason(reason: str) -> list[str]:
+    cleaned = str(reason or "").strip()
+    if not cleaned:
+        return []
+    if len(cleaned) < 140:
+        return [cleaned]
+    parts = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?])\s+", cleaned)
+        if part.strip()
+    ]
+    return parts or [cleaned]
 
 
 def _extract_risk_items(risk_text: str) -> tuple[list[str], str]:

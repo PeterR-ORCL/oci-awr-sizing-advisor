@@ -2,12 +2,15 @@ import os
 import json
 import re
 import html
+import hashlib
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from dotenv import load_dotenv
 
 from src.analysis.ai_narrative_generator import generate_ai_narrative
+from src.analysis.decision_engine import build_decision
 from src.analysis.ai_provider import generate_ai_response
 from src.analysis.derived_metric_extractor import (
     extract_derived_pressure_metrics,
@@ -16,10 +19,12 @@ from src.analysis.engineered_metric_catalog import (
     DOMAIN_DISPLAY_ORDER,
     get_implemented_metric_definitions,
 )
+from src.analysis.frontend_contract import build_phase5_screen_models
 from src.analysis.issue_detector import detect_issues
-from src.analysis.recommendation_engine import generate_recommendations
+from src.analysis.output_layer import build_analysis_output
+from src.analysis.recommendation_engine import generate_decision_recommendations
 from src.analysis.violin_panel_builder import build_violin_panel_data
-from src.ingest.awr_adb_loader import get_db_connection
+from src.ingest.awr_adb_loader import build_feature_vector_record, get_db_connection
 from src.parser.awr_parser import parse_awr_file
 from src.reporting.html_dashboard import generate_html_dashboard
 
@@ -28,6 +33,32 @@ SNAPSHOT_TIME_FORMATS = (
     "%d-%b-%Y %H:%M:%S",
     "%Y-%m-%d %H:%M:%S",
 )
+
+
+def _load_local_env_file() -> tuple[bool, Path]:
+    """Load the repository-local .env file for consistent provider resolution."""
+
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    loaded = load_dotenv(dotenv_path=env_path, override=False) if env_path.exists() else False
+    return loaded, env_path
+
+
+def _resolve_ai_provider() -> str:
+    """Resolve AI provider with OCI as the system default."""
+
+    provider = str(os.getenv("AI_PROVIDER", "oci") or "oci").strip().lower()
+    return provider or "oci"
+
+
+def _resolve_ai_model_identifier(provider: str) -> str:
+    """Resolve the configured model identifier for startup logging."""
+
+    normalized_provider = str(provider or "").strip().lower()
+    if normalized_provider == "oci":
+        return str(os.getenv("OCI_MODEL_ID", "") or "").strip()
+    if normalized_provider == "openai":
+        return str(os.getenv("OPENAI_MODEL", "gpt-5.4-mini") or "").strip()
+    return ""
 
 
 def _normalize_terminology(text: str) -> str:
@@ -781,6 +812,54 @@ def _dashboard_recommendation_dicts(
                 "Review broker status, alert history, and redo transport/apply state for the interval."
             )
         normalized.append(recommendation_dict)
+    return normalized
+
+
+def _get_compatibility_issues(context: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return legacy issue data only for transitional compatibility helpers."""
+
+    cached = context.get("compatibility_issues")
+    if isinstance(cached, list):
+        return cached
+
+    issues = _dashboard_issue_dicts(
+        detect_issues(context["result"]),
+        context.get("metrics") or {},
+        context.get("topology") or {},
+    )
+    context["compatibility_issues"] = issues
+    return issues
+
+
+def _dashboard_decision_recommendation_dicts(
+    recommendations: list[Any],
+) -> list[dict[str, Any]]:
+    """Adapt decision-driven recommendations for the legacy dashboard renderer."""
+
+    normalized: list[dict[str, Any]] = []
+    for recommendation in recommendations:
+        recommendation_dict = recommendation.to_dict()
+        issue_type = (
+            "cpu_pressure"
+            if str(recommendation_dict.get("domain") or "").upper() == "CPU"
+            else (
+                f"{str(recommendation_dict.get('domain') or 'issue').lower()}_"
+                f"{str(recommendation_dict.get('category') or 'action').lower()}"
+            )
+        )
+        normalized.append(
+            {
+                "issue_type": issue_type,
+                "severity": str(
+                    recommendation_dict.get("priority") or "low"
+                ).lower(),
+                "recommendation": recommendation_dict.get("action", ""),
+                "rationale": recommendation_dict.get("rationale", ""),
+                "next_step": recommendation_dict.get("title", ""),
+                "actions": [recommendation_dict.get("action", "")],
+                "evidence": recommendation_dict.get("source_signals", {}),
+            }
+        )
     return normalized
 
 
@@ -1784,7 +1863,8 @@ def _build_latest_interval_interpretation(context: dict[str, Any]) -> str:
     metrics = context["metrics"]
     topology = context.get("topology") or {}
     issue_types = {
-        str(issue.get("issue_type") or "") for issue in context["issues"]
+        str(issue.get("issue_type") or "")
+        for issue in _get_compatibility_issues(context)
     }
     statements = [
         (
@@ -2122,7 +2202,7 @@ def _severity_score(severity: str) -> int:
 
 
 def _snapshot_score(context: dict[str, Any]) -> float:
-    issues = context["issues"]
+    issues = _get_compatibility_issues(context)
     metrics = context["metrics"]
     severity_points = sum(
         _severity_score(str(issue.get("severity") or ""))
@@ -2272,7 +2352,7 @@ def _build_confidence(
     latest_context = snapshot_contexts[-1]
     latest_issue_strength = sum(
         _severity_score(str(issue.get("severity") or ""))
-        for issue in latest_context["issues"]
+        for issue in _get_compatibility_issues(latest_context)
     )
     io_direction = time_series["trend_directions"]["io"]
     commit_direction = time_series["trend_directions"]["commit"]
@@ -2364,7 +2444,7 @@ def _build_root_cause_interpretation(
     multi_snapshot_analysis: dict[str, Any],
 ) -> str:
     metrics = latest_context["metrics"]
-    issues = latest_context["issues"]
+    issues = _get_compatibility_issues(latest_context)
     topology = latest_context.get("topology") or {}
     issue_types = {str(issue.get("issue_type") or "") for issue in issues}
     dominant_user_io = _dominant_wait_event(
@@ -3332,7 +3412,8 @@ def _build_decision_posture(
     latest_metrics = latest_context["metrics"]
     latest_topology = latest_context.get("topology") or {}
     latest_issue_types = {
-        str(issue.get("issue_type") or "") for issue in latest_context["issues"]
+        str(issue.get("issue_type") or "")
+        for issue in _get_compatibility_issues(latest_context)
     }
     latest_cpu = latest_metrics.get("cpu_pct") or 0.0
     latest_io = latest_metrics.get("user_io_pct") or 0.0
@@ -3375,7 +3456,7 @@ def _build_decision_posture(
             "so cluster access patterns and cross-instance behavior should be tuned before scaling."
         )
     elif confidence["level"] == "LOW" and len(snapshot_contexts) == 1:
-        if latest_context["issues"]:
+        if _get_compatibility_issues(latest_context):
             posture = "TUNE FIRST"
             rationale = (
                 "Only one snapshot is available, but that interval still shows "
@@ -3407,7 +3488,11 @@ def _build_decision_posture(
             "Repeated anomaly windows indicate interval instability that "
             "should be explained before scaling."
         )
-    elif len(snapshot_contexts) >= 3 and not latest_context["issues"] and anomaly_count:
+    elif (
+        len(snapshot_contexts) >= 3
+        and not _get_compatibility_issues(latest_context)
+        and anomaly_count
+    ):
         posture = "RECOVERING / MONITOR"
         rationale = (
             "Earlier anomalous intervals have moderated in the latest "
@@ -3650,8 +3735,6 @@ def _build_executive_summary(issues: list[dict]) -> str:
 
 def _build_snapshot_context(file_path: Path) -> dict[str, Any]:
     result = parse_awr_file(file_path)
-    issues = detect_issues(result)
-    recommendations = generate_recommendations(issues)
     derived_pressure_metrics = extract_derived_pressure_metrics(result)
     topology = _topology_signals(result)
     begin_time = _parse_snapshot_time(result.run_metadata.begin_snapshot_time)
@@ -3706,8 +3789,6 @@ def _build_snapshot_context(file_path: Path) -> dict[str, Any]:
         "file_name": file_path.name,
         "result": result,
         "topology": topology,
-        "issues": issues,
-        "recommendations": recommendations,
         "derived_pressure_metrics": derived_pressure_metrics,
         "begin_time": begin_time,
         "end_time": end_time,
@@ -3715,6 +3796,590 @@ def _build_snapshot_context(file_path: Path) -> dict[str, Any]:
     }
     context["snapshot_label"] = _snapshot_label(context)
     return context
+
+
+def _topology_hint_labels(topology: dict[str, Any]) -> str:
+    """Return a concise topology/platform label string for intake review."""
+
+    labels: list[str] = []
+    cluster_wait = _safe_float(topology.get("cluster_wait_pct_db_time"))
+    gc_cr_wait = _safe_float(topology.get("gc_cr_wait_pct_db_time"))
+    gc_current_wait = _safe_float(topology.get("gc_current_wait_pct_db_time"))
+    transport_lag = _safe_float(topology.get("transport_lag_sec"))
+    apply_lag = _safe_float(topology.get("apply_lag_sec"))
+    exa_cell_io = _safe_float(topology.get("exa_cell_io_pct_db_time"))
+    exa_offload = _safe_float(topology.get("exa_offload_efficiency"))
+    database_role = str(topology.get("database_role") or "").strip()
+    normalized_role = database_role.lower()
+    if (
+        (cluster_wait or 0.0) > 0.0
+        or (gc_cr_wait or 0.0) > 0.0
+        or (gc_current_wait or 0.0) > 0.0
+    ):
+        labels.append("RAC")
+    if (
+        (transport_lag or 0.0) > 0.0
+        or (apply_lag or 0.0) > 0.0
+        or any(
+            token in normalized_role
+            for token in ("standby", "far sync", "snapshot standby")
+        )
+    ):
+        labels.append("Data Guard")
+    if (exa_cell_io or 0.0) > 0.0 or (exa_offload or 0.0) > 0.0:
+        labels.append("Exadata")
+    if database_role and database_role.upper() not in {"UNKNOWN", "NONE"}:
+        labels.append(database_role)
+    return ", ".join(dict.fromkeys(labels)) or "Single Instance"
+
+
+def _build_ingestion_runtime_context(
+    snapshot_contexts: list[dict[str, Any]],
+    awr_files: list[Path],
+    generated_at_display: str,
+) -> dict[str, Any]:
+    """Build plain runtime intake data for Screen 1 mapping."""
+
+    report_rows: list[dict[str, Any]] = []
+    validation_notes: list[str] = []
+    succeeded = 0
+    failed = 0
+
+    for context in snapshot_contexts:
+        result = context["result"]
+        metadata = result.run_metadata
+        warnings = list(
+            dict.fromkeys((result.parse_warnings or []) + (result.parse_errors or []))
+        )
+        if result.parse_errors:
+            parse_status = "FAILED"
+            failed += 1
+        elif warnings:
+            parse_status = "WARNINGS"
+            succeeded += 1
+        else:
+            parse_status = "SUCCEEDED"
+            succeeded += 1
+
+        report_rows.append(
+            {
+                "file_name": context["file_name"],
+                "parse_status": parse_status,
+                "db_name": metadata.database_name,
+                "dbid": metadata.db_id,
+                "instance_name": metadata.instance_name,
+                "host_name": metadata.host_name,
+                "snapshot_begin": metadata.begin_snapshot_time,
+                "snapshot_end": metadata.end_snapshot_time,
+                "topology_hints": _topology_hint_labels(context.get("topology") or {}),
+                "validation_notes": warnings,
+            }
+        )
+        validation_notes.extend(
+            f"{context['file_name']}: {warning}" for warning in warnings
+        )
+
+    total_files = len(awr_files)
+    processed = len(snapshot_contexts)
+    skipped = max(0, total_files - processed)
+    return {
+        "run_label": generated_at_display,
+        "source_mode": "LOCAL",
+        "intake_summary": {
+            "total_files": total_files,
+            "processed": processed,
+            "succeeded": succeeded,
+            "failed": failed,
+            "skipped": skipped,
+            "manifest_status": "Input directory scan complete.",
+        },
+        "report_rows": report_rows,
+        "validation_notes": validation_notes,
+    }
+
+
+def _build_comparison_runtime_context(
+    multi_snapshot_analysis: dict[str, Any],
+) -> dict[str, Any]:
+    """Build plain runtime comparison data for Screen 3 mapping."""
+
+    latest_snapshot = multi_snapshot_analysis["latest_snapshot"]
+    worst_snapshot = multi_snapshot_analysis["worst_snapshot"]
+    latest_score = _snapshot_score(latest_snapshot)
+    worst_score = max(_snapshot_score(worst_snapshot), 0.0001)
+    if latest_snapshot["snapshot_label"] == worst_snapshot["snapshot_label"]:
+        latest_vs_trend = (
+            "The latest interval confirms the strongest pressure seen in the broader window."
+        )
+    elif latest_score >= worst_score * 0.85:
+        latest_vs_trend = (
+            "The latest interval broadly aligns with the broader multi-snapshot trend."
+        )
+    else:
+        latest_vs_trend = (
+            "The latest interval departs from the worst interval and should be read in broader context."
+        )
+
+    return {
+        "snapshot_count": len(multi_snapshot_analysis["ordered_snapshots"]),
+        "comparison_window": multi_snapshot_analysis["analysis_context"].get(
+            "awr_count_and_window"
+        ),
+        "analysis_scope_label": multi_snapshot_analysis["analysis_context"].get(
+            "source_database"
+        ),
+        "latest_snapshot_summary": multi_snapshot_analysis["latest_snapshot_summary"],
+        "worst_snapshot_summary": _build_latest_snapshot_summary(worst_snapshot),
+        "latest_vs_trend": latest_vs_trend,
+        "drift_summary": multi_snapshot_analysis["multi_snapshot_summary"],
+    }
+
+
+def _runtime_awr_id(context: dict[str, Any]) -> int:
+    """Build a deterministic runtime AWR identifier for non-ingest analysis."""
+
+    result = context["result"]
+    metadata = result.run_metadata
+    seed = "|".join(
+        [
+            context["file_name"],
+            str(metadata.db_id or "").strip(),
+            str(metadata.begin_snapshot_time or "").strip(),
+            str(metadata.end_snapshot_time or "").strip(),
+        ]
+    )
+    return int(hashlib.sha1(seed.encode("utf-8")).hexdigest()[:12], 16)
+
+
+def _runtime_feature_vector(context: dict[str, Any]) -> dict[str, Any]:
+    """Reuse the validated feature builder for the active runtime path."""
+
+    feature_vector_record = build_feature_vector_record(
+        parse_result=context["result"],
+        awr_id=_runtime_awr_id(context),
+        source_system_id=0,
+    )
+    feature_json = json.loads(feature_vector_record["feature_json"])
+    return {
+        "feature_json": feature_json,
+        "feature_vector_record": feature_vector_record,
+    }
+
+
+def _build_feature_visual_series(
+    snapshot_contexts: list[dict[str, Any]],
+) -> dict[str, list[float | None]]:
+    """Recover truthful visual series from per-snapshot feature vectors."""
+
+    series: dict[str, list[float | None]] = {
+        "cpu_pct": [],
+        "user_io_pressure": [],
+        "top_sql_concentration": [],
+        "log_file_sync_ms": [],
+        "cluster_wait_pct_db_time": [],
+        "gc_current_wait_pct_db_time": [],
+        "gc_cr_wait_pct_db_time": [],
+        "cell_single_block_read_pct_db_time": [],
+        "smart_scan_pct_db_time": [],
+    }
+    for context in snapshot_contexts:
+        feature_json = _runtime_feature_vector(context)["feature_json"]
+        series["cpu_pct"].append(
+            _safe_float(feature_json.get("DB_CPU_PCT_DB_TIME"))
+            or _safe_float(feature_json.get("CPU_UTIL_P95"))
+        )
+        series["user_io_pressure"].append(
+            _safe_float(feature_json.get("USER_IO_PRESSURE"))
+        )
+        series["top_sql_concentration"].append(
+            _safe_float(feature_json.get("TOP_SQL_LOAD_CONCENTRATION"))
+        )
+        series["log_file_sync_ms"].append(
+            _safe_float(feature_json.get("LOG_FILE_SYNC_MS"))
+        )
+        series["cluster_wait_pct_db_time"].append(
+            _safe_float(feature_json.get("CLUSTER_WAIT_PCT_DB_TIME"))
+        )
+        series["gc_current_wait_pct_db_time"].append(
+            _safe_float(feature_json.get("GC_CURRENT_WAIT_PCT_DB_TIME"))
+        )
+        series["gc_cr_wait_pct_db_time"].append(
+            _safe_float(feature_json.get("GC_CR_WAIT_PCT_DB_TIME"))
+        )
+        series["cell_single_block_read_pct_db_time"].append(
+            _safe_float(feature_json.get("CELL_SINGLE_BLOCK_READ_PCT_DB_TIME"))
+        )
+        series["smart_scan_pct_db_time"].append(
+            _safe_float(feature_json.get("SMART_SCAN_PCT_DB_TIME"))
+        )
+    return series
+
+
+def _series_has_numeric_values(values: list[float | None]) -> bool:
+    return any(value is not None for value in values)
+
+
+def _coalesce_series(
+    existing: list[float | None] | None,
+    fallback: list[float | None],
+) -> list[float | None]:
+    if isinstance(existing, list) and _series_has_numeric_values(existing):
+        return existing
+    return fallback
+
+
+def _supplement_time_series_charts(
+    time_series_charts: dict[str, Any],
+    feature_visual_series: dict[str, list[float | None]],
+) -> dict[str, Any]:
+    supplemented = dict(time_series_charts)
+    supplemented["cpu_trend"] = _coalesce_series(
+        supplemented.get("cpu_trend"),
+        feature_visual_series.get("cpu_pct") or [],
+    )
+    supplemented["io_trend"] = _coalesce_series(
+        supplemented.get("io_trend"),
+        feature_visual_series.get("user_io_pressure") or [],
+    )
+    supplemented["sql_concentration_trend"] = _coalesce_series(
+        supplemented.get("sql_concentration_trend"),
+        feature_visual_series.get("top_sql_concentration") or [],
+    )
+    supplemented["commit_trend"] = _coalesce_series(
+        supplemented.get("commit_trend"),
+        feature_visual_series.get("log_file_sync_ms") or [],
+    )
+    supplemented["cluster_wait_trend"] = _coalesce_series(
+        supplemented.get("cluster_wait_trend"),
+        feature_visual_series.get("cluster_wait_pct_db_time") or [],
+    )
+    return supplemented
+
+
+def _supplement_violin_panel_payload(
+    violin_panel: dict[str, Any],
+    feature_visual_series: dict[str, list[float | None]],
+) -> dict[str, Any]:
+    supplemented = {
+        group_name: dict(group_values)
+        for group_name, group_values in (violin_panel or {}).items()
+        if isinstance(group_values, dict)
+    }
+    workload = supplemented.setdefault("workload", {})
+    topology = supplemented.setdefault("topology", {})
+    platform = supplemented.setdefault("platform", {})
+    workload["cluster_cpu_pct_db_time"] = _coalesce_series(
+        workload.get("cluster_cpu_pct_db_time"),
+        feature_visual_series.get("cpu_pct") or [],
+    )
+    workload["cluster_user_io_pct_db_time"] = _coalesce_series(
+        workload.get("cluster_user_io_pct_db_time"),
+        feature_visual_series.get("user_io_pressure") or [],
+    )
+    workload["cluster_top_sql_concentration_pct"] = _coalesce_series(
+        workload.get("cluster_top_sql_concentration_pct"),
+        feature_visual_series.get("top_sql_concentration") or [],
+    )
+    workload["cluster_log_file_sync_ms"] = _coalesce_series(
+        workload.get("cluster_log_file_sync_ms"),
+        feature_visual_series.get("log_file_sync_ms") or [],
+    )
+    topology["cluster_wait_pct_db_time"] = _coalesce_series(
+        topology.get("cluster_wait_pct_db_time"),
+        feature_visual_series.get("cluster_wait_pct_db_time") or [],
+    )
+    topology["gc_current_wait_pct_db_time"] = _coalesce_series(
+        topology.get("gc_current_wait_pct_db_time"),
+        feature_visual_series.get("gc_current_wait_pct_db_time") or [],
+    )
+    topology["gc_cr_wait_pct_db_time"] = _coalesce_series(
+        topology.get("gc_cr_wait_pct_db_time"),
+        feature_visual_series.get("gc_cr_wait_pct_db_time") or [],
+    )
+    platform["cell_single_block_read_pct_db_time"] = _coalesce_series(
+        platform.get("cell_single_block_read_pct_db_time"),
+        feature_visual_series.get("cell_single_block_read_pct_db_time") or [],
+    )
+    platform["smart_scan_pct_db_time"] = _coalesce_series(
+        platform.get("smart_scan_pct_db_time"),
+        feature_visual_series.get("smart_scan_pct_db_time") or [],
+    )
+    return supplemented
+
+
+def _decision_anomaly_signals(
+    latest_context: dict[str, Any],
+    multi_snapshot_analysis: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Translate latest-window anomaly context into decision-engine inputs."""
+
+    metric_map = {
+        "Commit / log file sync": "LOG_FILE_SYNC_MS",
+        "User I/O": "READ_LATENCY_MS",
+        "Cluster waits": "CLUSTER_WAIT_PCT_DB_TIME",
+        "Data Guard transport lag": "TRANSPORT_LAG_SEC",
+    }
+    latest_label = str(latest_context.get("snapshot_label") or "")
+    signals: list[dict[str, Any]] = []
+    for window in multi_snapshot_analysis.get("anomaly_windows") or []:
+        if str(window.get("snapshot_label") or "") != latest_label:
+            continue
+        metric_name = metric_map.get(str(window.get("metric") or ""))
+        if not metric_name:
+            continue
+        signals.append(
+            {
+                "metric_name": metric_name,
+                "anomaly_type": "SPIKE",
+                "severity": str(window.get("severity") or "").upper(),
+                "reason": window.get("reason"),
+            }
+        )
+    return signals
+
+
+def _grouped_deterministic_findings(
+    decision: Any,
+    canonical_recommendations: list[Any],
+    latest_context: dict[str, Any],
+    multi_snapshot_analysis: dict[str, Any],
+) -> dict[str, Any]:
+    """Build grouped deterministic findings for explanation-layer synthesis."""
+
+    issue_type_map = {
+        "CPU": "cpu_pressure",
+        "IO": "io_pressure",
+        "COMMIT": "commit_pressure",
+        "RAC": "cluster_contention",
+        "ADG": "dg_replication_state",
+        "MEMORY": "memory_pressure",
+    }
+    severity = (
+        "high"
+        if decision.overall_status == "CRITICAL"
+        else "medium"
+        if decision.overall_status == "WARNING"
+        else "low"
+    )
+    domain_scores = (
+        decision.evidence.get("domain_scores", {}) if decision.evidence else {}
+    )
+    feature_evidence = (
+        decision.evidence.get("feature_evidence", {}) if decision.evidence else {}
+    )
+    findings: list[dict[str, Any]] = []
+    ordered_domains = [decision.primary_issue, *list(decision.secondary_issues)]
+    seen_domains: set[str] = set()
+    for domain in ordered_domains:
+        if domain in seen_domains:
+            continue
+        seen_domains.add(domain)
+        reasons = (
+            decision.evidence.get("primary_reasons", [])
+            if domain == decision.primary_issue and decision.evidence
+            else []
+        )
+        summary = (
+            reasons[0]
+            if reasons
+            else (
+                f"{domain} was selected deterministically with score "
+                f"{_format_metric(_safe_float(domain_scores.get(domain)))}."
+            )
+        )
+        findings.append(
+            {
+                "domain": domain,
+                "issue_type": issue_type_map.get(domain, domain.lower()),
+                "severity": severity,
+                "summary": summary,
+                "score": _safe_float(domain_scores.get(domain)),
+                "evidence": feature_evidence.get(domain, {}),
+            }
+        )
+    recommendation_items = [
+        recommendation.to_dict() for recommendation in canonical_recommendations
+    ]
+    anomaly_windows = list((multi_snapshot_analysis.get("anomaly_windows") or [])[:5])
+    trend_findings = list(multi_snapshot_analysis.get("trend_findings") or [])
+    primary_finding = findings[0] if findings else None
+    return {
+        "decision_summary": {
+            "primary_issue": decision.primary_issue,
+            "secondary_issues": list(decision.secondary_issues),
+            "overall_status": decision.overall_status,
+            "severity_score": decision.severity_score,
+            "confidence": decision.confidence,
+            "summary": (
+                f"{decision.primary_issue} is the authoritative deterministic conclusion "
+                f"with status {decision.overall_status}."
+            ),
+        },
+        "primary_evidence": {
+            "domain": primary_finding.get("domain") if primary_finding else None,
+            "summary": primary_finding.get("summary") if primary_finding else None,
+            "score": primary_finding.get("score") if primary_finding else None,
+            "feature_values": primary_finding.get("evidence", {}) if primary_finding else {},
+            "reasons": (
+                list(decision.evidence.get("primary_reasons", []))
+                if decision.evidence
+                else []
+            ),
+        },
+        "secondary_evidence": findings[1:],
+        "trend_summary": {
+            "summary": (
+                trend_findings[0]
+                if trend_findings
+                else "No deterministic trend summary is available."
+            ),
+            "findings": trend_findings,
+        },
+        "anomaly_summary": {
+            "summary": (
+                str(anomaly_windows[0].get("reason") or "")
+                if anomaly_windows
+                else "No deterministic anomaly windows were detected."
+            ),
+            "count": len(multi_snapshot_analysis.get("anomaly_windows") or []),
+            "windows": anomaly_windows,
+        },
+        "recommendation_summary": {
+            "count": len(recommendation_items),
+            "items": recommendation_items,
+            "summary": (
+                recommendation_items[0].get("action")
+                if recommendation_items
+                else "No deterministic recommendations were generated."
+            ),
+        },
+        "key_evidence": {
+            "summary_key_signals": _build_summary_key_signals(latest_context),
+            "domain_scores": domain_scores,
+            "primary_reasons": (
+                list(decision.evidence.get("primary_reasons", []))
+                if decision.evidence
+                else []
+            ),
+        },
+    }
+
+
+def _narrative_findings_from_grouped(
+    grouped_findings: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Adapt grouped deterministic findings into the existing explanation shape."""
+
+    decision_summary = grouped_findings.get("decision_summary") or {}
+    primary_evidence = grouped_findings.get("primary_evidence") or {}
+    secondary_evidence = list(grouped_findings.get("secondary_evidence") or [])
+    trend_summary = grouped_findings.get("trend_summary") or {}
+    anomaly_summary = grouped_findings.get("anomaly_summary") or {}
+    key_evidence = grouped_findings.get("key_evidence") or {}
+    findings: list[dict[str, Any]] = []
+
+    if decision_summary:
+        findings.append(
+            {
+                "issue_type": "decision_summary",
+                "severity": str(
+                    decision_summary.get("overall_status") or "low"
+                ).lower(),
+                "summary": decision_summary.get("summary"),
+                "evidence": {
+                    "primary_issue": decision_summary.get("primary_issue"),
+                    "secondary_issues": decision_summary.get("secondary_issues"),
+                    "severity_score": decision_summary.get("severity_score"),
+                    "confidence": decision_summary.get("confidence"),
+                },
+            }
+        )
+    if primary_evidence:
+        findings.append(
+            {
+                "issue_type": "primary_evidence",
+                "severity": "high",
+                "summary": primary_evidence.get("summary"),
+                "evidence": {
+                    "domain": primary_evidence.get("domain"),
+                    "score": primary_evidence.get("score"),
+                    "feature_values": primary_evidence.get("feature_values"),
+                    "reasons": primary_evidence.get("reasons"),
+                },
+            }
+        )
+    for evidence_item in secondary_evidence:
+        findings.append(
+            {
+                "issue_type": str(evidence_item.get("issue_type") or "secondary_evidence"),
+                "severity": str(evidence_item.get("severity") or "medium"),
+                "summary": evidence_item.get("summary"),
+                "evidence": evidence_item.get("evidence", {}),
+            }
+        )
+
+    if trend_summary.get("findings"):
+        findings.append(
+            {
+                "issue_type": "trend_context",
+                "severity": "medium",
+                "summary": trend_summary.get("summary"),
+                "evidence": {"trend_findings": list(trend_summary.get("findings") or [])[:3]},
+            }
+        )
+    if anomaly_summary.get("windows"):
+        lead_window = list(anomaly_summary.get("windows") or [])[0]
+        findings.append(
+            {
+                "issue_type": "anomaly_context",
+                "severity": str(lead_window.get("severity") or "medium").lower(),
+                "summary": anomaly_summary.get("summary") or str(lead_window.get("reason") or ""),
+                "evidence": {
+                    "metric": lead_window.get("metric"),
+                    "snapshot_label": lead_window.get("snapshot_label"),
+                    "severity": lead_window.get("severity"),
+                    "count": anomaly_summary.get("count"),
+                },
+            }
+        )
+    if key_evidence.get("summary_key_signals"):
+        findings.append(
+            {
+                "issue_type": "deterministic_evidence",
+                "severity": "low",
+                "summary": "Key deterministic evidence was grouped for narrative synthesis.",
+                "evidence": {
+                    "summary_key_signals": key_evidence.get("summary_key_signals"),
+                    "primary_reasons": key_evidence.get("primary_reasons"),
+                },
+            }
+        )
+    return findings
+
+
+def _narrative_recommendations_from_grouped(
+    grouped_findings: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Adapt grouped deterministic recommendations into the explanation prompt shape."""
+
+    recommendations: list[dict[str, Any]] = []
+    for recommendation in (
+        grouped_findings.get("recommendation_summary", {}).get("items") or []
+    ):
+        recommendations.append(
+            {
+                "issue_type": (
+                    "cpu_pressure"
+                    if str(recommendation.get("domain") or "").upper() == "CPU"
+                    else str(recommendation.get("domain") or "issue").lower()
+                ),
+                "severity": str(recommendation.get("priority") or "low").lower(),
+                "recommendation": recommendation.get("action", ""),
+                "rationale": recommendation.get("rationale", ""),
+                "next_step": recommendation.get("title", ""),
+            }
+        )
+    return recommendations
 
 
 def _build_multi_snapshot_analysis(
@@ -3870,7 +4535,13 @@ def _compose_dashboard_narrative(
 
 
 if __name__ == "__main__":
-    provider = os.getenv("AI_PROVIDER", "openai")
+    env_loaded, env_path = _load_local_env_file()
+    provider = _resolve_ai_provider()
+    resolved_model = _resolve_ai_model_identifier(provider)
+    print("AI Provider Resolution:")
+    print(f"  .env loaded: {'yes' if env_loaded else 'no'} ({env_path})")
+    print(f"  provider: {provider}")
+    print(f"  model: {resolved_model or '(not configured)'}")
     input_dir = Path("data/input")
     awr_files = sorted(input_dir.glob("*.out"))
     if not awr_files:
@@ -3883,54 +4554,220 @@ if __name__ == "__main__":
     multi_snapshot_analysis = _build_multi_snapshot_analysis(snapshot_contexts)
     latest_context = multi_snapshot_analysis["latest_snapshot"]
     result = latest_context["result"]
-    issues = _dashboard_issue_dicts(
-        latest_context["issues"],
-        latest_context["metrics"],
-        latest_context.get("topology") or {},
+    # The decision object is now the authoritative deterministic conclusion.
+    runtime_feature_vector = _runtime_feature_vector(latest_context)
+    decision = build_decision(
+        awr_id=_runtime_awr_id(latest_context),
+        feature_vector=runtime_feature_vector,
+        anomaly_signals=_decision_anomaly_signals(
+            latest_context,
+            multi_snapshot_analysis,
+        ),
     )
-    recommendations = _dashboard_recommendation_dicts(
-        latest_context["recommendations"],
-        latest_context["metrics"],
-        latest_context.get("topology") or {},
+    # Recommendations are decision-driven; legacy issue-based recommendations
+    # remain deprecated and are no longer the authoritative path.
+    decision_recommendations = generate_decision_recommendations(decision)
+    compatibility_recommendations = _dashboard_decision_recommendation_dicts(
+        decision_recommendations
     )
     latest_context = {
         **latest_context,
-        "issues": issues,
-        "recommendations": recommendations,
+        "recommendations": compatibility_recommendations,
+        "decision": decision.to_dict(),
     }
     multi_snapshot_analysis["latest_snapshot"] = latest_context
     derived_pressure_metrics = latest_context["derived_pressure_metrics"]
     executive_summary = normalize_terms(
         _build_multi_snapshot_executive_summary(multi_snapshot_analysis)
     )
+    feature_visual_series = _build_feature_visual_series(snapshot_contexts)
     generated_at_display = _format_generated_at_local()
     decision_posture = multi_snapshot_analysis["decision_posture"]
-    agentic_decision = _build_agentic_decision(issues, decision_posture)
-    oci_guidance = _build_oci_guidance(issues, decision_posture)
+    analysis_output = build_analysis_output(
+        decision=decision,
+        recommendations=decision_recommendations,
+    )
+    analysis_output["metadata"].update(
+        {
+            "file_name": latest_context["file_name"],
+            "snapshot_label": latest_context["snapshot_label"],
+            "db_name": result.run_metadata.database_name,
+            "dbid": result.run_metadata.db_id,
+            "instance_name": result.run_metadata.instance_name,
+            "host_name": result.run_metadata.host_name,
+            "snapshot_begin": result.run_metadata.begin_snapshot_time,
+            "snapshot_end": result.run_metadata.end_snapshot_time,
+        }
+    )
+    analysis_output["scores"] = decision.evidence.get("domain_scores", {})
+    analysis_output["trends"] = {
+        "findings": multi_snapshot_analysis["trend_findings"],
+        "time_series": multi_snapshot_analysis["time_series"],
+    }
+    analysis_output["anomalies"] = multi_snapshot_analysis["anomaly_windows"]
+    grouped_findings = _grouped_deterministic_findings(
+        decision=decision,
+        canonical_recommendations=decision_recommendations,
+        latest_context=latest_context,
+        multi_snapshot_analysis=multi_snapshot_analysis,
+    )
+    # Legacy issue detection is transitional compatibility support only.
+    # It is generated late near the reporting adapters that still need it.
+    compatibility_issues = _get_compatibility_issues(latest_context)
+    latest_context["compatibility_issues"] = compatibility_issues
+    multi_snapshot_analysis["latest_snapshot"] = latest_context
+    # Transitional compatibility helpers remain available for current dashboard
+    # sections, but they do not drive the canonical result anymore.
+    agentic_decision = _build_agentic_decision(compatibility_issues, decision_posture)
+    oci_guidance = _build_oci_guidance(compatibility_issues, decision_posture)
 
-    ai_narrative = generate_ai_narrative(result, issues, recommendations)
+    # LLM output is narrative-only. It operates on grouped deterministic
+    # findings derived from the canonical decision and recommendations, and
+    # it does not decide the primary issue, status, or recommendations.
+    ai_narrative = generate_ai_narrative(
+        result,
+        _narrative_findings_from_grouped(grouped_findings),
+        _narrative_recommendations_from_grouped(grouped_findings),
+    )
     ai_response = generate_ai_response(
         provider=provider,
         system_role=ai_narrative["system_role"],
         prompt=ai_narrative["prompt"],
         expected_sections=ai_narrative["expected_sections"],
     )
-    dashboard_narrative = _compose_dashboard_narrative(
+    llm_explanation_text = _compose_dashboard_narrative(
         ai_response["content"],
         multi_snapshot_analysis,
         latest_context,
         oci_guidance,
     )
-
+    llm_explanation = {
+        "enabled": bool(ai_response["content"].strip()),
+        "authoritative": False,
+        "technical_explanation": llm_explanation_text,
+        "executive_explanation": executive_summary,
+        "action_explanation": grouped_findings["recommendation_summary"]["summary"],
+        "provider": ai_response["provider"],
+        "model": ai_response["model"],
+        "prompt_context": {
+            "system_role": ai_narrative["system_role"],
+            "expected_sections": ai_narrative["expected_sections"],
+            "prompt": ai_narrative["prompt"],
+        },
+    }
+    compatibility_payload = {
+        "issues": compatibility_issues,
+        "recommendations": compatibility_recommendations,
+        "agentic_decision": agentic_decision,
+        "oci_guidance": oci_guidance,
+        "ai_generated_narrative": llm_explanation_text,
+        "ai_provider": ai_response["provider"],
+        "ai_model": ai_response["model"],
+    }
+    ingestion_context = _build_ingestion_runtime_context(
+        snapshot_contexts,
+        awr_files,
+        generated_at_display,
+    )
+    comparison_context = _build_comparison_runtime_context(multi_snapshot_analysis)
+    # Canonical payload is the authoritative backend contract.
+    # Grouped deterministic findings are the structured input to the LLM explanation layer.
+    # LLM explanation is non-authoritative, and compatibility fields exist only
+    # to support the existing reporting/dashboard code paths.
+    canonical_payload = {
+        "product": {
+            "title": "AWR Performance Intelligence Dashboard",
+        },
+        "metadata": analysis_output["metadata"],
+        "scores": {
+            "domain_scores": analysis_output["scores"],
+        },
+        "trends": analysis_output["trends"],
+        "anomalies": {
+            "count": len(analysis_output["anomalies"]),
+            "windows": analysis_output["anomalies"],
+        },
+        "decision": analysis_output["decision"],
+        "recommendations": analysis_output["recommendations"],
+        "grouped_deterministic_findings": grouped_findings,
+        "llm_explanation": llm_explanation,
+        "compatibility": compatibility_payload,
+    }
+    base_time_series_charts = (
+        multi_snapshot_analysis["db_scope_metrics"]["chart_payload"]
+        if multi_snapshot_analysis["db_scope_metrics"].get("available")
+        else {
+            "snapshot_labels": multi_snapshot_analysis["snapshot_labels"],
+            "cpu_trend": multi_snapshot_analysis["time_series"]["cpu_trend"],
+            "io_trend": multi_snapshot_analysis["time_series"]["io_trend"],
+            "commit_trend": multi_snapshot_analysis["time_series"]["commit_trend"],
+            "concurrency_trend": multi_snapshot_analysis["time_series"][
+                "concurrency_trend"
+            ],
+            "sql_concentration_trend": multi_snapshot_analysis["time_series"][
+                "sql_concentration_trend"
+            ],
+            "hard_parses_trend": multi_snapshot_analysis["time_series"][
+                "hard_parses_trend"
+            ],
+            "log_file_sync_trend": multi_snapshot_analysis["time_series"][
+                "log_file_sync_trend"
+            ],
+            "temp_io_trend": multi_snapshot_analysis["time_series"][
+                "temp_io_trend"
+            ],
+            "pga_spill_trend": multi_snapshot_analysis["time_series"][
+                "pga_spill_trend"
+            ],
+            "cluster_wait_trend": multi_snapshot_analysis["time_series"][
+                "cluster_wait_trend"
+            ],
+            "gc_wait_trend": multi_snapshot_analysis["time_series"][
+                "gc_wait_trend"
+            ],
+            "dg_transport_lag_trend": multi_snapshot_analysis["time_series"][
+                "dg_transport_lag_trend"
+            ],
+            "dg_apply_lag_trend": multi_snapshot_analysis["time_series"][
+                "dg_apply_lag_trend"
+            ],
+            "exa_cell_io_trend": multi_snapshot_analysis["time_series"][
+                "exa_cell_io_trend"
+            ],
+            "exa_offload_efficiency_trend": multi_snapshot_analysis["time_series"][
+                "exa_offload_efficiency_trend"
+            ],
+        }
+    )
+    time_series_charts = _supplement_time_series_charts(
+        base_time_series_charts,
+        feature_visual_series,
+    )
+    violin_panel = _supplement_violin_panel_payload(
+        build_violin_panel_data(snapshot_results),
+        feature_visual_series,
+    )
     report_data = {
-        "title": "AWR Sizing Advisor Dashboard",
+        **canonical_payload,
+        "title": canonical_payload["product"]["title"],
         "generated_at": generated_at_display,
         "executive_summary": executive_summary,
-        "issues": issues,
-        "recommendations": recommendations,
+        "metadata": canonical_payload["metadata"],
+        "scores": canonical_payload["scores"],
+        "trends": canonical_payload["trends"],
+        "anomalies": canonical_payload["anomalies"],
+        "decision": canonical_payload["decision"],
+        # Top-level recommendations are canonical deterministic output.
+        # Compatibility recommendation shapes are adapter-only under compatibility.
+        "recommendations": canonical_payload["recommendations"],
+        "grouped_deterministic_findings": canonical_payload["grouped_deterministic_findings"],
+        "llm_explanation": canonical_payload["llm_explanation"],
+        "compatibility": canonical_payload["compatibility"],
+        "analysis_output": canonical_payload,
+        "issues": compatibility_payload["issues"],
         "top_sql": result.top_sql,
         "summary_key_signals": _build_summary_key_signals(latest_context),
-        "violin_panel": build_violin_panel_data(snapshot_results),
+        "violin_panel": violin_panel,
         "derived_pressure_metrics": derived_pressure_metrics,
         "derived_scalar_metrics": {
             "pga_spill_pressure": (
@@ -3941,55 +4778,30 @@ if __name__ == "__main__":
                 derived_pressure_metrics["hard_parses_per_sec"]
             ),
         },
-        "agentic_decision": agentic_decision,
-        "oci_guidance": oci_guidance,
-        "ai_generated_narrative": dashboard_narrative,
-        "ai_provider": ai_response["provider"],
-        "ai_model": ai_response["model"],
+        "agentic_decision": compatibility_payload["agentic_decision"],
+        "oci_guidance": compatibility_payload["oci_guidance"],
+        "ai_generated_narrative": compatibility_payload["ai_generated_narrative"],
+        "ai_provider": compatibility_payload["ai_provider"],
+        "ai_model": compatibility_payload["ai_model"],
+        "ingestion_context": ingestion_context,
+        "comparison_context": comparison_context,
         "analysis_context": multi_snapshot_analysis["analysis_context"],
         "snapshot_labels": multi_snapshot_analysis["snapshot_labels"],
         "time_series": multi_snapshot_analysis["time_series"],
         "db_scope_metrics": multi_snapshot_analysis["db_scope_metrics"],
-        "time_series_charts": (
-            multi_snapshot_analysis["db_scope_metrics"]["chart_payload"]
-            if multi_snapshot_analysis["db_scope_metrics"].get("available")
-            else {
-                "snapshot_labels": multi_snapshot_analysis["snapshot_labels"],
-                "cpu_trend": multi_snapshot_analysis["time_series"]["cpu_trend"],
-                "io_trend": multi_snapshot_analysis["time_series"]["io_trend"],
-                "commit_trend": multi_snapshot_analysis["time_series"]["commit_trend"],
-                "concurrency_trend": multi_snapshot_analysis["time_series"][
-                    "concurrency_trend"
-                ],
-                "sql_concentration_trend": multi_snapshot_analysis["time_series"][
-                    "sql_concentration_trend"
-                ],
-                "cluster_wait_trend": multi_snapshot_analysis["time_series"][
-                    "cluster_wait_trend"
-                ],
-                "gc_wait_trend": multi_snapshot_analysis["time_series"][
-                    "gc_wait_trend"
-                ],
-                "dg_transport_lag_trend": multi_snapshot_analysis["time_series"][
-                    "dg_transport_lag_trend"
-                ],
-                "exa_offload_efficiency_trend": multi_snapshot_analysis["time_series"][
-                    "exa_offload_efficiency_trend"
-                ],
-            }
-        ),
+        "time_series_charts": time_series_charts,
         "anomaly_windows": multi_snapshot_analysis["anomaly_windows"],
         "multi_snapshot_summary": multi_snapshot_analysis["multi_snapshot_summary"],
         "latest_snapshot_summary": multi_snapshot_analysis["latest_snapshot_summary"],
         "decision_posture": multi_snapshot_analysis["decision_posture"],
         "confidence": multi_snapshot_analysis["confidence"],
     }
-    dashboard_file = generate_html_dashboard(report_data)
-    dashboard_file = _postprocess_dashboard_html(
-        dashboard_file,
-        report_data,
-        multi_snapshot_analysis,
+    canonical_payload["screen_models"] = build_phase5_screen_models(
+        canonical_payload,
+        report_data=report_data,
     )
+    report_data["screen_models"] = canonical_payload["screen_models"]
+    dashboard_file = generate_html_dashboard(report_data)
 
     print("EXECUTIVE SUMMARY")
     print("-" * 80)
@@ -4023,17 +4835,17 @@ if __name__ == "__main__":
     print(f"  Confidence: {decision_posture['confidence']}")
 
     print("\nDetected Issues:")
-    if not issues:
+    if not compatibility_issues:
         print("  None")
     else:
-        for issue in issues:
+        for issue in compatibility_issues:
             print(f"\n- issue_type: {issue['issue_type']}")
             print(f"  severity: {issue['severity']}")
             print(f"  summary: {issue['summary']}")
             print(f"  evidence: {issue['evidence']}")
 
     print("\nRecommendations:\n")
-    for rec in recommendations:
+    for rec in compatibility_recommendations:
         rec_dict = _to_dict(rec)
         print(
             f"- {rec_dict.get('issue_type', 'unknown')} "
@@ -4080,6 +4892,6 @@ if __name__ == "__main__":
     print("Model:")
     print(f"  {ai_response['model']}\n")
     print("Content:")
-    print(dashboard_narrative)
+    print(llm_explanation_text)
     print("\nHTML Dashboard:")
     print(f"  {dashboard_file}")

@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol, Sequence
 
 from src.models.decision import AwrDecision
-from src.models.recommendation import ActionRecommendation
 
 OUTPUT_VERSION = "phase4.1"
 OUTPUT_SOURCE = "phase4"
 CLI_DIVIDER = "=" * 48
 
 
+class OutputRecommendation(Protocol):
+    """Recommendation interface consumed by the output layer."""
+
+    priority: Any
+    action: str
+
+    def to_dict(self) -> dict[str, Any]: ...
+
+
 def build_analysis_output(
     decision: AwrDecision,
-    recommendations: list[ActionRecommendation],
+    recommendations: Sequence[OutputRecommendation],
     generated_at: datetime | None = None,
     output_version: str = OUTPUT_VERSION,
     source: str = OUTPUT_SOURCE,
@@ -38,7 +46,7 @@ def build_analysis_output(
 
 def render_analysis_json(
     decision: AwrDecision,
-    recommendations: list[ActionRecommendation],
+    recommendations: Sequence[OutputRecommendation],
     generated_at: datetime | None = None,
     output_version: str = OUTPUT_VERSION,
     source: str = OUTPUT_SOURCE,
@@ -57,7 +65,7 @@ def render_analysis_json(
 
 def render_analysis_cli(
     decision: AwrDecision,
-    recommendations: list[ActionRecommendation],
+    recommendations: Sequence[OutputRecommendation],
 ) -> str:
     """Render the final deterministic analysis in a human-readable CLI format."""
 

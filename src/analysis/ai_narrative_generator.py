@@ -83,6 +83,7 @@ def _build_role_constraints() -> str:
             "- Do not mention Oracle features, OCI services, or architectural components unless they are explicitly present in the deterministic inputs or required by the requested output section.",
             "- Do not use specific numeric sizing values unless those values are explicitly present in the deterministic inputs.",
             "- If evidence is limited, say so directly and remain within the provided facts.",
+            "- Do not expose internal scoring or selection mechanics such as display scores, deterministic selection wording, or references to a selected dominant signal.",
         ]
     )
 
@@ -101,6 +102,9 @@ def _build_response_objectives() -> str:
             "- Distinguish primary constraints from secondary contributing factors.",
             "- Explain why the deterministic recommendations matter to workload performance.",
             "- Reinforce tuning before scaling when supported by the evidence.",
+            "- Write in product language such as primary driver, dominant pattern, supporting factor, weak signal, or limited evidence rather than internal scoring language.",
+            "- Mention a caveat once in the section where it matters most instead of repeating the same weak-signal wording across multiple sections.",
+            "- Keep selected-scope diagnosis distinct from broader historical or supporting context.",
             "- Include OCI sizing considerations only as directional guidance, not fixed sizing numbers.",
             "- In the Executive Summary, the first sentence must state the decision outcome using one of these exact phrases when appropriate: DO NOT SCALE, DEFER SCALING PENDING VALIDATION, INSUFFICIENT DATA TO RECOMMEND SCALING, SCALE NOW.",
             '- Format the first sentence like this: "DO NOT SCALE. <reason>" when that decision applies.',

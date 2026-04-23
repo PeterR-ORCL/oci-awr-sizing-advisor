@@ -448,7 +448,7 @@
           Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
           and action guidance.
         </p>
-        <div class="hero-meta">Generated: Apr 22, 2026, 8:44 PM</div>
+        <div class="hero-meta">Generated: Apr 23, 2026, 10:17 AM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">Screen 1 - Ingestion</a><a class="nav-link" href="screen_2_analysis.html">Screen 2 - Analysis</a><a class="nav-link" href="screen_3_history_selector.html">Screen 3 - History Selector</a><a class="nav-link active" href="screen_4_historical_review.html">Screen 4 - Historical Review</a><a class="nav-link" href="screen_5_recommendation_action.html">Screen 5 - Recommendation / Action</a></nav>
@@ -522,12 +522,7 @@
             
             <div class="info-box">
               <strong>Historical Stability</strong>
-              <div>CPU remained historically visible, though continuity across the full window was too mixed for a simple stability claim.</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Trend Posture</strong>
-              <div>TUNE FIRST</div>
+              <div>CPU remained dominant across the window, but the pattern was intermittent rather than continuous.</div>
             </div>
             
             <div class="info-box">
@@ -537,11 +532,6 @@
             
             <div class="info-box">
               <strong>Historical Posture</strong>
-              <div>TUNE FIRST</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Decision Posture</strong>
               <div>TUNE FIRST</div>
             </div>
             </div>
@@ -657,7 +647,7 @@
             
         <div class="violin-group violin-group-topology">
           <h3>Topology Distributions</h3>
-          <p class="violin-group-note">Broader cluster and Data Guard measures across snapshots for historical comparison only; the combined GC trend is the summed GC current + GC CR pressure</p>
+          <p class="violin-group-note">Broader cluster and Data Guard measures remain available for historical comparison only; they do not govern the selected single-instance interpretation, and the combined GC trend is the summed GC current + GC CR pressure</p>
           <div class="violin-grid">
             
               <section class="violin-chart-card">
@@ -680,7 +670,7 @@
             
         <div class="violin-group violin-group-rac-instance">
           <h3>Per-Instance RAC Distributions</h3>
-          <p class="violin-group-note">Per-instance RAC values across nodes and snapshots for historical comparison only. These are not mixed with cluster-level distributions</p>
+          <p class="violin-group-note">Per-instance RAC values remain available as broader cluster comparison context only. These are not mixed with cluster-level distributions</p>
           <div class="violin-grid">
             
               <section class="violin-chart-card">
@@ -728,17 +718,25 @@
           <h3>Historical Summary</h3>
           
       <article class="item">
-        <p>CPU remains the primary workload driver across the selected window. Primary evidence shows this through DB Time Breakdown, CPU history, Workload distributions. Anomaly burden remains visible in 11 window(s), but it does not displace CPU as the governing pattern.</p>
+        <p>CPU remains dominant across the selected window, indicating sustained compute pressure rather than a transient external bottleneck. Primary evidence comes from DB Time Breakdown, CPU history, Workload distributions, keeping the broader window aligned to the same governing pattern. Anomaly burden remains visible in 11 window(s), but it does not displace CPU as the governing pattern.</p>
         
       </article>
     
         </section>
         
         <section class="half evidence-pane">
+          <h3>Memory Review</h3>
+          <div class="meta">
+            Explicit secondary-domain review before supporting I/O / commit trends and contextual RAC / topology comparison.
+          </div>
+          <p>Memory was reviewed and remains non-governing in this window.</p><ul><li>PGA Spill Pressure is present only as a weak secondary signal relative to the dominant CPU pattern.</li></ul>
+        </section>
+        
+        <section class="half evidence-pane">
           <h3>Trend Review</h3>
           
       <article class="item">
-        
+        <p>CPU remained dominant across the window, but the pattern was intermittent rather than continuous.</p>
         <ul><li>User I/O spiked intermittently and then moderated.</li><li>Commit latency remained broadly stable where data is available.</li><li>Concurrency signals are insufficient to establish a meaningful trend.</li><li>Top SQL history is not available for this window.</li><li>Sparse cluster samples point to intermittent coordination pressure in the broader window.</li><li>Sparse GC samples point to intermittent cluster coordination pressure in the broader window.</li></ul>
       </article>
     
@@ -793,17 +791,17 @@
         <section class="half evidence-pane">
           <h3>Topology / Platform Review</h3>
           <div class="meta">
-            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only.
+            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only; CPU-led evidence remains primary.
           </div>
           <div class="info-grid">
             <div class="info-box">
               <strong>RAC Summary</strong>
-              <div>Historical window contains sparse cluster-wait and GC samples. Treat RAC coordination as supportive context rather than selected-scope topology truth.</div>
+              <div>Historical window contains sparse cluster-wait and GC samples. RAC signals are sparse and treated as supporting context only.</div>
             </div>
             
             <div class="info-box">
               <strong>Data Guard Summary</strong>
-              <div>Historical window contains limited transport/apply lag evidence. Treat Data Guard as supportive window context rather than selected-scope topology truth.</div>
+              <div>Historical window contains limited transport/apply lag evidence. Data Guard signals are limited and treated as supporting context only.</div>
             </div>
             
             <div class="info-box">
@@ -827,17 +825,17 @@
     
       <section class="supportive-block">
         <h3>Historical Interpretation</h3>
-        <div class="narrative">Primary evidence keeps the historical story CPU-led. The pattern is consistent in direction but not uniform across the full window. Supporting signals confirm that memory remains non-material. Contextual cluster and platform signals remain comparison context only and do not override the selected single-instance posture.</div>
+        <div class="narrative">Primary evidence keeps the historical story CPU-led, supporting a compute-bound interpretation over I/O-, memory-, or topology-led alternatives. The pattern is directionally consistent, but intermittent rather than continuous. Memory was reviewed and remains non-governing in this window. Contextual cluster and platform signals remain comparison context and do not alter the selected single-instance posture.</div>
       </section>
     
       <section class="supportive-block">
         <h3>Historical Posture</h3>
-        <div class="narrative">The historical record aligns with TUNE FIRST, with CPU as the dominant constraint.</div>
+        <div class="narrative">The historical record aligns with TUNE FIRST because CPU remains the dominant constraint after supporting and contextual signals are considered.</div>
       </section>
     
       <section class="supportive-block">
         <h3>Technical Context</h3>
-        <div class="narrative">The historical review is organized around CPU-first evidence. Primary support comes from DB Time Breakdown, CPU history, Workload distributions. Supporting evidence includes I/O history, Commit history. Contextual signals (RAC / cluster context, Topology distributions, Per-instance RAC distributions) remain subordinate. Lower-value or unsupported families were not promoted: ADG family, EXADATA family, MEMORY family, NETWORK family.</div>
+        <div class="narrative">The historical review is organized around CPU-first evidence. Primary support comes from DB Time Breakdown, CPU history, Workload distributions. Memory is reviewed explicitly between the primary proof and the supporting trend layer, but no sustained memory pressure is established relative to the CPU-led evidence. Supporting evidence then follows with I/O history, Commit history. Contextual signals (RAC / cluster context, Topology distributions, Per-instance RAC distributions) remain comparison context. Lower-value or unsupported families were not promoted: ADG family, EXADATA family, NETWORK family, platform-level signals.</div>
       </section>
     
           </div>
@@ -870,7 +868,7 @@
     </div>
     
 
-    <div class="footer">Generated at Apr 22, 2026, 8:44 PM</div>
+    <div class="footer">Generated at Apr 23, 2026, 10:17 AM</div>
   </div>
 
   <script id="chart-payload" type="application/json">

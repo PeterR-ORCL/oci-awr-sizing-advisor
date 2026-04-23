@@ -1,11 +1,18 @@
 import os
-import oci
 from dotenv import load_dotenv
+
+try:
+    import oci
+except ModuleNotFoundError:
+    oci = None
 
 load_dotenv()
 
 
 def call_oci_genai(prompt: str) -> str:
+    if oci is None:
+        raise ImportError("The 'oci' package is required for the OCI provider.")
+
     config_profile = os.getenv("OCI_CONFIG_PROFILE", "DEFAULT")
     config = oci.config.from_file(os.path.expanduser("~/.oci/config"), config_profile)
 

@@ -448,7 +448,7 @@
           Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
           and action guidance.
         </p>
-        <div class="hero-meta">Generated: Apr 22, 2026, 8:44 PM</div>
+        <div class="hero-meta">Generated: Apr 23, 2026, 10:17 AM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">Screen 1 - Ingestion</a><a class="nav-link" href="screen_2_analysis.html">Screen 2 - Analysis</a><a class="nav-link" href="screen_3_history_selector.html">Screen 3 - History Selector</a><a class="nav-link" href="screen_4_historical_review.html">Screen 4 - Historical Review</a><a class="nav-link active" href="screen_5_recommendation_action.html">Screen 5 - Recommendation / Action</a></nav>
@@ -492,7 +492,7 @@
     
     <div class="decision-box">
       <strong>Execution Plan</strong>
-      <ol><li>Tune the highest CPU-consuming SQL and execution paths first.</li><li>Prioritize the top elapsed-time SQL statements immediately.</li><li>Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.</li><li>Tighten commit frequency and commit-processing behavior in the application flow.</li><li>Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.</li></ol>
+      <ol><li>Identify and tune the highest CPU- and elapsed-time SQL first.</li><li>Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.</li><li>As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow.</li><li>Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.</li></ol>
     </div>
     
     <div class="decision-box">
@@ -536,9 +536,9 @@
             <article class="item">
               <div class="pill-stack"><div class="pill-cell"><span class="severity high">HIGH</span><span class="pill-label-row pill-caption">Priority</span></div><div class="pill-cell"><span class="confidence-pill medium">MEDIUM</span><span class="pill-label-row pill-caption">Confidence</span></div><div class="pill-cell"><span class="scope-chip">execution-plan</span><span class="pill-label-row pill-caption">Type</span></div></div>
               <h3>Commit behavior</h3>
-              <p><strong>Action:</strong> Tighten commit frequency and commit-processing behavior in the application flow.</p>
+              <p><strong>Action:</strong> As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow.</p>
               
-              <p><strong>Rationale:</strong> Execution-plan guidance derived from the deterministic decision layer.</p>
+              <p><strong>Rationale:</strong> Secondary optimization after the dominant CPU and SQL actions.</p>
             </article>
             
                   </div>
@@ -553,7 +553,7 @@
       <article class="item">
         <div class="meta">Primary Evidence</div>
         <h3>CPU</h3>
-        <p>CPU remains the primary workload driver in the selected scope.</p>
+        <p>CPU provides the strongest deterministic evidence in the selected scope.</p>
         
       </article>
     
@@ -589,7 +589,7 @@
             <div class="meta">
               Supportive, non-authoritative explanation derived from canonical findings.
             </div>
-            <div class="narrative">Tune First remains appropriate because CPU remains the governing constraint in the current evidence.</div>
+            <div class="narrative">Tune First remains appropriate because the dominant pressure is still internal to workload efficiency rather than a clear capacity shortfall.</div>
           </div>
         </section>
         <section class="evidence-pane">
@@ -601,21 +601,21 @@
             <section class="supportive-block">
               <h3>Current Posture</h3>
               <div class="narrative">
-                The workload shows concentrated SQL and secondary performance contributors, but the current state still supports tuning before scaling. Deterministic posture: TUNE FIRST (medium confidence).
+                The current evidence still supports tuning before scaling because the dominant pressure is internal to workload efficiency rather than a clear capacity shortfall.
               </div>
             </section>
             
             <section class="supportive-block">
               <h3>When Scaling Becomes Appropriate</h3>
               <div class="narrative">
-                Scaling becomes appropriate only after the CPU-heavy SQL paths, concentrated statements, physical read demand, and commit behavior have been tuned and the same dominant constraints still remain.
+                Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies have been reduced and the same governing constraint still remains afterward.
               </div>
             </section>
             
             <section class="supportive-block">
               <h3>Architectural Guidance</h3>
               <div class="narrative">
-                Keep the architecture aligned to a compute-first tuning path. Use a database deployment pattern that can scale CPU cleanly if residual pressure remains after SQL and transaction tuning. Treat storage and broader architectural changes as secondary unless the post-tuning workload still shows persistent I/O pressure.
+                Keep the architecture aligned to a compute-first tuning path so residual pressure can be re-evaluated cleanly before any broader capacity change.
               </div>
             </section>
             
@@ -623,7 +623,7 @@
             <div class="info-grid">
             <div class="info-box">
               <strong>Remediation Options</strong>
-              <div>Tighten commit frequency and commit-processing behavior in the application flow.</div>
+              <div>As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow.</div>
             </div>
             
             <div class="info-box">
@@ -651,7 +651,7 @@
             Platform-neutral guidance derived from the deterministic decision posture.
           </div>
           <div class="narrative">
-            The workload shows concentrated SQL and secondary performance contributors, but the current state still supports tuning before scaling. Deterministic posture: TUNE FIRST (medium confidence). Scaling becomes appropriate only after the CPU-heavy SQL paths, concentrated statements, physical read demand, and commit behavior have been tuned and the same dominant constraints still remain. Keep the architecture aligned to a compute-first tuning path. Use a database deployment pattern that can scale CPU cleanly if residual pressure remains after SQL and transaction tuning. Treat storage and broader architectural changes as secondary unless the post-tuning workload still shows persistent I/O pressure.
+            The current evidence still supports tuning before scaling. TUNE FIRST remains appropriate at medium confidence. Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies have been reduced and the same governing constraint still remains afterward. Keep the architecture aligned to a compute-first tuning path, and treat broader storage changes as secondary unless I/O pressure persists after tuning.
           </div>
         </div>
       </section>
@@ -679,7 +679,7 @@
     </div>
     
 
-    <div class="footer">Generated at Apr 22, 2026, 8:44 PM</div>
+    <div class="footer">Generated at Apr 23, 2026, 10:17 AM</div>
   </div>
 
 

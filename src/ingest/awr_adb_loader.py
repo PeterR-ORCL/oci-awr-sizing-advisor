@@ -84,7 +84,6 @@ NATIVE_RAC_TEXT_PATTERNS = (
     " gcs ",
     " ges ",
     "interconnect",
-    "cluster",
 )
 PROMOTED_ENGINEERED_FEATURE_KEYS = (
     "WRITE_LATENCY_MS",
