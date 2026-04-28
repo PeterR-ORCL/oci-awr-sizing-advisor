@@ -15,6 +15,7 @@ from src.analysis.ai_provider import generate_ai_response
 from src.analysis.derived_metric_extractor import (
     extract_derived_pressure_metrics,
 )
+from src.analysis.scoring_adapter import build_decision_input_from_score_result
 from src.analysis.engineered_metric_catalog import (
     DOMAIN_DISPLAY_ORDER,
     get_implemented_metric_definitions,
@@ -23,6 +24,7 @@ from src.analysis.frontend_contract import build_phase5_screen_models
 from src.analysis.issue_detector import detect_issues
 from src.analysis.output_layer import build_analysis_output
 from src.analysis.recommendation_engine import generate_decision_recommendations
+from src.analysis.vector_search import find_similar_awrs_approx
 from src.analysis.violin_panel_builder import build_violin_panel_data
 from src.ingest.awr_adb_loader import build_feature_vector_record, get_db_connection
 from src.parser.awr_parser import parse_awr_file
@@ -59,6 +61,17 @@ def _resolve_ai_model_identifier(provider: str) -> str:
     if normalized_provider == "openai":
         return str(os.getenv("OPENAI_MODEL", "gpt-5.4-mini") or "").strip()
     return ""
+
+
+def _runtime_config() -> dict[str, Any]:
+    config: dict[str, Any] = {}
+    enable_similarity = str(
+        os.getenv("ENABLE_SIMILARITY_SEARCH", "")
+        or ""
+    ).strip().upper() in {"1", "Y", "YES", "TRUE"}
+    if enable_similarity:
+        config["enable_similarity"] = True
+    return config
 
 
 def _normalize_terminology(text: str) -> str:
@@ -4538,6 +4551,7 @@ if __name__ == "__main__":
     env_loaded, env_path = _load_local_env_file()
     provider = _resolve_ai_provider()
     resolved_model = _resolve_ai_model_identifier(provider)
+    runtime_config = _runtime_config()
     print("AI Provider Resolution:")
     print(f"  .env loaded: {'yes' if env_loaded else 'no'} ({env_path})")
     print(f"  provider: {provider}")
@@ -4556,13 +4570,17 @@ if __name__ == "__main__":
     result = latest_context["result"]
     # The decision object is now the authoritative deterministic conclusion.
     runtime_feature_vector = _runtime_feature_vector(latest_context)
-    decision = build_decision(
+    decision_input = build_decision_input_from_score_result(
         awr_id=_runtime_awr_id(latest_context),
-        feature_vector=runtime_feature_vector,
+        score_result=None,
         anomaly_signals=_decision_anomaly_signals(
             latest_context,
             multi_snapshot_analysis,
         ),
+        feature_evidence=runtime_feature_vector["feature_json"],
+    )
+    decision = build_decision(
+        decision_input=decision_input,
     )
     # Recommendations are decision-driven; legacy issue-based recommendations
     # remain deprecated and are no longer the authoritative path.
@@ -4587,6 +4605,19 @@ if __name__ == "__main__":
         decision=decision,
         recommendations=decision_recommendations,
     )
+    if "enable_similarity" in runtime_config:
+        connection = None
+        try:
+            connection = get_db_connection()
+            similar_awrs = find_similar_awrs_approx(
+                connection,
+                runtime_feature_vector["feature_vector_record"]["feature_vector"],
+                top_k=5,
+            )
+            analysis_output["similar_awrs"] = similar_awrs
+        finally:
+            if connection is not None:
+                connection.close()
     analysis_output["metadata"].update(
         {
             "file_name": latest_context["file_name"],
@@ -4599,7 +4630,8 @@ if __name__ == "__main__":
             "snapshot_end": result.run_metadata.end_snapshot_time,
         }
     )
-    analysis_output["scores"] = decision.evidence.get("domain_scores", {})
+    decision_evidence = decision.evidence or {}
+    analysis_output["scores"] = decision_evidence.get("domain_scores", {})
     analysis_output["trends"] = {
         "findings": multi_snapshot_analysis["trend_findings"],
         "time_series": multi_snapshot_analysis["time_series"],

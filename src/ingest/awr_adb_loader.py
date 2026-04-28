@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import json
 import logging
+import math
 import os
 import socket
 import sys
@@ -61,7 +62,8 @@ DB_VERSION_PATTERNS = (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOTENV_PATH = PROJECT_ROOT / ".env"
 FEATURE_SET_NAME = "awr_core_metrics"
-FEATURE_SET_VERSION = "3.0.0"
+FEATURE_SET_VERSION = "4H_VECTOR_1"
+VECTOR_VERSION = "4H_VECTOR_1"
 SCORING_VECTOR_VERSION = "3.0.0"
 SCORING_MODEL_CODE = "AWR_WEIGHTED_CORE"
 SCORING_MODEL_DOMAIN = "SIZING"
@@ -837,9 +839,7 @@ def build_source_system_record(parse_result: ParseResult) -> dict[str, Any]:
                 "database_role": topology.get("database_role"),
                 "topology_class": topology.get("topology_class"),
                 "platform_class": topology.get("platform_class"),
-                "operational_event_class": topology.get(
-                    "operational_event_class"
-                ),
+                "operational_event_class": topology.get("operational_event_class"),
                 "cpu_count": metadata.cpu_count,
                 "core_count": metadata.core_count,
                 "socket_count": metadata.socket_count,
@@ -1156,9 +1156,7 @@ def _allow_duplicate_report_ingest(report_record: dict[str, Any]) -> bool:
     """Return True when duplicate logical reports are explicitly allowed."""
 
     ingest_mode = str(report_record.get("ingest_mode") or "").upper()
-    override_flag = str(
-        os.getenv("AWR_ALLOW_DUPLICATE_REPORTS", "N")
-    ).strip().upper()
+    override_flag = str(os.getenv("AWR_ALLOW_DUPLICATE_REPORTS", "N")).strip().upper()
     return ingest_mode == "REPLAY" or override_flag in {
         "1",
         "Y",
@@ -1751,7 +1749,7 @@ def build_feature_vector_record(
         "awr_id": awr_id,
         "source_system_id": source_system_id,
         "observed_at": snap_end,
-        "vector_version": SCORING_VECTOR_VERSION,
+        "vector_version": VECTOR_VERSION,
         "feature_set_name": FEATURE_SET_NAME,
         "feature_set_version": FEATURE_SET_VERSION,
         "workload_class": _derive_workload_class(parse_result),
@@ -1759,7 +1757,7 @@ def build_feature_vector_record(
         "platform_class": feature_json.get("platform_class"),
         "event_class": feature_json.get("operational_event_class"),
         "vector_status": "ACTIVE",
-        "feature_vector": None,
+        "feature_vector": build_numeric_feature_vector(feature_json),
         "narrative_embedding": None,
         "feature_json": _json_dumps(feature_json),
         "normalization_json": _json_dumps(feature_payload["normalization_json"]),
@@ -1790,6 +1788,10 @@ def insert_feature_vector(
 ) -> int:
     """Insert one feature vector row and return its identity."""
 
+    db_record = dict(feature_vector_record)
+    db_record["feature_vector"] = _embedding_to_vector_literal(
+        feature_vector_record.get("feature_vector")
+    )
     with conn.cursor() as cursor:
         cursor.execute(
             """
@@ -1831,7 +1833,7 @@ def insert_feature_vector(
                 :source_lineage_json
             )
             """,
-            feature_vector_record,
+            db_record,
         )
     with conn.cursor() as cursor:
         cursor.execute(
@@ -1903,7 +1905,9 @@ def upsert_feature_vector(
         "platform_class": feature_vector_record.get("platform_class"),
         "event_class": feature_vector_record.get("event_class"),
         "vector_status": feature_vector_record["vector_status"],
-        "feature_vector": feature_vector_record["feature_vector"],
+        "feature_vector": _embedding_to_vector_literal(
+            feature_vector_record.get("feature_vector")
+        ),
         "narrative_embedding": feature_vector_record.get("narrative_embedding"),
         "feature_json": feature_vector_record["feature_json"],
         "normalization_json": feature_vector_record["normalization_json"],
@@ -2179,7 +2183,9 @@ def process_awr_batch(
                 }
                 for file_path in awr_files
             ]
-            upload_to_object_storage = _validate_optional_object_storage_upload_configuration()
+            upload_to_object_storage = (
+                _validate_optional_object_storage_upload_configuration()
+            )
 
         ingest_run_id = start_ingest_run(
             conn=db_conn,
@@ -2229,7 +2235,9 @@ def process_awr_batch(
             source_display_name = str(source_entry["display_name"])
             source_file_name = str(source_entry["source_file_name"])
             source_reference = str(
-                source_entry.get("object_store_uri") or source_entry.get("file_path") or source_display_name
+                source_entry.get("object_store_uri")
+                or source_entry.get("file_path")
+                or source_display_name
             )
             LOGGER.info("Processing AWR file: %s", source_display_name)
             try:
@@ -2457,9 +2465,7 @@ def process_awr_batch(
             f"{error_count} failed."
         )
         if downstream_error_count:
-            summary_notes += (
-                f" {downstream_error_count} downstream derived step(s) failed after raw ingest commits."
-            )
+            summary_notes += f" {downstream_error_count} downstream derived step(s) failed after raw ingest commits."
 
         finalize_ingest_run(
             conn=db_conn,
@@ -2888,17 +2894,72 @@ def load_reports_for_feature_rebuild(
     awr_ids: set[int] | None = None,
     only_missing_promoted_keys: bool = True,
 ) -> list[dict[str, Any]]:
-    """Load canonical AWR reports plus current feature vectors for rebuild."""
+    """Load AWR reports missing populated current-version vectors for rebuild."""
+
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT r.awr_id,
+                   r.source_system_id,
+                   r.source_file_name,
+                   r.source_file_path
+            FROM awr_report r
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM awr_feature_vector fv
+                WHERE fv.awr_id = r.awr_id
+                  AND fv.source_system_id = r.source_system_id
+                  AND fv.feature_set_name = 'awr_core_metrics'
+                  AND fv.feature_set_version = '4H_VECTOR_1'
+                  AND fv.vector_version = '4H_VECTOR_1'
+                  AND fv.feature_vector IS NOT NULL
+            )
+            ORDER BY r.awr_id
+            """
+        )
+        candidate_rows = cursor.fetchall()
+
+    LOGGER.info(
+        "Feature rebuild candidate SQL row count: %s (source_system_id=%s, awr_ids=%s, only_missing_promoted_keys=%s)",
+        len(candidate_rows),
+        source_system_id,
+        sorted(awr_ids) if awr_ids else [],
+        only_missing_promoted_keys,
+    )
+
+    selected_awr_ids = awr_ids or set()
+    selected_candidates = []
+    for row in candidate_rows:
+        awr_id = int(row[0])
+        source_system = int(row[1])
+        if source_system_id is not None and source_system != source_system_id:
+            continue
+        if selected_awr_ids and awr_id not in selected_awr_ids:
+            continue
+        selected_candidates.append(
+            {
+                "awr_id": awr_id,
+                "source_system_id": source_system,
+                "source_file_name": row[2],
+                "source_file_path": row[3],
+            }
+        )
+
+    LOGGER.info(
+        "Feature rebuild candidate selection complete: candidate_count=%s awr_ids=%s",
+        len(selected_candidates),
+        [row["awr_id"] for row in selected_candidates],
+    )
+
+    if not selected_candidates:
+        return []
 
     binds: dict[str, Any] = {}
-    where_clauses = [
-        "r.PARSER_OUTPUT_JSON is not null",
-        "r.REPLAY_OF_AWR_ID is null",
-        "r.PARSE_STATUS in ('PARSED', 'PARTIAL')",
-    ]
-    if source_system_id is not None:
-        where_clauses.append("r.SOURCE_SYSTEM_ID = :source_system_id")
-        binds["source_system_id"] = source_system_id
+    awr_placeholders: list[str] = []
+    for index, candidate in enumerate(selected_candidates):
+        key = f"awr_id_{index}"
+        awr_placeholders.append(f":{key}")
+        binds[key] = candidate["awr_id"]
 
     with conn.cursor() as cursor:
         cursor.execute(
@@ -2908,59 +2969,41 @@ def load_reports_for_feature_rebuild(
                 r.SOURCE_SYSTEM_ID,
                 r.SOURCE_FILE_NAME,
                 r.SOURCE_FILE_PATH,
+                r.OBJECT_STORE_URI,
                 r.DB_NAME,
                 r.DBID,
                 r.INSTANCE_NAME,
                 r.INSTANCE_NUMBER,
                 r.SNAP_TIME_BEGIN,
                 r.SNAP_TIME_END,
-                r.PARSER_OUTPUT_JSON,
-                fv.FEATURE_VECTOR_ID,
-                fv.FEATURE_JSON,
-                fv.OBSERVED_AT
+                r.PARSER_OUTPUT_JSON
             from AWR_REPORT r
-            left join AWR_FEATURE_VECTOR fv
-              on fv.AWR_ID = r.AWR_ID
-             and fv.SOURCE_SYSTEM_ID = r.SOURCE_SYSTEM_ID
-             and fv.FEATURE_SET_NAME = :feature_set_name
-             and fv.FEATURE_SET_VERSION = :feature_set_version
-            where {' and '.join(where_clauses)}
-            order by r.SNAP_TIME_BEGIN, r.AWR_ID
+            where r.AWR_ID in ({', '.join(awr_placeholders)})
+            order by r.AWR_ID
             """,
-            {
-                **binds,
-                "feature_set_name": FEATURE_SET_NAME,
-                "feature_set_version": FEATURE_SET_VERSION,
-            },
+            binds,
         )
         rows = cursor.fetchall()
 
-    selected_awr_ids = awr_ids or set()
     results: list[dict[str, Any]] = []
     for row in rows:
-        row_dict = {
-            "awr_id": int(row[0]),
-            "source_system_id": int(row[1]),
-            "source_file_name": row[2],
-            "source_file_path": row[3],
-            "db_name": row[4],
-            "dbid": row[5],
-            "instance_name": row[6],
-            "instance_number": row[7],
-            "snap_time_begin": row[8],
-            "snap_time_end": row[9],
-            "parser_output_json": row[10],
-            "feature_vector_id": row[11],
-            "feature_json": _json_loads(row[12]) or {},
-            "observed_at": row[13],
-        }
-        if selected_awr_ids and row_dict["awr_id"] not in selected_awr_ids:
-            continue
-        if only_missing_promoted_keys:
-            feature_json = row_dict["feature_json"]
-            if feature_json and not _missing_promoted_feature_keys(feature_json):
-                continue
-        results.append(row_dict)
+        results.append(
+            {
+                "awr_id": int(row[0]),
+                "source_system_id": int(row[1]),
+                "source_file_name": row[2],
+                "source_file_path": row[3],
+                "source_object_uri": row[4],
+                "object_store_uri": row[4],
+                "db_name": row[5],
+                "dbid": row[6],
+                "instance_name": row[7],
+                "instance_number": row[8],
+                "snap_time_begin": row[9],
+                "snap_time_end": row[10],
+                "parser_output_json": row[11],
+            }
+        )
     return results
 
 
@@ -3019,11 +3062,7 @@ def load_reports_for_parser_refresh(
             }
         )
 
-    skipped_count = (
-        len(selected_awr_ids - found_awr_ids)
-        if selected_awr_ids
-        else 0
-    )
+    skipped_count = len(selected_awr_ids - found_awr_ids) if selected_awr_ids else 0
     return results, skipped_count
 
 
@@ -3035,13 +3074,11 @@ def _resolve_report_source_to_local_path(
     direct_path_value = str(report_row.get("source_file_path") or "").strip()
     if direct_path_value:
         direct_path = Path(direct_path_value)
-        if direct_path.exists() and direct_path.is_file():
+        if os.path.exists(direct_path) and direct_path.is_file():
             return direct_path.resolve(), None
 
     object_store_uri = str(
-        report_row.get("source_object_uri")
-        or report_row.get("object_store_uri")
-        or ""
+        report_row.get("source_object_uri") or report_row.get("object_store_uri") or ""
     ).strip()
     if object_store_uri:
         temp_path = _download_object_to_temp_file(object_store_uri)
@@ -3059,7 +3096,13 @@ def _resolve_report_source_to_local_path(
         if not str(directory):
             continue
         candidate_path = directory / source_file_name
-        if candidate_path.exists() and candidate_path.is_file():
+        if os.path.exists(candidate_path) and candidate_path.is_file():
+            LOGGER.info(
+                "Source path fallback used for AWR report: source_file_name=%s stale_path=%s resolved_path=%s",
+                source_file_name,
+                direct_path_value or None,
+                candidate_path.resolve(),
+            )
             return candidate_path.resolve(), None
 
     return None, None
@@ -3301,7 +3344,9 @@ def run_db_trend_analysis(
     """Recompute DB-scoped trend rows for affected DB identities only."""
 
     results: list[dict[str, Any]] = []
-    for db_name, dbid in sorted(affected_databases, key=lambda item: (item[0], item[1] or -1)):
+    for db_name, dbid in sorted(
+        affected_databases, key=lambda item: (item[0], item[1] or -1)
+    ):
         if not db_name:
             continue
         trend_result = persist_db_metric_trends(
@@ -3442,12 +3487,12 @@ def refresh_parser_output_json(
                 )
                 downstream_error_count = int(
                     derived_refresh_result.get("error_count", 0)
-                ) + int(
-                    derived_refresh_result.get("downstream_error_count", 0)
-                )
+                ) + int(derived_refresh_result.get("downstream_error_count", 0))
             except Exception as exc:  # noqa: BLE001
                 downstream_error_count += 1
-                LOGGER.exception("Optional downstream rebuild failed after parser refresh")
+                LOGGER.exception(
+                    "Optional downstream rebuild failed after parser refresh"
+                )
                 errors.append(
                     {
                         "stage": "downstream_rebuild",
@@ -3458,7 +3503,10 @@ def refresh_parser_output_json(
 
         status = _derive_operation_status(
             processed_count=updated_count,
-            error_count=skipped_count + missing_file_count + parse_error_count + refresh_error_count,
+            error_count=skipped_count
+            + missing_file_count
+            + parse_error_count
+            + refresh_error_count,
             downstream_error_count=downstream_error_count,
         )
         notes = (
@@ -3548,9 +3596,7 @@ def rebuild_feature_vectors(
                     scoring_model["scoring_model_id"],
                 )
         except Exception:  # noqa: BLE001
-            LOGGER.exception(
-                "Scoring model initialization failed for feature rebuild"
-            )
+            LOGGER.exception("Scoring model initialization failed for feature rebuild")
             downstream_error_count = 1
             downstream_errors = [
                 {
@@ -3574,6 +3620,7 @@ def rebuild_feature_vectors(
         updated_count = 0
         inserted_count = 0
         skipped_count = 0
+        missing_file_count = 0
         score_regenerated_count = 0
         error_count = 0
         errors: list[dict[str, Any]] = []
@@ -3581,14 +3628,34 @@ def rebuild_feature_vectors(
 
         for report_row in candidate_reports:
             awr_id = report_row["awr_id"]
+            temp_file_path: Path | None = None
             try:
-                parse_result = _parse_result_from_persisted_json(
-                    report_row["parser_output_json"]
+                source_file_path, temp_file_path = _resolve_report_source_to_local_path(
+                    report_row
                 )
-                if parse_result is None:
-                    raise ValueError(
-                        "Persisted PARSER_OUTPUT_JSON could not be reconstructed."
+                if source_file_path is None:
+                    missing_file_count += 1
+                    LOGGER.warning(
+                        "Feature rebuild skipped because source file could not be resolved: "
+                        "awr_id=%s source_file_name=%s source_file_path=%s",
+                        awr_id,
+                        report_row.get("source_file_name"),
+                        report_row.get("source_file_path"),
                     )
+                    errors.append(
+                        {
+                            "awr_id": awr_id,
+                            "source_file_name": report_row["source_file_name"],
+                            "stage": "source_file_resolution",
+                            "error_type": "MissingSourceFile",
+                            "error_message": "Raw source file could not be resolved for feature rebuild.",
+                            "source_file_path": report_row["source_file_path"],
+                        }
+                    )
+                    db_conn.rollback()
+                    continue
+
+                parse_result = parse_awr_file(source_file_path)
                 parse_result = _hydrate_parse_result_for_rebuild(
                     db_conn,
                     parse_result,
@@ -3601,9 +3668,9 @@ def rebuild_feature_vectors(
                     awr_id=awr_id,
                     source_system_id=report_row["source_system_id"],
                 )
-                source_lineage = _json_loads(
-                    feature_vector_record.get("source_lineage_json")
-                ) or {}
+                source_lineage = (
+                    _json_loads(feature_vector_record.get("source_lineage_json")) or {}
+                )
                 source_lineage["rebuild_mode"] = FEATURE_REBUILD_MODE
                 source_lineage["rebuilt_from"] = "AWR_REPORT.PARSER_OUTPUT_JSON"
                 source_lineage["rebuilt_at"] = datetime.utcnow().isoformat()
@@ -3658,6 +3725,15 @@ def rebuild_feature_vectors(
                         "error_message": str(exc),
                     }
                 )
+            finally:
+                if temp_file_path is not None:
+                    try:
+                        temp_file_path.unlink(missing_ok=True)
+                    except OSError:
+                        LOGGER.debug(
+                            "Temporary rebuild source file cleanup failed: %s",
+                            temp_file_path,
+                        )
 
         if not candidate_reports:
             skipped_count = 0
@@ -3699,9 +3775,7 @@ def rebuild_feature_vectors(
                 f"{error_count} failed."
             )
         if downstream_error_count:
-            notes += (
-                f" {downstream_error_count} downstream derived step(s) failed after feature rebuild commits."
-            )
+            notes += f" {downstream_error_count} downstream derived step(s) failed after feature rebuild commits."
 
         return {
             "mode": FEATURE_REBUILD_MODE,
@@ -3711,6 +3785,7 @@ def rebuild_feature_vectors(
             "updated_count": updated_count,
             "inserted_count": inserted_count,
             "skipped_count": skipped_count,
+            "missing_file_count": missing_file_count,
             "no_candidates": no_candidates,
             "score_regenerated_count": score_regenerated_count,
             "error_count": error_count,
@@ -4005,7 +4080,9 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
             "redo copy",
         ),
     )
-    raw_gc_buffer_busy_pct_db_time = _safe_float(topology.get("gc_buffer_busy_pct_db_time"))
+    raw_gc_buffer_busy_pct_db_time = _safe_float(
+        topology.get("gc_buffer_busy_pct_db_time")
+    )
     raw_rac_buffer_busy_pressure = _sum_event_pct(
         parse_result,
         (
@@ -4073,7 +4150,9 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
             parse_result,
             ("cursor: mutex S", "cursor: mutex X"),
         ),
-        "free_buffer_wait_pressure": _default_numeric_zero(raw_free_buffer_wait_pressure),
+        "free_buffer_wait_pressure": _default_numeric_zero(
+            raw_free_buffer_wait_pressure
+        ),
         "buffer_busy_pressure": _default_numeric_zero(raw_buffer_busy_pressure),
         "read_by_other_session_pressure": _default_numeric_zero(
             raw_read_by_other_session_pressure
@@ -4099,9 +4178,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "cluster_wait_pct_db_time": _safe_float(
             topology.get("cluster_wait_pct_db_time")
         ),
-        "gc_cr_wait_pct_db_time": _safe_float(
-            topology.get("gc_cr_wait_pct_db_time")
-        ),
+        "gc_cr_wait_pct_db_time": _safe_float(topology.get("gc_cr_wait_pct_db_time")),
         "gc_current_wait_pct_db_time": _safe_float(
             topology.get("gc_current_wait_pct_db_time")
         ),
@@ -4129,9 +4206,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
             topology.get("redo_transport_issue_flag")
         ),
         "failover_event_flag": _flag_to_float(topology.get("failover_event_flag")),
-        "role_transition_flag": _flag_to_float(
-            topology.get("role_transition_flag")
-        ),
+        "role_transition_flag": _flag_to_float(topology.get("role_transition_flag")),
         "post_failover_recovery_flag": _flag_to_float(
             topology.get("post_failover_recovery_flag")
         ),
@@ -4193,9 +4268,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "READ_MB_PER_SEC": base_features["read_mb_per_sec"],
         "WRITE_MB_PER_SEC": base_features["write_mb_per_sec"],
         "BUFFER_CACHE_HIT_RATIO_PCT": base_features["buffer_cache_hit_ratio_pct"],
-        "LIBRARY_CACHE_HIT_RATIO_PCT": base_features[
-            "library_cache_hit_ratio_pct"
-        ],
+        "LIBRARY_CACHE_HIT_RATIO_PCT": base_features["library_cache_hit_ratio_pct"],
         "FREE_BUFFER_WAIT_PRESSURE": base_features["free_buffer_wait_pressure"],
         "BUFFER_BUSY_PRESSURE": base_features["buffer_busy_pressure"],
         "READ_BY_OTHER_SESSION_PRESSURE": base_features[
@@ -4206,9 +4279,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "PARSE_CPU_TO_PARSE_ELAPSED_PCT": base_features[
             "parse_cpu_to_parse_elapsed_pct"
         ],
-        "CURSOR_MUTEX_WAIT_PCT_DB_TIME": base_features[
-            "cursor_mutex_wait_pct_db_time"
-        ],
+        "CURSOR_MUTEX_WAIT_PCT_DB_TIME": base_features["cursor_mutex_wait_pct_db_time"],
         "CLUSTER_WAIT_PCT_DB_TIME": base_features["cluster_wait_pct_db_time"],
         "GC_CR_WAIT_PCT_DB_TIME": base_features["gc_cr_wait_pct_db_time"],
         "GC_CURRENT_WAIT_PCT_DB_TIME": base_features["gc_current_wait_pct_db_time"],
@@ -4221,9 +4292,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "REDO_TRANSPORT_ISSUE_FLAG": base_features["redo_transport_issue_flag"],
         "FAILOVER_EVENT_FLAG": base_features["failover_event_flag"],
         "ROLE_TRANSITION_FLAG": base_features["role_transition_flag"],
-        "POST_FAILOVER_RECOVERY_FLAG": base_features[
-            "post_failover_recovery_flag"
-        ],
+        "POST_FAILOVER_RECOVERY_FLAG": base_features["post_failover_recovery_flag"],
         "EXA_CELL_IO_PCT_DB_TIME": base_features["exa_cell_io_pct_db_time"],
         "EXA_OFFLOAD_EFFICIENCY": base_features["exa_offload_efficiency"],
         "STORAGE_INDEX_SAVINGS_PCT": base_features["storage_index_savings_pct"],
@@ -4242,7 +4311,8 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "LIBRARY_CACHE_HIT_RATIO_PCT": raw_library_cache_hit_ratio_pct is not None,
         "FREE_BUFFER_WAIT_PRESSURE": raw_free_buffer_wait_pressure is not None,
         "BUFFER_BUSY_PRESSURE": raw_buffer_busy_pressure is not None,
-        "READ_BY_OTHER_SESSION_PRESSURE": raw_read_by_other_session_pressure is not None,
+        "READ_BY_OTHER_SESSION_PRESSURE": raw_read_by_other_session_pressure
+        is not None,
         "ENQUEUE_COMMIT_PRESSURE": raw_enqueue_commit_pressure is not None,
         "REDO_CONTENTION_PRESSURE": raw_redo_contention_pressure is not None,
         "GC_BUFFER_BUSY_PCT_DB_TIME": raw_gc_buffer_busy_pct_db_time is not None,
@@ -4254,14 +4324,14 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
     feature_json = {
         **base_features,
         **scoring_features,
-        "feature_vector_version": SCORING_VECTOR_VERSION,
+        "feature_vector_version": VECTOR_VERSION,
         "feature_set_name": FEATURE_SET_NAME,
         "feature_set_version": FEATURE_SET_VERSION,
         "scoring_features": scoring_features,
         "feature_presence": feature_presence,
     }
     normalization_json = {
-        "vector_version": SCORING_VECTOR_VERSION,
+        "vector_version": VECTOR_VERSION,
         "normalization_defaults": SCORING_NORMALIZATION_DEFAULTS,
         "scoring_weight_feature_codes": sorted(scoring_features),
     }
@@ -4315,6 +4385,7 @@ def _build_feature_payload(parse_result: ParseResult) -> dict[str, Any]:
         "normalization_json": normalization_json,
         "explanation_json": explanation_json,
     }
+
 
 def persist_deterministic_score(
     conn: Any,
@@ -4600,8 +4671,7 @@ def _augment_scoring_weights(
     scoring_weights: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     present_codes = {
-        str(weight.get("feature_code") or "").strip()
-        for weight in scoring_weights
+        str(weight.get("feature_code") or "").strip() for weight in scoring_weights
     }
     augmented_weights = list(scoring_weights)
     added_count = 0
@@ -4623,9 +4693,9 @@ def _aggregate_domain_scores(components: list[dict[str, Any]]) -> dict[str, floa
     domain_totals: dict[str, float] = {}
     for component in components:
         domain = component["feature_domain"] or "GENERAL"
-        domain_totals[domain] = domain_totals.get(domain, 0.0) + component[
-            "weighted_points"
-        ]
+        domain_totals[domain] = (
+            domain_totals.get(domain, 0.0) + component["weighted_points"]
+        )
     return domain_totals
 
 
@@ -4674,11 +4744,11 @@ def _compute_confidence_score(
         if _safe_float(feature_json.get(feature_code)) is not None:
             richness_score += 0.08
     consistency_score = (
-        0.22
-        if (domain_values["cpu"] or 0.0) >= (domain_values["io"] or 0.0)
-        else 0.16
+        0.22 if (domain_values["cpu"] or 0.0) >= (domain_values["io"] or 0.0) else 0.16
     )
-    total = (0.5 * coverage_score) + consistency_score + richness_score - conflict_penalty
+    total = (
+        (0.5 * coverage_score) + consistency_score + richness_score - conflict_penalty
+    )
     return _round_score(min(max(total, 0.05), 0.99) * 100.0)
 
 
@@ -4943,7 +5013,10 @@ def _ensure_topology_lag_signals(
     gc_cr_wait_pct = _sum_event_pct(parse_result, ("gc cr",))
     gc_current_wait_pct = _sum_event_pct(parse_result, ("gc current",))
     gc_buffer_busy_pct = _sum_event_pct(parse_result, ("gc buffer busy",))
-    if topology.get("cluster_wait_pct_db_time") is None and cluster_wait_pct is not None:
+    if (
+        topology.get("cluster_wait_pct_db_time") is None
+        and cluster_wait_pct is not None
+    ):
         topology["cluster_wait_pct_db_time"] = round(cluster_wait_pct, 4)
     if topology.get("gc_cr_wait_pct_db_time") is None and gc_cr_wait_pct is not None:
         topology["gc_cr_wait_pct_db_time"] = round(gc_cr_wait_pct, 4)
@@ -5005,14 +5078,9 @@ def _apply_low_signal_feature_suppression(base_features: dict[str, Any]) -> None
         base_features["user_io_pct"] = None
 
     if (
-        (temp_spill_pct or 0.0) >= 25.0
-        or (sorts_disk_pct or 0.0) >= 20.0
-    ) and (
-        read_latency_ms is None
-        or read_latency_ms < 20.0
-    ) and (
-        user_io_pct is None
-        or user_io_pct < 50.0
+        ((temp_spill_pct or 0.0) >= 25.0 or (sorts_disk_pct or 0.0) >= 20.0)
+        and (read_latency_ms is None or read_latency_ms < 20.0)
+        and (user_io_pct is None or user_io_pct < 50.0)
     ):
         base_features["read_latency_ms"] = None
         base_features["user_io_pct"] = None
@@ -5025,7 +5093,6 @@ def _apply_low_signal_feature_suppression(base_features: dict[str, Any]) -> None
         base_features["log_file_sync_ms"] = None
         base_features["log_write_latency_ms"] = None
         base_features["commit_pct"] = None
-
 
 
 def _default_numeric_zero(value: Any) -> float:
@@ -5240,12 +5307,7 @@ def _compute_workarea_execution_pct(
     onepass = _safe_float(workarea_histogram.get("onepass_executions"))
     multipass = _safe_float(workarea_histogram.get("multipass_executions"))
     numerator = _safe_float(workarea_histogram.get(numerator_key))
-    if (
-        optimal is None
-        or onepass is None
-        or multipass is None
-        or numerator is None
-    ):
+    if optimal is None or onepass is None or multipass is None or numerator is None:
         return None
     total = optimal + onepass + multipass
     if total <= 0:
@@ -5387,9 +5449,13 @@ def _configure_logging() -> None:
 def _derive_logical_feature_key_order() -> tuple[str, ...]:
     """Return the stable top-level feature_json key order for contract planning.
 
-    This does not activate numeric FEATURE_VECTOR population. It records the
-    authoritative feature_json ordering so a future VECTOR(256) population pass
-    can align with the deterministic scoring contract.
+    Numeric FEATURE_VECTOR population is active as of Phase 4H
+
+    This function derives the authoritative ordering of feature_json keys,
+    which defines the logical dimension order for the numeric VECTOR(256).
+
+    The order must remain stable across runs to ensure deterministic
+    vector construction and compatibility with persisted vectors.
     """
 
     empty_payload = _build_feature_payload(
@@ -5410,6 +5476,34 @@ FEATURE_VECTOR_LOGICAL_DIMENSION_COUNT = len(FEATURE_VECTOR_LOGICAL_KEY_ORDER)
 FEATURE_VECTOR_NUMERIC_CAPACITY = 256
 
 
+def build_numeric_feature_vector(feature_json: dict[str, Any]) -> list[float]:
+    """Build a fixed-width numeric vector aligned to the logical feature contract."""
+
+    vector_values = [
+        _coerce_numeric_feature_value(feature_json.get(feature_key))
+        for feature_key in FEATURE_VECTOR_LOGICAL_KEY_ORDER
+    ]
+    if len(vector_values) != FEATURE_VECTOR_LOGICAL_DIMENSION_COUNT:
+        raise ValueError(
+            "Logical feature vector length does not match the configured contract."
+        )
+    if len(vector_values) > FEATURE_VECTOR_NUMERIC_CAPACITY:
+        raise ValueError(
+            "Logical feature vector exceeds FEATURE_VECTOR numeric capacity."
+        )
+    padding_length = FEATURE_VECTOR_NUMERIC_CAPACITY - len(vector_values)
+    if padding_length > 0:
+        vector_values.extend([0.0] * padding_length)
+    return vector_values
+
+
+def _coerce_numeric_feature_value(value: Any) -> float:
+    numeric_value = _safe_float(value)
+    if numeric_value is None or not math.isfinite(numeric_value):
+        return 0.0
+    return float(numeric_value)
+
+
 def main(argv: list[str] | None = None) -> int:
     _configure_logging()
     args = argv if argv is not None else sys.argv[1:]
@@ -5427,10 +5521,9 @@ def main(argv: list[str] | None = None) -> int:
     if maintenance_mode == FEATURE_REBUILD_MODE:
         source_system_id = _to_int(os.getenv("AWR_BACKFILL_SOURCE_SYSTEM_ID"))
         awr_ids = _parse_comma_separated_ids(os.getenv("AWR_BACKFILL_AWR_IDS"))
-        only_missing_promoted_keys = (
-            str(os.getenv("AWR_BACKFILL_MISSING_ONLY", "Y")).strip().upper()
-            not in {"N", "NO", "FALSE", "0"}
-        )
+        only_missing_promoted_keys = str(
+            os.getenv("AWR_BACKFILL_MISSING_ONLY", "Y")
+        ).strip().upper() not in {"N", "NO", "FALSE", "0"}
         result = rebuild_feature_vectors(
             source_system_id=source_system_id,
             awr_ids=awr_ids,
@@ -5439,10 +5532,9 @@ def main(argv: list[str] | None = None) -> int:
     elif maintenance_mode == REFRESH_PARSER_OUTPUT_JSON_MODE:
         source_system_id = _to_int(os.getenv("AWR_BACKFILL_SOURCE_SYSTEM_ID"))
         awr_ids = _parse_comma_separated_ids(os.getenv("AWR_BACKFILL_AWR_IDS"))
-        refresh_rebuild_derived = (
-            str(os.getenv("AWR_REFRESH_REBUILD_DERIVED", "FALSE")).strip().upper()
-            in {"1", "Y", "YES", "TRUE"}
-        )
+        refresh_rebuild_derived = str(
+            os.getenv("AWR_REFRESH_REBUILD_DERIVED", "FALSE")
+        ).strip().upper() in {"1", "Y", "YES", "TRUE"}
         result = refresh_parser_output_json(
             source_system_id=source_system_id,
             awr_ids=awr_ids,

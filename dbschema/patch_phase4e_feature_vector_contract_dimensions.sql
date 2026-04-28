@@ -29,12 +29,14 @@
 --   * AWR_FEATURE_VECTOR.NARRATIVE_EMBEDDING remains VECTOR(1536, FLOAT32)
 --   * the current logical contract still fits within VECTOR(256)
 --   * feature_json remains the authoritative scoring contract today
---   * numeric FEATURE_VECTOR population is not yet active
+--   * numeric FEATURE_VECTOR population is now active for new/updated rows
+--   * scoring remains deterministic and feature_json-driven
 --   * native VECTOR / HNSW rebuild is not required unless numeric FEATURE_VECTOR
---     population is activated or rebuilt in the future
+--     rows are backfilled or rebuilt at scale
 --
 -- Operational follow-up for live environments:
 --   * existing AWR_FEATURE_VECTOR rows should be rebuilt to include new feature_json keys
+--     and populated numeric FEATURE_VECTOR values
 --   * AWR_SCORE_RESULT rows should be rescored after rebuild
 --   * trend recomputation is recommended if trend/reporting surfaces the new metrics
 --   * future numeric FEATURE_VECTOR activation should:
