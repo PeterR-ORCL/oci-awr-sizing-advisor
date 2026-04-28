@@ -24,7 +24,12 @@ from src.analysis.frontend_contract import build_phase5_screen_models
 from src.analysis.issue_detector import detect_issues
 from src.analysis.output_layer import build_analysis_output
 from src.analysis.recommendation_engine import generate_decision_recommendations
-from src.analysis.vector_search import find_similar_awrs_approx
+from src.analysis.similarity_intelligence import (
+    build_disabled_similarity_intelligence,
+    build_failed_similarity_intelligence,
+    build_similarity_intelligence,
+    is_similarity_intelligence_disabled,
+)
 from src.analysis.violin_panel_builder import build_violin_panel_data
 from src.ingest.awr_adb_loader import build_feature_vector_record, get_db_connection
 from src.parser.awr_parser import parse_awr_file
@@ -65,12 +70,8 @@ def _resolve_ai_model_identifier(provider: str) -> str:
 
 def _runtime_config() -> dict[str, Any]:
     config: dict[str, Any] = {}
-    enable_similarity = str(
-        os.getenv("ENABLE_SIMILARITY_SEARCH", "")
-        or ""
-    ).strip().upper() in {"1", "Y", "YES", "TRUE"}
-    if enable_similarity:
-        config["enable_similarity"] = True
+    if is_similarity_intelligence_disabled():
+        config["disable_similarity_intelligence"] = True
     return config
 
 
@@ -4605,16 +4606,30 @@ if __name__ == "__main__":
         decision=decision,
         recommendations=decision_recommendations,
     )
-    if "enable_similarity" in runtime_config:
+    if runtime_config.get("disable_similarity_intelligence"):
+        analysis_output["similarity_intelligence"] = (
+            build_disabled_similarity_intelligence(
+                "Disabled by DISABLE_SIMILARITY_INTELLIGENCE"
+            )
+        )
+    else:
         connection = None
         try:
             connection = get_db_connection()
-            similar_awrs = find_similar_awrs_approx(
-                connection,
-                runtime_feature_vector["feature_vector_record"]["feature_vector"],
-                top_k=5,
+            analysis_output["similarity_intelligence"] = (
+                build_similarity_intelligence(
+                    connection=connection,
+                    awr_id=_runtime_awr_id(latest_context),
+                    feature_vector=runtime_feature_vector["feature_vector_record"][
+                        "feature_vector"
+                    ],
+                    top_k=5,
+                )
             )
-            analysis_output["similar_awrs"] = similar_awrs
+        except Exception as exc:
+            analysis_output["similarity_intelligence"] = (
+                build_failed_similarity_intelligence(str(exc))
+            )
         finally:
             if connection is not None:
                 connection.close()
