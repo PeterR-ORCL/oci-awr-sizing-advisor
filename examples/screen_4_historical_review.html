@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screen 4 - Historical Review</title>
+  <style>
+
+    :root {
+      --bg: #08111d;
+      --panel: #0f1b2d;
+      --panel-soft: rgba(15, 27, 45, 0.95);
+      --panel-strong: #14243a;
+      --text: #e8eef7;
+      --muted: #9fb0c7;
+      --line: #233754;
+      --accent: #5ad1ff;
+      --accent-soft: rgba(90, 209, 255, 0.12);
+      --high: #ff6b6b;
+      --medium: #f6b84c;
+      --low: #7fb3d5;
+      --pass: #66bb6a;
+      --marginal: #f6b84c;
+      --fail: #ff6b6b;
+      --na: #8ea3ba;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(90, 209, 255, 0.10), transparent 28%),
+        linear-gradient(180deg, #08111d 0%, #07101a 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .top-shell {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .top-shell.sticky-shell {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      padding-top: 12px;
+      backdrop-filter: blur(14px);
+    }
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 { margin: 0 0 10px; font-size: 34px; line-height: 1.1; }
+    h2 { margin: 0 0 14px; font-size: 21px; }
+    h3 { margin: 0 0 10px; font-size: 17px; }
+    .hero-summary { margin: 0 0 10px; color: var(--text); max-width: 820px; }
+    .hero-meta, .meta { color: var(--muted); font-size: 13px; }
+    .page-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(10, 20, 34, 0.88);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    }
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 8px 14px;
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid rgba(159, 176, 199, 0.26);
+      background: rgba(16, 28, 45, 0.72);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .nav-link.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.6);
+    }
+    .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
+      display: grid;
+      gap: 18px;
+    }
+    .grid, .subgrid, .chart-grid { grid-template-columns: repeat(12, 1fr); }
+    .flow-grid, .nav-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .health-check-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card {
+      grid-column: span 12;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+    .card.primary {
+      background: linear-gradient(135deg, rgba(24, 42, 66, 0.98), rgba(14, 27, 46, 0.98));
+      border-color: rgba(90, 209, 255, 0.38);
+    }
+    .card.secondary { background: rgba(12, 22, 36, 0.88); }
+    .card.prominent {
+      background: linear-gradient(135deg, rgba(20, 36, 58, 0.96), rgba(13, 24, 40, 0.96));
+      border-color: rgba(90, 209, 255, 0.34);
+    }
+    .section-kicker {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .half, .evidence-pane, .chart-panel { grid-column: span 12; }
+    .stack { display: grid; gap: 12px; }
+    .item, .flow-step, .nav-card, .visual-layer-card, .health-check-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(20, 36, 58, 0.7);
+    }
+    .nav-card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .nav-card h3, .flow-step strong, .visual-layer-card strong, .info-box strong, .scalar-box strong {
+      color: var(--accent);
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .visual-layer-grid, .scalar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .decision-box, .info-box, .provider-box, .scalar-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .supportive-panel {
+      border: 1px dashed rgba(159, 176, 199, 0.28);
+      border-radius: 14px;
+      padding: 18px;
+      background: rgba(11, 21, 35, 0.45);
+    }
+    .supportive-panel h3 { font-size: 16px; }
+    .supportive-block {
+      padding-top: 14px;
+      margin-top: 14px;
+      border-top: 1px solid rgba(159, 176, 199, 0.16);
+    }
+    .supportive-block:first-of-type {
+      padding-top: 0;
+      margin-top: 12px;
+      border-top: none;
+    }
+    .severity, .status-pill, .health-pill, .decision-banner {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .severity.critical, .decision-banner.scale-now, .health-pill.fail {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.24);
+      border: 1px solid rgba(255, 107, 107, 0.36);
+    }
+    .severity.high {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.16);
+      border: 1px solid rgba(255, 107, 107, 0.30);
+    }
+    .severity.medium, .health-pill.marginal, .decision-banner.defer {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.24);
+      border: 1px solid rgba(246, 184, 76, 0.36);
+    }
+    .severity.low, .health-pill.pass, .decision-banner.do-not-scale {
+      color: #eff7ff;
+      background: rgba(127, 179, 213, 0.16);
+      border: 1px solid rgba(127, 179, 213, 0.36);
+    }
+    .health-pill.na {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
+    }
+    .status-pill.success {
+      background: rgba(102, 187, 106, 0.16);
+      border: 1px solid rgba(102, 187, 106, 0.34);
+      color: #effbef;
+    }
+    .status-pill.warning {
+      background: rgba(246, 184, 76, 0.16);
+      border: 1px solid rgba(246, 184, 76, 0.34);
+      color: #fff8ed;
+    }
+    .status-pill.error {
+      background: rgba(255, 107, 107, 0.16);
+      border: 1px solid rgba(255, 107, 107, 0.34);
+      color: #fff4f4;
+    }
+    .scope-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .scope-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      background: rgba(90, 209, 255, 0.1);
+      border: 1px solid rgba(90, 209, 255, 0.22);
+      color: #eef9ff;
+    }
+    .confidence-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .confidence-pill.high {
+      background: rgba(255, 107, 107, 0.24);
+      border-color: rgba(255, 107, 107, 0.38);
+      color: #fff4f4;
+    }
+    .confidence-pill.medium {
+      background: rgba(246, 184, 76, 0.24);
+      border-color: rgba(246, 184, 76, 0.38);
+      color: #fff8ed;
+    }
+    .confidence-pill.low {
+      background: rgba(127, 179, 213, 0.20);
+      border-color: rgba(127, 179, 213, 0.36);
+      color: #eef7ff;
+    }
+    .pill-stack {
+      display: grid;
+      grid-template-columns: repeat(3, max-content);
+      justify-content: start;
+      gap: 10px;
+    }
+    .pill-cell {
+      display: grid;
+      justify-items: center;
+      align-content: start;
+      gap: 8px;
+    }
+    .banner-meta-strip {
+      margin-top: 18px;
+      margin-bottom: 6px;
+      padding-top: 2px;
+    }
+    .visual-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .mini-trend-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .mini-trend-svg {
+      width: 100%;
+      height: 110px;
+      display: block;
+      margin-top: 10px;
+    }
+    .mini-trend-fallback {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .inline-nav-hint {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 14px;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .pill-label-row {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .pill-caption {
+      text-align: center;
+      white-space: nowrap;
+    }
+    .engineering-detail {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(16, 28, 45, 0.48);
+      overflow: hidden;
+    }
+    .engineering-detail summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 14px 16px;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .engineering-detail summary::-webkit-details-marker {
+      display: none;
+    }
+    .engineering-detail-body {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .guidance-panel {
+      display: grid;
+      gap: 12px;
+    }
+    .narrative > p, .narrative > ol, .narrative > ul, .narrative > div { margin-top: 0; margin-bottom: 12px; }
+    .data-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+    .data-table th, .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(35, 55, 84, 0.7);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+    .data-table th {
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(11, 21, 35, 0.7);
+    }
+    .chart-panel, .violin-chart-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(20, 36, 58, 0.62);
+      min-height: 320px;
+    }
+    .chart-support-note, .chart-domain-heading {
+      color: rgba(216, 228, 242, 0.82);
+    }
+    .chart-domain-group { margin-top: 20px; }
+    .chart-domain-heading {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .violin-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .violin-group { margin-top: 20px; }
+    .violin-group-note { color: rgba(216, 228, 242, 0.82); font-size: 14px; }
+    .violin-chart { height: 300px; }
+    .chart-canvas { position: relative; height: 240px; }
+    .chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      border: 1px dashed rgba(159, 176, 199, 0.22);
+      border-radius: 12px;
+      background: rgba(11, 21, 35, 0.45);
+    }
+    .health-check-summary { margin-bottom: 12px; }
+    .health-check-card p { margin: 0; }
+    .footer { margin-top: 18px; color: var(--muted); font-size: 12px; text-align: right; }
+    ul, ol { margin: 10px 0 0 18px; padding: 0; }
+    li { margin: 4px 0; }
+    @media (min-width: 900px) {
+      .half, .chart-panel { grid-column: span 6; }
+    }
+    @media (max-width: 780px) {
+      .flow-grid, .nav-card-grid, .health-check-grid,
+      .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
+      .visual-summary-grid {
+        grid-template-columns: 1fr;
+      }
+      h1 { font-size: 28px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-shell sticky-shell">
+      <section class="hero">
+        <div class="eyebrow">AWR Performance Intelligence Dashboard</div>
+        <h1>AWR Performance Intelligence Dashboard</h1>
+        <p class="hero-summary">
+          Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
+          and action guidance.
+        </p>
+        <div class="hero-meta">Generated: Apr 23, 2026, 10:17 AM</div>
+      </section>
+
+      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">Screen 1 - Ingestion</a><a class="nav-link" href="screen_2_analysis.html">Screen 2 - Analysis</a><a class="nav-link" href="screen_3_history_selector.html">Screen 3 - History Selector</a><a class="nav-link active" href="screen_4_historical_review.html">Screen 4 - Historical Review</a><a class="nav-link" href="screen_5_recommendation_action.html">Screen 5 - Recommendation / Action</a></nav>
+    </div>
+
+    
+    <div class="grid">
+      <!-- Screen 4 = historical review across scope + timeframe, with visuals. -->
+      <section class="card secondary">
+        <div class="section-kicker">Screen 4</div>
+        <h2>Historical Review / Comparison</h2>
+        <div class="meta">
+          Historical / Supporting Context (Not Selected-Scope Truth)
+        </div>
+        <div class="subgrid">
+          <section class="half evidence-pane">
+            <h3>Header</h3>
+            <div class="info-grid">
+            <div class="info-box">
+              <strong>Scope</strong>
+              <div>RCCPU / 7001001002</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Instance</strong>
+              <div>rccpu1</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Host</strong>
+              <div>rccpu-db01</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Window</strong>
+              <div>21 / 174h</div>
+            </div>
+            </div>
+          </section>
+          <section class="half evidence-pane">
+            <h3>Current Selection Summary</h3>
+            <div class="info-grid">
+            <div class="info-box">
+              <strong>Current Window</strong>
+              <div>21 / 174h</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Comparison Mode</strong>
+              <div>multi-snapshot comparison</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Latest vs Prior</strong>
+              <div>The latest interval differs from the worst interval and should be interpreted in broader historical context.</div>
+            </div>
+            </div>
+          </section>
+          <section class="evidence-pane">
+            <h3>Historical Verdict</h3>
+            <div class="info-grid">
+            <div class="info-box">
+              <strong>Dominant Pattern</strong>
+              <div>CPU</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Risk</strong>
+              <div>WARNING</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Historical Stability</strong>
+              <div>CPU remained dominant across the window, but the pattern was intermittent rather than continuous.</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Anomaly Burden</strong>
+              <div>11.0</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Historical Posture</strong>
+              <div>TUNE FIRST</div>
+            </div>
+            </div>
+          </section>
+        </div>
+      </section>
+      
+      <section id="performance-charts" class="card secondary">
+        <div class="section-kicker">Supporting Visual Layer</div>
+        <h2>Primary Evidence</h2>
+        <p class="chart-support-note">
+          Historical / Supporting Context (Not Selected-Scope Truth). Shown
+          only when real chart data exists.
+        </p>
+        <div class="chart-grid">
+          
+          <section class="chart-panel">
+            <h3>DB Time Breakdown</h3>
+            <div class="chart-canvas"><canvas id="dbTimeBreakdownChart"></canvas></div>
+          </section>
+            
+        </div>
+      </section>
+    
+      <section id="time-series-charts" class="card secondary">
+        <div class="section-kicker">Supporting Visual Layer</div>
+        <h2>Supporting Trends</h2>
+        <p class="chart-support-note">
+          Historical / Supporting Context (Not Selected-Scope Truth). These
+          chart views support deterministic findings and remain subordinate to
+          the canonical comparison conclusions.
+        </p>
+        
+            <div class="chart-domain-group">
+              <div class="chart-domain-heading">CPU Time-Series Charts</div>
+              <div class="chart-grid">
+                
+                <section class="chart-panel">
+                  <h3>DB CPU % DB Time</h3>
+                  <div class="chart-canvas"><canvas id="timeSeriesCpuTrend"></canvas></div>
+                </section>
+                
+              </div>
+            </div>
+            
+            <div class="chart-domain-group">
+              <div class="chart-domain-heading">I/O Time-Series Charts</div>
+              <div class="chart-grid">
+                
+                <section class="chart-panel">
+                  <h3>User I/O Pressure</h3>
+                  <div class="chart-canvas"><canvas id="timeSeriesIoTrend"></canvas></div>
+                </section>
+                
+                <section class="chart-panel">
+                  <h3>Commit / Log File Sync</h3>
+                  <div class="chart-canvas"><canvas id="timeSeriesLogFileSyncTrend"></canvas></div>
+                </section>
+                
+              </div>
+            </div>
+            
+            <div class="chart-domain-group">
+              <div class="chart-domain-heading">RAC Time-Series Charts</div>
+              <div class="chart-grid">
+                
+                <section class="chart-panel">
+                  <h3>Cluster Wait %</h3>
+                  <div class="chart-canvas"><canvas id="timeSeriesClusterWaitTrend"></canvas></div>
+                </section>
+                
+                <section class="chart-panel">
+                  <h3>GC Wait %</h3>
+                  <div class="chart-canvas"><canvas id="timeSeriesGcWaitTrend"></canvas></div>
+                </section>
+                
+              </div>
+            </div>
+            
+      </section>
+    
+      <section id="workload-violin-panel" class="card secondary violin-panel">
+        <div class="section-kicker">Supporting Visual Layer</div>
+        <h2>Workload Distribution Evidence</h2>
+        <p class="chart-support-note">
+          Historical / Supporting Context (Not Selected-Scope Truth). Violin
+          charts render only when enough real multi-snapshot samples exist,
+          while scalar-only facts stay in scalar metric cards below.
+        </p>
+
+        <div class="violin-group violin-group-workload">
+          <h3>Workload Distributions</h3>
+          <p class="violin-group-note">Cluster-level workload values aggregated per snapshot</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Cluster CPU % DB Time</h3>
+                <div id="violinClusterCpuPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Cluster User I/O %</h3>
+                <div id="violinClusterUserIoPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Cluster Log File Sync Latency Distribution</h3>
+                <div id="violinClusterLogFileSyncMs" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+        <div class="violin-group violin-group-topology">
+          <h3>Topology Distributions</h3>
+          <p class="violin-group-note">Broader cluster and Data Guard measures remain available for historical comparison only; they do not govern the selected single-instance interpretation, and the combined GC trend is the summed GC current + GC CR pressure</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Cluster Wait % DB Time</h3>
+                <div id="violinClusterWaitPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>GC Current Wait %</h3>
+                <div id="violinGcCurrentWaitPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>GC CR Wait %</h3>
+                <div id="violinGcCrWaitPct" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+        <div class="violin-group violin-group-rac-instance">
+          <h3>Per-Instance RAC Distributions</h3>
+          <p class="violin-group-note">Per-instance RAC values remain available as broader cluster comparison context only. These are not mixed with cluster-level distributions</p>
+          <div class="violin-grid">
+            
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC CPU</h3>
+                <div id="violinPerInstanceRacCpuPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC Cluster Wait</h3>
+                <div id="violinPerInstanceRacClusterWaitPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC GC Current Wait</h3>
+                <div id="violinPerInstanceRacGcCurrentPct" class="violin-chart"></div>
+              </section>
+                
+              <section class="violin-chart-card">
+                <h3>Per-Instance RAC GC CR Wait</h3>
+                <div id="violinPerInstanceRacGcCrPct" class="violin-chart"></div>
+              </section>
+                
+          </div>
+        </div>
+            
+      </section>
+    
+      <section id="derived-scalar-metrics" class="card secondary">
+        <div class="section-kicker">Supporting Visual Layer</div>
+        <h2>Derived Scalar Metrics</h2>
+        <p class="scalar-note">These metrics are shown as scalar facts because no real multi-sample distribution exists for violin rendering.</p><div class="scalar-grid">
+            <div class="scalar-box">
+              <strong>PGA Spill Pressure</strong>
+              <div class="scalar-value">0</div>
+              <div class="scalar-note">Scalar fact from spill counters or proxy evidence</div>
+            </div>
+            </div>
+      </section>
+    
+      <section class="card secondary">
+        
+      <div class="subgrid">
+        
+        <section class="evidence-pane">
+          <h3>Historical Summary</h3>
+          
+      <article class="item">
+        <p>CPU remains dominant across the selected window, indicating sustained compute pressure rather than a transient external bottleneck. Primary evidence comes from DB Time Breakdown, CPU history, Workload distributions, keeping the broader window aligned to the same governing pattern. Anomaly burden remains visible in 11 window(s), but it does not displace CPU as the governing pattern.</p>
+        
+      </article>
+    
+        </section>
+        
+        <section class="half evidence-pane">
+          <h3>Memory Review</h3>
+          <div class="meta">
+            Explicit secondary-domain review before supporting I/O / commit trends and contextual RAC / topology comparison.
+          </div>
+          <p>Memory was reviewed and remains non-governing in this window.</p><ul><li>PGA Spill Pressure is present only as a weak secondary signal relative to the dominant CPU pattern.</li></ul>
+        </section>
+        
+        <section class="half evidence-pane">
+          <h3>Trend Review</h3>
+          
+      <article class="item">
+        <p>CPU remained dominant across the window, but the pattern was intermittent rather than continuous.</p>
+        <ul><li>User I/O spiked intermittently and then moderated.</li><li>Commit latency remained broadly stable where data is available.</li><li>Concurrency signals are insufficient to establish a meaningful trend.</li><li>Top SQL history is not available for this window.</li><li>Sparse cluster samples point to intermittent coordination pressure in the broader window.</li><li>Sparse GC samples point to intermittent cluster coordination pressure in the broader window.</li></ul>
+      </article>
+    
+        </section>
+        
+        <section class="half evidence-pane">
+          <h3>Anomaly Review</h3>
+          <div class="stack">
+            <div class="info-grid">
+            <div class="info-box">
+              <strong>Anomaly Count</strong>
+              <div>11.0</div>
+            </div>
+            </div>
+            
+      <article class="item">
+        <p>User I/O spiked from a baseline of 6.84 to 60.59.</p>
+        <ul><li>2026-03-06 15:00 -&gt; 16:00: User I/O (high) — User I/O spiked from a baseline of 6.84 to 60.59.</li><li>2026-03-06 13:00 -&gt; 14:00: User I/O (high) — User I/O spiked from a baseline of 6.70 to 26.66.</li><li>2026-03-03 01:00 -&gt; 02:00: User I/O (high) — User I/O spiked from a baseline of 5.92 to 32.40.</li><li>2026-03-01 19:00 -&gt; 20:00: User I/O (high) — User I/O spiked from a baseline of 2.07 to 67.24.</li><li>2026-03-01 16:00 -&gt; 17:00: User I/O (high) — User I/O spiked from a baseline of 1.35 to 47.56.</li></ul>
+      </article>
+    
+          </div>
+        </section>
+        
+        <section class="half evidence-pane">
+          <h3>Period Comparison</h3>
+          <div class="stack">
+            <div class="info-grid">
+            <div class="info-box">
+              <strong>Latest Interval</strong>
+              <div>Latest snapshot (2026-03-08 15:00 -&gt; 16:00)</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Worst Interval</strong>
+              <div>Latest snapshot (2026-03-01 19:00 -&gt; 20:00)</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Latest vs Trend</strong>
+              <div>The latest interval differs from the worst interval and should be interpreted in broader historical context.</div>
+            </div>
+            </div>
+            
+      <article class="item">
+        <p>Period comparison should be read through the deterministic CPU posture. The latest interval differs from the worst interval and should be interpreted in broader historical context.</p>
+        
+      </article>
+    
+          </div>
+        </section>
+        
+        <section class="half evidence-pane">
+          <h3>Topology / Platform Review</h3>
+          <div class="meta">
+            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only; CPU-led evidence remains primary.
+          </div>
+          <div class="info-grid">
+            <div class="info-box">
+              <strong>RAC Summary</strong>
+              <div>Historical window contains sparse cluster-wait and GC samples. RAC signals are sparse and treated as supporting context only.</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Data Guard Summary</strong>
+              <div>Historical window contains limited transport/apply lag evidence. Data Guard signals are limited and treated as supporting context only.</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Host / Instance Notes</strong>
+              <div>Host scope: rccpu-db01, Instance scope: rccpu1</div>
+            </div>
+            </div>
+        </section>
+        
+        <section class="evidence-pane">
+          <h3>Explanation</h3>
+          <div class="supportive-panel">
+            <div class="meta">
+              Supportive, non-authoritative explanation derived from canonical findings.
+            </div>
+            
+      <section class="supportive-block">
+        <h3>Executive Summary</h3>
+        <div class="narrative">CPU remains the primary workload driver across the selected window. The page leads with DB Time Breakdown, CPU history, Workload distributions as the strongest historical proof. Supporting evidence stays with I/O history, Commit history.</div>
+      </section>
+    
+      <section class="supportive-block">
+        <h3>Historical Interpretation</h3>
+        <div class="narrative">Primary evidence keeps the historical story CPU-led, supporting a compute-bound interpretation over I/O-, memory-, or topology-led alternatives. The pattern is directionally consistent, but intermittent rather than continuous. Memory was reviewed and remains non-governing in this window. Contextual cluster and platform signals remain comparison context and do not alter the selected single-instance posture.</div>
+      </section>
+    
+      <section class="supportive-block">
+        <h3>Historical Posture</h3>
+        <div class="narrative">The historical record aligns with TUNE FIRST because CPU remains the dominant constraint after supporting and contextual signals are considered.</div>
+      </section>
+    
+      <section class="supportive-block">
+        <h3>Technical Context</h3>
+        <div class="narrative">The historical review is organized around CPU-first evidence. Primary support comes from DB Time Breakdown, CPU history, Workload distributions. Memory is reviewed explicitly between the primary proof and the supporting trend layer, but no sustained memory pressure is established relative to the CPU-led evidence. Supporting evidence then follows with I/O history, Commit history. Contextual signals (RAC / cluster context, Topology distributions, Per-instance RAC distributions) remain comparison context. Lower-value or unsupported families were not promoted: ADG family, EXADATA family, NETWORK family, platform-level signals.</div>
+      </section>
+    
+          </div>
+        </section>
+        
+      </div>
+    
+      </section>
+      
+      <section class="card secondary">
+        <h2>Technical Detail</h2>
+        <details class="engineering-detail" open><summary>Engineering View</summary><div class="engineering-detail-body"><section class="supportive-block"><h3>Scoring Detail</h3><div class="info-grid">
+            <div class="info-box">
+              <strong>Primary Issue Score</strong>
+              <div>0.6</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Confidence Score</strong>
+              <div>0.6</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Severity Score</strong>
+              <div>0.4</div>
+            </div>
+            </div></section><section class="supportive-block"><h3>Supporting Metrics</h3><ul><li><strong>CPU_UTIL_P95:</strong> 43.8</li><li><strong>DB_CPU_PCT_DB_TIME:</strong> 43.8</li></ul></section><section class="supportive-block"><h3>Domain Scores</h3><div class="item"><div class="meta">Domain Scores</div><ul><li><strong>CPU:</strong> 0.6</li></ul></div></section><section class="supportive-block"><h3>Context Notes</h3><ul><li>Anomaly windows in scope: 11</li><li>Suppressed historical families: ADG family, EXADATA family, MEMORY family, NETWORK family, Platform</li></ul></section></div></details>
+      </section>
+      
+    </div>
+    
+
+    <div class="footer">Generated at Apr 23, 2026, 10:17 AM</div>
+  </div>
+
+  <script id="chart-payload" type="application/json">
+{
+  "db_time_breakdown": {
+    "labels": [
+      "CPU",
+      "User I/O",
+      "Commit",
+      "Concurrency",
+      "Other"
+    ],
+    "values": [
+      43.8,
+      10.1,
+      5.6,
+      0.0,
+      40.5
+    ],
+    "colors": [
+      "rgba(255, 107, 107, 0.72)",
+      "rgba(246, 184, 76, 0.72)",
+      "rgba(212, 174, 82, 0.72)",
+      "rgba(127, 179, 213, 0.72)",
+      "rgba(130, 148, 171, 0.58)"
+    ]
+  },
+  "top_sql_contribution": {
+    "labels": [],
+    "values": [],
+    "colors": []
+  },
+  "violin_panel": {
+    "workload": {
+      "cluster_cpu_pct_db_time": [
+        76.667,
+        93.333,
+        42.0,
+        18.182,
+        38.182,
+        26.087,
+        33.333,
+        14.615,
+        35.385,
+        20.714,
+        25.0,
+        18.571,
+        45.556,
+        28.421,
+        39.0,
+        63.333,
+        37.736,
+        17.476,
+        91.667,
+        71.667,
+        43.75
+      ],
+      "cluster_execs_per_sec": [],
+      "cluster_read_iops": [],
+      "cluster_read_mb_per_sec": [],
+      "cluster_write_iops": [],
+      "cluster_write_mb_per_sec": [],
+      "cluster_user_io_pct_db_time": [
+        47.56,
+        67.24,
+        24.8,
+        3.95,
+        6.56,
+        20.52,
+        32.4,
+        9.76,
+        26.66,
+        60.59
+      ],
+      "cluster_top_sql_concentration_pct": [],
+      "cluster_pga_spill_pressure": [
+        0.0,
+        0.0,
+        0.0,
+        0.03,
+        0.12,
+        0.28,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.03,
+        0.12,
+        0.12,
+        0.0,
+        0.03,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "cluster_temp_io_pressure": [],
+      "cluster_hard_parses_per_sec": [],
+      "cluster_log_file_sync_ms": [
+        4.2,
+        9.6,
+        3.1,
+        4.1
+      ]
+    },
+    "topology": {
+      "cluster_wait_pct_db_time": [
+        39.68,
+        48.98
+      ],
+      "gc_current_wait_pct_db_time": [
+        12.16,
+        15.01
+      ],
+      "gc_cr_wait_pct_db_time": [
+        14.72,
+        18.17
+      ],
+      "transport_lag_sec": [
+        108.0,
+        754.0
+      ],
+      "apply_lag_sec": [
+        196.0,
+        2262.0
+      ]
+    },
+    "platform": {
+      "cell_single_block_read_pct_db_time": [],
+      "smart_scan_pct_db_time": []
+    },
+    "rac_instance": {
+      "per_instance_cpu_pct_db_time": [
+        76.667,
+        93.333,
+        42.0,
+        18.182,
+        38.182,
+        26.087,
+        33.333,
+        14.615,
+        35.385,
+        20.714,
+        25.0,
+        18.571,
+        45.556,
+        28.421,
+        39.0,
+        63.333,
+        37.736,
+        17.476,
+        91.667,
+        71.667,
+        43.75
+      ],
+      "per_instance_cluster_wait_pct_db_time": [
+        39.68,
+        48.98
+      ],
+      "per_instance_gc_current_wait_pct_db_time": [
+        12.16,
+        15.01
+      ],
+      "per_instance_gc_cr_wait_pct_db_time": [
+        14.72,
+        18.17
+      ]
+    }
+  },
+  "time_series_charts": {
+    "snapshot_labels": [
+      "2026-03-01 10:00 -> 11:00",
+      "2026-03-01 13:00 -> 14:00",
+      "2026-03-01 16:00 -> 17:00",
+      "2026-03-01 19:00 -> 20:00",
+      "2026-03-01 22:00 -> 23:00",
+      "2026-03-02 01:00 -> 02:00",
+      "2026-03-02 04:00 -> 05:00",
+      "2026-03-02 07:00 -> 08:00",
+      "2026-03-02 10:00 -> 11:00",
+      "2026-03-02 13:00 -> 14:00",
+      "2026-03-02 16:00 -> 17:00",
+      "2026-03-02 19:00 -> 20:00",
+      "2026-03-02 22:00 -> 23:00",
+      "2026-03-03 01:00 -> 02:00",
+      "2026-03-03 04:00 -> 05:00",
+      "2026-03-06 11:00 -> 12:00",
+      "2026-03-06 13:00 -> 14:00",
+      "2026-03-06 15:00 -> 16:00",
+      "2026-03-08 11:00 -> 12:00",
+      "2026-03-08 13:00 -> 14:00",
+      "2026-03-08 15:00 -> 16:00"
+    ],
+    "cpu_trend": [
+      76.6667,
+      93.3333,
+      42.0,
+      18.1818,
+      38.1818,
+      26.087,
+      33.3333,
+      14.6154,
+      35.3846,
+      20.7143,
+      25.0,
+      18.5714,
+      45.5556,
+      28.4211,
+      39.0,
+      63.3333,
+      37.7358,
+      17.4757,
+      91.6667,
+      71.6667,
+      43.75
+    ],
+    "io_trend": [
+      2.07,
+      0.63,
+      47.56,
+      67.24,
+      24.8,
+      29.6,
+      1.98,
+      2.55,
+      3.2,
+      3.95,
+      5.92,
+      6.56,
+      20.52,
+      32.4,
+      9.76,
+      6.84,
+      26.66,
+      60.59,
+      0.64,
+      2.9,
+      10.08
+    ],
+    "commit_trend": [
+      1.2,
+      1.8,
+      1.8,
+      2.7,
+      1.4,
+      2.1,
+      4.2,
+      9.6,
+      1.3,
+      2.0,
+      1.6,
+      3.1,
+      1.9,
+      null,
+      4.1,
+      1.1,
+      1.5,
+      1.8,
+      1.9,
+      1.3,
+      1.0
+    ],
+    "concurrency_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "sql_concentration_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "hard_parses_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "log_file_sync_trend": [
+      1.2,
+      1.8,
+      1.8,
+      2.7,
+      1.4,
+      2.1,
+      4.2,
+      9.6,
+      1.3,
+      2.0,
+      1.6,
+      3.1,
+      1.9,
+      null,
+      4.1,
+      1.1,
+      1.5,
+      1.8,
+      1.9,
+      1.3,
+      1.0
+    ],
+    "temp_io_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "pga_spill_trend": [
+      0.0,
+      0.0,
+      0.0,
+      0.03,
+      0.12,
+      0.28,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.03,
+      0.12,
+      0.12,
+      0.0,
+      0.03,
+      0.03,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "cluster_wait_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      39.68,
+      48.98,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "gc_wait_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      26.880000000000003,
+      33.18,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "dg_transport_lag_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "dg_apply_lag_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "exa_cell_io_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "exa_offload_efficiency_trend": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+
+  <script>
+    const chartPayloadElement = document.getElementById('chart-payload');
+    let chartPayload = {};
+    try {
+      if (chartPayloadElement) {
+        chartPayload = JSON.parse(chartPayloadElement.textContent.trim());
+      }
+    } catch (error) {
+      console.error('Chart payload invalid', error);
+    }
+
+    const chartTextColor = '#d9e4f2';
+    const chartMutedColor = 'rgba(159, 176, 199, 0.28)';
+    const violinConfigs = [{"payload_key": "cluster_cpu_pct_db_time", "container_id": "violinClusterCpuPct", "title": "Cluster CPU % DB Time", "color": "rgba(255, 107, 107, 0.72)", "group_key": "workload", "is_percent_like": true}, {"payload_key": "cluster_user_io_pct_db_time", "container_id": "violinClusterUserIoPct", "title": "Cluster User I/O %", "color": "rgba(255, 159, 67, 0.72)", "group_key": "workload", "is_percent_like": true}, {"payload_key": "cluster_log_file_sync_ms", "container_id": "violinClusterLogFileSyncMs", "title": "Cluster Log File Sync Latency Distribution", "color": "rgba(239, 83, 80, 0.72)", "group_key": "workload", "is_percent_like": false}, {"payload_key": "cluster_wait_pct_db_time", "container_id": "violinClusterWaitPct", "title": "Cluster Wait % DB Time", "color": "rgba(255, 127, 80, 0.72)", "group_key": "topology", "is_percent_like": true}, {"payload_key": "gc_current_wait_pct_db_time", "container_id": "violinGcCurrentWaitPct", "title": "GC Current Wait %", "color": "rgba(244, 162, 97, 0.72)", "group_key": "topology", "is_percent_like": true}, {"payload_key": "gc_cr_wait_pct_db_time", "container_id": "violinGcCrWaitPct", "title": "GC CR Wait %", "color": "rgba(233, 196, 106, 0.72)", "group_key": "topology", "is_percent_like": true}, {"payload_key": "per_instance_cpu_pct_db_time", "container_id": "violinPerInstanceRacCpuPct", "title": "Per-Instance RAC CPU", "color": "rgba(249, 65, 68, 0.72)", "group_key": "rac_instance", "is_percent_like": true}, {"payload_key": "per_instance_cluster_wait_pct_db_time", "container_id": "violinPerInstanceRacClusterWaitPct", "title": "Per-Instance RAC Cluster Wait", "color": "rgba(243, 114, 44, 0.72)", "group_key": "rac_instance", "is_percent_like": true}, {"payload_key": "per_instance_gc_current_wait_pct_db_time", "container_id": "violinPerInstanceRacGcCurrentPct", "title": "Per-Instance RAC GC Current Wait", "color": "rgba(248, 150, 30, 0.72)", "group_key": "rac_instance", "is_percent_like": true}, {"payload_key": "per_instance_gc_cr_wait_pct_db_time", "container_id": "violinPerInstanceRacGcCrPct", "title": "Per-Instance RAC GC CR Wait", "color": "rgba(249, 199, 79, 0.72)", "group_key": "rac_instance", "is_percent_like": true}];
+    const timeSeriesSpecs = [{"key": "cpu_trend", "container_id": "timeSeriesCpuTrend", "title": "DB CPU % DB Time", "label": "DB CPU % DB time", "color": "rgba(255, 107, 107, 0.92)"}, {"key": "io_trend", "container_id": "timeSeriesIoTrend", "title": "User I/O Pressure", "label": "User I/O % DB time", "color": "rgba(246, 184, 76, 0.92)"}, {"key": "log_file_sync_trend", "container_id": "timeSeriesLogFileSyncTrend", "title": "Commit / Log File Sync", "label": "Log file sync ms", "color": "rgba(239, 83, 80, 0.92)"}, {"key": "cluster_wait_trend", "container_id": "timeSeriesClusterWaitTrend", "title": "Cluster Wait %", "label": "Cluster waits % DB time", "color": "rgba(255, 159, 67, 0.92)"}, {"key": "gc_wait_trend", "container_id": "timeSeriesGcWaitTrend", "title": "GC Wait %", "label": "GC wait % DB time", "color": "rgba(244, 162, 97, 0.92)"}];
+    const violinMinimumSamples = 4;
+    const violinMinimumDistinctValues = 2;
+    let dbChart = null;
+    let sqlChart = null;
+    let timeSeriesCharts = [];
+
+    function showChartFallback(canvasId, message = 'No data available') {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !canvas.parentElement) {
+        return;
+      }
+      canvas.parentElement.innerHTML = '<div class="chart-empty">' + message + '</div>';
+    }
+
+    function computeMean(values) {
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function computeMedian(values) {
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+      }
+      return sorted[middle];
+    }
+
+    function computeQuantile(values, quantile) {
+      const sorted = [...values].sort((a, b) => a - b);
+      if (!sorted.length) {
+        return NaN;
+      }
+      const position = (sorted.length - 1) * quantile;
+      const lower = Math.floor(position);
+      const upper = Math.ceil(position);
+      if (lower === upper) {
+        return sorted[lower];
+      }
+      const weight = position - lower;
+      return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+    }
+
+    function normalizeDistributionSamples(samples) {
+      if (!Array.isArray(samples)) {
+        return [];
+      }
+      return samples.filter((value) => Number.isFinite(value));
+    }
+
+    function showDistributionFallback(containerId, message) {
+      const container = document.getElementById(containerId);
+      if (!container) {
+        return;
+      }
+      container.innerHTML = '<div class="chart-empty">' + message + '</div>';
+    }
+
+    function formatMetricValue(value) {
+      if (!Number.isFinite(value)) {
+        return '';
+      }
+      if (Math.abs(value) >= 100) {
+        return value.toFixed(0);
+      }
+      if (Math.abs(value) >= 10) {
+        return value.toFixed(1);
+      }
+      return value.toFixed(2).replace(/\.?0+$/, '');
+    }
+
+    function buildDoughnutChart() {
+      const payload = chartPayload.db_time_breakdown || {};
+      if (!Array.isArray(payload.labels) || !Array.isArray(payload.values) || !payload.values.length) {
+        showChartFallback('dbTimeBreakdownChart');
+        return;
+      }
+      const ctx = document.getElementById('dbTimeBreakdownChart');
+      if (!ctx) {
+        return;
+      }
+      if (dbChart) {
+        dbChart.destroy();
+      }
+      dbChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderColor: '#0f1b2d',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: chartTextColor,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function buildBarChart() {
+      const payload = chartPayload.top_sql_contribution || {};
+      if (!Array.isArray(payload.labels) || !Array.isArray(payload.values) || !payload.values.length) {
+        showChartFallback('topSqlContributionChart');
+        return;
+      }
+      const ctx = document.getElementById('topSqlContributionChart');
+      if (!ctx) {
+        return;
+      }
+      if (sqlChart) {
+        sqlChart.destroy();
+      }
+      sqlChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: payload.colors,
+            borderRadius: 8,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: chartTextColor }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: chartTextColor }, grid: { color: chartMutedColor } },
+          },
+        },
+      });
+    }
+
+    function buildViolinChart(config, samples) {
+      const containerId = config.container_id;
+      const color = config.color;
+      const container = document.getElementById(containerId);
+      if (!container) {
+        return;
+      }
+      const cleanSamples = normalizeDistributionSamples(samples);
+      if (!cleanSamples.length) {
+        Plotly.purge(container);
+        showDistributionFallback(
+          containerId,
+          'No distribution data is available for this metric.'
+        );
+        return;
+      }
+      const meanValue = computeMean(cleanSamples);
+      const medianValue = computeMedian(cleanSamples);
+      const q1Value = computeQuantile(cleanSamples, 0.25);
+      const q3Value = computeQuantile(cleanSamples, 0.75);
+      const minValue = Math.min(...cleanSamples);
+      const maxValue = Math.max(...cleanSamples);
+      const sampleCount = cleanSamples.length;
+      const lowSampleExtremaKeys = new Set([
+        'cluster_wait_pct_db_time',
+        'gc_current_wait_pct_db_time',
+        'gc_cr_wait_pct_db_time',
+        'per_instance_cluster_wait_pct_db_time',
+        'per_instance_gc_current_wait_pct_db_time',
+        'per_instance_gc_cr_wait_pct_db_time',
+      ]);
+      const showExtremaMarkers = (
+        maxValue !== minValue
+        && (
+          sampleCount >= 4
+          || (sampleCount >= 2 && lowSampleExtremaKeys.has(config.payload_key))
+        )
+      );
+      const stats = [
+        formatMetricValue(meanValue),
+        formatMetricValue(medianValue),
+        formatMetricValue(q1Value),
+        formatMetricValue(q3Value),
+        formatMetricValue(minValue),
+        formatMetricValue(maxValue),
+      ];
+      const hoverOffsets = [-0.18, -0.12, -0.06, 0, 0.06, 0.12, 0.18];
+      const hoverX = [];
+      const hoverY = [];
+      const customData = [];
+
+      cleanSamples.forEach(function(sample) {
+        hoverOffsets.forEach(function(offset) {
+          hoverX.push(offset);
+          hoverY.push(sample);
+          customData.push(stats);
+        });
+      });
+
+      Plotly.purge(container);
+      Plotly.newPlot(
+        container,
+        [
+          {
+            type: 'violin',
+            y: cleanSamples,
+            x0: 0,
+            name: '',
+            box: {
+              visible: true,
+              fillcolor: 'rgba(225, 232, 240, 0.22)',
+              line: {
+                color: 'rgba(225, 232, 240, 0.55)',
+                width: 1,
+              },
+            },
+            meanline: {
+              visible: true,
+              color: '#0b0f14',
+              width: 2,
+            },
+            line: {
+              color: color,
+              width: 1.5,
+            },
+            fillcolor: color,
+            opacity: 0.55,
+            points: false,
+            hoverinfo: 'skip',
+            hovertemplate: null,
+            hoveron: 'points',
+            showlegend: false,
+          },
+          {
+            type: 'scatter',
+            mode: 'markers+text',
+            x: [0.1],
+            y: [meanValue],
+            text: ['Mean ' + formatMetricValue(meanValue)],
+            textposition: 'middle right',
+            textfont: {
+              color: '#f7d792',
+              size: 10,
+            },
+            marker: {
+              color: '#f6b84c',
+              size: 9,
+              symbol: 'diamond',
+              line: {
+                color: '#fff3d6',
+                width: 1,
+              },
+            },
+            hoverinfo: 'skip',
+            showlegend: false,
+          },
+          ...(showExtremaMarkers ? [
+            {
+              type: 'scatter',
+              mode: 'markers+text',
+              x: [0.12],
+              y: [maxValue],
+              text: ['Max ' + formatMetricValue(maxValue)],
+              textposition: 'top right',
+              textfont: {
+                color: 'rgba(255, 214, 214, 0.92)',
+                size: 9,
+              },
+              marker: {
+                color: '#ff7f7f',
+                symbol: 'diamond',
+                size: 8,
+                line: {
+                  color: '#ffd7d7',
+                  width: 1,
+                },
+              },
+              hoverinfo: 'skip',
+              showlegend: false,
+            },
+            {
+              type: 'scatter',
+              mode: 'markers+text',
+              x: [-0.09],
+              y: [minValue],
+              text: ['Min ' + formatMetricValue(minValue)],
+              textposition: 'bottom right',
+              textfont: {
+                color: 'rgba(220, 230, 242, 0.82)',
+                size: 9,
+              },
+              marker: {
+                color: 'rgba(216, 228, 242, 0.82)',
+                symbol: 'diamond',
+                size: 8,
+                line: {
+                  color: '#e8eef7',
+                  width: 1,
+                },
+              },
+              hoverinfo: 'skip',
+              showlegend: false,
+            },
+          ] : []),
+          {
+            type: 'scatter',
+            mode: 'markers',
+            x: hoverX,
+            y: hoverY,
+            customdata: customData,
+            marker: {
+              color: 'rgba(0, 0, 0, 0)',
+              size: 22,
+            },
+            hovertemplate:
+              'Value: %{y}<br>' +
+              'Mean: %{customdata[0]} | Median: %{customdata[1]}<br>' +
+              'Q1-Q3: %{customdata[2]} - %{customdata[3]}<br>' +
+              'Min-Max: %{customdata[4]} - %{customdata[5]}' +
+              '<extra></extra>',
+            showlegend: false,
+          },
+        ],
+        {
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(11, 21, 35, 0.35)',
+          hovermode: 'closest',
+          margin: {
+            l: 56,
+            r: 14,
+            t: 6,
+            b: 20,
+          },
+          font: { color: chartTextColor },
+          xaxis: {
+            color: chartTextColor,
+            gridcolor: 'rgba(0,0,0,0)',
+            range: [-0.35, 0.35],
+            zeroline: false,
+            showticklabels: false,
+          },
+          yaxis: {
+            color: chartTextColor,
+            gridcolor: chartMutedColor,
+            zeroline: false,
+          },
+          hoverlabel: {
+            bgcolor: 'rgba(11, 21, 35, 0.94)',
+            bordercolor: 'rgba(159, 176, 199, 0.28)',
+            font: {
+              color: '#e8eef7',
+              size: 11,
+            },
+          },
+        },
+        { displayModeBar: false, responsive: true },
+      );
+    }
+
+    function buildViolinPanel() {
+      const payload = chartPayload.violin_panel || {};
+      violinConfigs.forEach((config) => {
+        const groupPayload = payload[config.group_key] || {};
+        buildViolinChart(config, groupPayload[config.payload_key]);
+      });
+    }
+
+    function buildLineChart(containerId, labels, values, color, labelText) {
+      const canvas = document.getElementById(containerId);
+      if (!canvas) {
+        return;
+      }
+      const numericValues = values.filter((value) => Number.isFinite(value));
+      if (!Array.isArray(labels) || labels.length < 2 || numericValues.length < 2) {
+        showChartFallback(containerId, 'Insufficient history');
+        return;
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return;
+      }
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: labelText,
+            data: values,
+            borderColor: color,
+            backgroundColor: color.replace('0.92', '0.18'),
+            pointBackgroundColor: color,
+            pointBorderColor: '#0f1b2d',
+            borderWidth: 3,
+            tension: 0.25,
+            spanGaps: false,
+            fill: true,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: chartTextColor, maxRotation: 0, autoSkip: true },
+              grid: { color: chartMutedColor },
+            },
+            y: {
+              ticks: { color: chartTextColor },
+              grid: { color: chartMutedColor },
+            },
+          },
+        },
+      });
+      timeSeriesCharts.push(chart);
+    }
+
+    function buildTimeSeriesCharts() {
+      const payload = chartPayload.time_series_charts || {};
+      const labels = payload.snapshot_labels || [];
+      timeSeriesCharts.splice(0, timeSeriesCharts.length).forEach((chart) => chart.destroy());
+      timeSeriesSpecs.forEach((spec) => {
+        buildLineChart(
+          spec.container_id,
+          labels,
+          payload[spec.key] || [],
+          spec.color,
+          spec.label
+        );
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      buildDoughnutChart();
+      buildBarChart();
+      buildViolinPanel();
+      buildTimeSeriesCharts();
+    });
+  </script>
+
+</body>
+</html>
