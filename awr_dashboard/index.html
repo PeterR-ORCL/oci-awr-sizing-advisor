@@ -35,7 +35,7 @@
       line-height: 1.6;
     }
     .container {
-      max-width: 1280px;
+      max-width: 1600px;
       margin: 0 auto;
       padding: 28px 20px 40px;
     }
@@ -52,7 +52,9 @@
       backdrop-filter: blur(14px);
     }
     .hero {
+      position: relative;
       padding: 28px;
+      padding-right: 280px;
       border: 1px solid var(--line);
       border-radius: 22px;
       background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
@@ -71,10 +73,13 @@
     .hero-summary { margin: 0 0 10px; color: var(--text); max-width: 820px; }
     .hero-meta, .meta { color: var(--muted); font-size: 13px; }
     .page-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      width: 100%;
+      gap: 8px;
+      overflow-x: visible;
+      white-space: nowrap;
+      padding: 10px;
       border: 1px solid var(--line);
       border-radius: 18px;
       background: rgba(10, 20, 34, 0.88);
@@ -83,8 +88,10 @@
     .nav-link {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      width: 100%;
       border-radius: 999px;
-      padding: 8px 14px;
+      padding: 7px 12px;
       color: var(--text);
       text-decoration: none;
       border: 1px solid rgba(159, 176, 199, 0.26);
@@ -96,6 +103,17 @@
       color: #08111d;
       background: var(--accent);
       border-color: rgba(90, 209, 255, 0.6);
+    }
+    .runtime-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      text-align: right;
+    }
+    .runtime-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
     }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;
@@ -155,6 +173,88 @@
       gap: 14px;
     }
     .visual-layer-grid, .scalar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .diagnostic-block {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .diagnostic-block:first-of-type { margin-top: 0; }
+    .domain-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .domain-strip-item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .domain-strip-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .domain-strip-track {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(159, 176, 199, 0.18);
+    }
+    .domain-strip-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+    }
+    .selector-control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .selector-control {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .selector-control input,
+    .selector-control select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: rgba(16, 28, 45, 0.82);
+      font: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .static-selection-note {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .scope-chip.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.6);
+    }
+    .static-option-row {
+      margin-top: 2px;
+    }
+    .decision-summary-confidence {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -428,9 +528,25 @@
       .half, .chart-panel { grid-column: span 6; }
     }
     @media (max-width: 780px) {
+      .page-nav {
+        display: flex;
+        overflow-x: auto;
+      }
+      .hero {
+        padding-right: 28px;
+      }
+      .runtime-badge {
+        position: static;
+        text-align: left;
+        margin-bottom: 12px;
+      }
+      .nav-link {
+        flex: 0 0 auto;
+        width: auto;
+      }
       .flow-grid, .nav-card-grid, .health-check-grid,
       .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
-      .visual-summary-grid {
+      .visual-summary-grid, .domain-strip, .selector-control-grid {
         grid-template-columns: 1fr;
       }
       h1 { font-size: 28px; }
@@ -442,16 +558,24 @@
   <div class="container">
     <div class="top-shell sticky-shell">
       <section class="hero">
-        <div class="eyebrow">AWR Performance Intelligence Dashboard</div>
+        <div class="eyebrow">AWR PERFORMANCE INTELLIGENCE</div>
         <h1>AWR Performance Intelligence Dashboard</h1>
+        
+      <div class="runtime-badge">
+        <span class="status-pill success">FULL DB MODE</span>
+        <div class="runtime-meta">
+          DB: Connected · Similarity: Available
+        </div>
+      </div>
+    
         <p class="hero-summary">
-          Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
-          and action guidance.
+          Deterministic Oracle AWR intelligence delivering consistent diagnosis,
+          historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: Apr 23, 2026, 10:17 AM</div>
+        <div class="hero-meta">Generated: May 1, 2026, 10:07 AM</div>
       </section>
 
-      <nav class="page-nav"><a class="nav-link active" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">Screen 1 - Ingestion</a><a class="nav-link" href="screen_2_analysis.html">Screen 2 - Analysis</a><a class="nav-link" href="screen_3_history_selector.html">Screen 3 - History Selector</a><a class="nav-link" href="screen_4_historical_review.html">Screen 4 - Historical Review</a><a class="nav-link" href="screen_5_recommendation_action.html">Screen 5 - Recommendation / Action</a></nav>
+      <nav class="page-nav"><a class="nav-link active" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
     </div>
 
     
@@ -459,10 +583,11 @@
       <!-- index.html is the explanation and navigation layer. -->
       <section class="card primary">
         <div class="section-kicker">Platform Identity</div>
-        <h2>AWR Performance Intelligence Dashboard</h2>
+        <h2>Platform Overview</h2>
         <p>
-          A structured intelligence layer that transforms Oracle AWR reports into
-          deterministic diagnosis, historical comparison, and action-ready guidance.
+          This dashboard provides a deterministic interpretation of Oracle AWR data,
+          combining canonical diagnosis, historical validation, and actionable guidance
+          across a structured multi-screen workflow.
         </p>
       </section>
 
@@ -515,7 +640,7 @@
           
       <article class="flow-step">
         <strong>Dashboard / Output</strong>
-        <p>The product presents diagnosis, historical review, and action guidance through the 5-screen model.</p>
+        <p>The product presents diagnosis, historical review, action guidance, and fleet context through the multi-screen model.</p>
       </article>
     
         </div>
@@ -599,17 +724,17 @@
 
       <section class="card prominent">
         <div class="section-kicker">Navigation</div>
-        <h2>5-Screen Product Model</h2>
+        <h2>6-Screen Product Model</h2>
         <div class="nav-card-grid">
           
       <a class="nav-card" href="screen_1_ingestion.html">
         <h3>Screen 1 - Ingestion / Parse Confidence / Adaptation</h3>
-        <ul><li><strong>Total Files:</strong> 21.0</li><li><strong>Succeeded:</strong> 21.0</li><li><strong>Source Mode:</strong> LOCAL</li></ul>
+        <ul><li><strong>Total Files:</strong> 24</li><li><strong>Succeeded:</strong> 24</li><li><strong>Source Mode:</strong> LOCAL</li></ul>
       </a>
     
       <a class="nav-card" href="screen_2_analysis.html">
         <h3>Screen 2 - Analysis</h3>
-        <ul><li><strong>Primary Issue:</strong> CPU</li><li><strong>Overall Status:</strong> WARNING</li><li><strong>Confidence:</strong> 0.58</li></ul>
+        <ul><li><strong>Overall Status:</strong> WARNING</li><li><strong>Confidence:</strong> 0.217</li></ul>
       </a>
     
       <a class="nav-card" href="screen_3_history_selector.html">
@@ -619,12 +744,17 @@
     
       <a class="nav-card" href="screen_4_historical_review.html">
         <h3>Screen 4 - Historical Review</h3>
-        <ul><li><strong>Scope:</strong> RCCPU / 7001001002</li><li><strong>Snapshot Count:</strong> 21.0</li><li><strong>Comparison Window:</strong> 21 / 174h</li></ul>
+        <ul><li><strong>Scope:</strong> SPRTRN / 8101005004</li><li><strong>Snapshot Count:</strong> 24</li><li><strong>Comparison Window:</strong> 24 / 106h</li></ul>
       </a>
     
       <a class="nav-card" href="screen_5_recommendation_action.html">
         <h3>Screen 5 - Recommendation / Action</h3>
-        <ul><li><strong>Recommendation Count:</strong> 2</li><li><strong>Primary Issue:</strong> CPU</li><li><strong>DB Name:</strong> RCCPU</li></ul>
+        <ul><li><strong>Recommendation Count:</strong> 0</li><li><strong>DB Name:</strong> SPRTRN</li></ul>
+      </a>
+    
+      <a class="nav-card" href="screen_6_fleet_overview.html">
+        <h3>Screen 6 - Fleet Overview</h3>
+        <ul><li><strong>Similar AWRs:</strong> 5</li><li><strong>Cluster:</strong> No stable similarity cluster has been established for this dataset.</li><li><strong>Rarity:</strong> Pattern appears common within the current similarity space.</li></ul>
       </a>
     
         </div>
@@ -632,7 +762,7 @@
     </div>
     
 
-    <div class="footer">Generated at Apr 23, 2026, 10:17 AM</div>
+    <div class="footer">Generated at May 1, 2026, 10:07 AM</div>
   </div>
 
 

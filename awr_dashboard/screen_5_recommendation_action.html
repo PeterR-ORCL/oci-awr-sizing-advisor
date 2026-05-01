@@ -35,7 +35,7 @@
       line-height: 1.6;
     }
     .container {
-      max-width: 1280px;
+      max-width: 1600px;
       margin: 0 auto;
       padding: 28px 20px 40px;
     }
@@ -52,7 +52,9 @@
       backdrop-filter: blur(14px);
     }
     .hero {
+      position: relative;
       padding: 28px;
+      padding-right: 280px;
       border: 1px solid var(--line);
       border-radius: 22px;
       background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
@@ -71,10 +73,13 @@
     .hero-summary { margin: 0 0 10px; color: var(--text); max-width: 820px; }
     .hero-meta, .meta { color: var(--muted); font-size: 13px; }
     .page-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      width: 100%;
+      gap: 8px;
+      overflow-x: visible;
+      white-space: nowrap;
+      padding: 10px;
       border: 1px solid var(--line);
       border-radius: 18px;
       background: rgba(10, 20, 34, 0.88);
@@ -83,8 +88,10 @@
     .nav-link {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      width: 100%;
       border-radius: 999px;
-      padding: 8px 14px;
+      padding: 7px 12px;
       color: var(--text);
       text-decoration: none;
       border: 1px solid rgba(159, 176, 199, 0.26);
@@ -96,6 +103,17 @@
       color: #08111d;
       background: var(--accent);
       border-color: rgba(90, 209, 255, 0.6);
+    }
+    .runtime-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      text-align: right;
+    }
+    .runtime-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
     }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;
@@ -155,6 +173,88 @@
       gap: 14px;
     }
     .visual-layer-grid, .scalar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .diagnostic-block {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .diagnostic-block:first-of-type { margin-top: 0; }
+    .domain-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .domain-strip-item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .domain-strip-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .domain-strip-track {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(159, 176, 199, 0.18);
+    }
+    .domain-strip-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+    }
+    .selector-control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .selector-control {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .selector-control input,
+    .selector-control select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: rgba(16, 28, 45, 0.82);
+      font: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .static-selection-note {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .scope-chip.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.6);
+    }
+    .static-option-row {
+      margin-top: 2px;
+    }
+    .decision-summary-confidence {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -428,9 +528,25 @@
       .half, .chart-panel { grid-column: span 6; }
     }
     @media (max-width: 780px) {
+      .page-nav {
+        display: flex;
+        overflow-x: auto;
+      }
+      .hero {
+        padding-right: 28px;
+      }
+      .runtime-badge {
+        position: static;
+        text-align: left;
+        margin-bottom: 12px;
+      }
+      .nav-link {
+        flex: 0 0 auto;
+        width: auto;
+      }
       .flow-grid, .nav-card-grid, .health-check-grid,
       .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
-      .visual-summary-grid {
+      .visual-summary-grid, .domain-strip, .selector-control-grid {
         grid-template-columns: 1fr;
       }
       h1 { font-size: 28px; }
@@ -442,23 +558,31 @@
   <div class="container">
     <div class="top-shell sticky-shell">
       <section class="hero">
-        <div class="eyebrow">AWR Performance Intelligence Dashboard</div>
-        <h1>AWR Performance Intelligence Dashboard</h1>
+        <div class="eyebrow">AWR PERFORMANCE INTELLIGENCE</div>
+        <h1>Screen 5 - Recommendation / Action</h1>
+        
+      <div class="runtime-badge">
+        <span class="status-pill success">FULL DB MODE</span>
+        <div class="runtime-meta">
+          DB: Connected · Similarity: Available
+        </div>
+      </div>
+    
         <p class="hero-summary">
-          Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
-          and action guidance.
+          Deterministic Oracle AWR intelligence delivering consistent diagnosis,
+          historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: Apr 23, 2026, 10:17 AM</div>
+        <div class="hero-meta">Generated: May 1, 2026, 10:07 AM</div>
       </section>
 
-      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">Screen 1 - Ingestion</a><a class="nav-link" href="screen_2_analysis.html">Screen 2 - Analysis</a><a class="nav-link" href="screen_3_history_selector.html">Screen 3 - History Selector</a><a class="nav-link" href="screen_4_historical_review.html">Screen 4 - Historical Review</a><a class="nav-link active" href="screen_5_recommendation_action.html">Screen 5 - Recommendation / Action</a></nav>
+      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link active" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
     </div>
 
     
     <div class="grid">
       <!-- Screen 5 = action / decision / sizing guidance. -->
       <section class="card prominent">
-        <div class="section-kicker">Final Decision Banner</div>
+        <div class="section-kicker">DECISION</div>
         <h2>Decision Posture</h2>
         <div class="info-grid">
             <div class="info-box">
@@ -470,216 +594,60 @@
               <strong>Risk</strong>
               <div>WARNING</div>
             </div>
-            
-            <div class="info-box">
-              <strong>Primary Driver</strong>
-              <div>CPU</div>
-            </div>
             </div>
         <div class="banner-meta-strip">
-          <div class="pill-stack"><div class="pill-cell"><span class="confidence-pill medium">MEDIUM</span><span class="pill-label-row pill-caption">Confidence</span></div><div class="pill-cell"><span class="severity medium">WARNING</span><span class="pill-label-row pill-caption">Risk</span></div><div class="pill-cell"><span class="severity low">TUNE FIRST</span><span class="pill-label-row pill-caption">Posture</span></div></div>
-        </div>
-      </section>
-      <section class="card prominent decision-layer-card">
-        <div class="section-kicker">Decision Layer</div>
-        <h2>Decision Detail</h2>
-        <div class="decision-grid">
-          
-    <div class="decision-box">
-      <strong>Primary Decision</strong>
-      <div>Start with the most material SQL and execution-path bottlenecks first. Current decision posture: TUNE FIRST.</div>
-    </div>
-    
-    <div class="decision-box">
-      <strong>Execution Plan</strong>
-      <ol><li>Identify and tune the highest CPU- and elapsed-time SQL first.</li><li>Reduce physical reads by correcting SQL and access paths behind the dominant User I/O waits.</li><li>As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow.</li><li>Address concurrency after the primary CPU, SQL, I/O, and commit fixes are underway.</li></ol>
-    </div>
-    
-    <div class="decision-box">
-      <strong>Defer / Do Not Do</strong>
-      <ol><li>Do not scale now.</li><li>Do not treat storage as the first remedy.</li><li>Do not prioritize concurrency ahead of CPU, SQL concentration, User I/O, or commit latency.</li></ol>
-    </div>
-    
-    <div class="decision-box">
-      <strong>Scaling Posture</strong>
-      <div>TUNE FIRST</div>
-    </div>
-    
-    <div class="decision-box">
-      <strong>Confidence Level</strong>
-      <div>MEDIUM</div>
-    </div>
-    
+          <div class="pill-stack"><div class="pill-cell"><span class="confidence-pill low">LOW</span><span class="pill-label-row pill-caption">Confidence</span></div><div class="pill-cell"><span class="severity medium">WARNING</span><span class="pill-label-row pill-caption">Risk</span></div><div class="pill-cell"><span class="severity low">TUNE FIRST</span><span class="pill-label-row pill-caption">Posture</span></div></div>
         </div>
       </section>
       <section class="card secondary">
-        <div class="section-kicker">Prioritized Actions</div>
-        <h2>Recommended Actions</h2>
+        <div class="section-kicker">ACTION</div>
+        <h2>Recommendations / Guidance</h2>
         
       <div class="subgrid">
         <section class="evidence-pane">
-          <h3>Prioritized Recommended Actions</h3>
+          <h3>Deterministic Recommendations</h3>
           <div class="stack">
-            
-                <section class="supportive-panel">
-                  <h3>Immediate Actions</h3>
-                  <div class="stack">
-                    
-            <article class="item">
-              <div class="pill-stack"><div class="pill-cell"><span class="severity high">HIGH</span><span class="pill-label-row pill-caption">Priority</span></div><div class="pill-cell"><span class="confidence-pill high">HIGH</span><span class="pill-label-row pill-caption">Confidence</span></div><div class="pill-cell"><span class="scope-chip">capacity</span><span class="pill-label-row pill-caption">Type</span></div></div>
-              <h3>CPU</h3>
-              <p><strong>Action:</strong> Reduce sustained CPU pressure by prioritizing high-load SQL and validating execution efficiency before scaling.</p>
-              
-              <p><strong>Rationale:</strong> CPU pressure is best reduced by tuning the highest-load SQL paths and validating execution efficiency before considering additional capacity.</p>
-            </article>
-            
-            <article class="item">
-              <div class="pill-stack"><div class="pill-cell"><span class="severity high">HIGH</span><span class="pill-label-row pill-caption">Priority</span></div><div class="pill-cell"><span class="confidence-pill medium">MEDIUM</span><span class="pill-label-row pill-caption">Confidence</span></div><div class="pill-cell"><span class="scope-chip">execution-plan</span><span class="pill-label-row pill-caption">Type</span></div></div>
-              <h3>Commit behavior</h3>
-              <p><strong>Action:</strong> As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow.</p>
-              
-              <p><strong>Rationale:</strong> Secondary optimization after the dominant CPU and SQL actions.</p>
-            </article>
-            
-                  </div>
-                </section>
-                
+            <div class="item"><div class="meta">No deterministic actions are recommended at this time.</div></div>
+          </div>
+        </section>
+        <section class="evidence-pane">
+          <h3>Posture Guidance</h3>
+          <div class="supportive-panel">
+            <div class="meta">
+              Generated from current decision posture, not from canonical recommendation list.
+            </div>
+            <div class="narrative">The current posture indicates that performance tuning and validation should be prioritized before considering any scaling decisions.</div>
           </div>
         </section>
         <section class="evidence-pane">
           <h3>Supporting Evidence</h3>
           <div class="stack">
-            
-      <article class="item">
-        <div class="meta">Primary Evidence</div>
-        <h3>CPU</h3>
-        <p>CPU provides the strongest deterministic evidence in the selected scope.</p>
-        
-      </article>
-    
+            <div class="item"><div class="meta">No supporting evidence payload was provided for this section.</div></div>
           </div>
-        </section>
-        <section class="evidence-pane">
-          <h3>Action Summary</h3>
-          <div class="stack">
-            <div class="banner-meta-strip">
-              <div class="pill-stack"><div class="pill-cell"><span class="confidence-pill medium">MEDIUM</span><span class="pill-label-row pill-caption">Confidence</span></div><div class="pill-cell"><span class="severity medium">WARNING</span><span class="pill-label-row pill-caption">Risk</span></div><div class="pill-cell"><span class="severity low">TUNE FIRST</span><span class="pill-label-row pill-caption">Posture</span></div></div>
-            </div>
-            <div class="info-grid">
-            <div class="info-box">
-              <strong>Primary Issue</strong>
-              <div>CPU</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Overall Status</strong>
-              <div>WARNING</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Health Summary</strong>
-              <div>FAIL</div>
-            </div>
-            </div>
-          </div>
-        </section>
-        <section class="evidence-pane">
-          <h3>Action Explanation</h3>
-          <div class="supportive-panel">
-            <div class="meta">
-              Supportive, non-authoritative explanation derived from canonical findings.
-            </div>
-            <div class="narrative">Tune First remains appropriate because the dominant pressure is still internal to workload efficiency rather than a clear capacity shortfall.</div>
-          </div>
-        </section>
-        <section class="evidence-pane">
-          <h3>Future Extensions</h3>
-          
-            <div class="supportive-panel guidance-panel">
-              <div class="meta">Structured, platform-neutral guidance for future capacity planning.</div>
-            
-            <section class="supportive-block">
-              <h3>Current Posture</h3>
-              <div class="narrative">
-                The current evidence still supports tuning before scaling because the dominant pressure is internal to workload efficiency rather than a clear capacity shortfall.
-              </div>
-            </section>
-            
-            <section class="supportive-block">
-              <h3>When Scaling Becomes Appropriate</h3>
-              <div class="narrative">
-                Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies have been reduced and the same governing constraint still remains afterward.
-              </div>
-            </section>
-            
-            <section class="supportive-block">
-              <h3>Architectural Guidance</h3>
-              <div class="narrative">
-                Keep the architecture aligned to a compute-first tuning path so residual pressure can be re-evaluated cleanly before any broader capacity change.
-              </div>
-            </section>
-            
-            </div>
-            <div class="info-grid">
-            <div class="info-box">
-              <strong>Remediation Options</strong>
-              <div>As a secondary optimization, review and tighten commit frequency and commit-processing behavior in the application flow.</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Operational Next Steps</strong>
-              <div>Complete the first tuning pass, then reassess residual pressure.</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Cost / Impact Guidance</strong>
-              <div>TUNE FIRST</div>
-            </div>
-            </div>
         </section>
       </div>
     
-      </section>
-      <section class="card primary">
-        <h2>Recommended Action Plan</h2>
-        <div class="narrative">Tune First remains the correct posture for the current evidence.</div>
-      </section>
-      <section class="card primary">
-        <h2>Capacity / Sizing Guidance</h2>
-        <div class="supportive-panel guidance-panel">
-          <div class="meta">
-            Platform-neutral guidance derived from the deterministic decision posture.
-          </div>
-          <div class="narrative">
-            The current evidence still supports tuning before scaling. TUNE FIRST remains appropriate at medium confidence. Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies have been reduced and the same governing constraint still remains afterward. Keep the architecture aligned to a compute-first tuning path, and treat broader storage changes as secondary unless I/O pressure persists after tuning.
-          </div>
-        </div>
       </section>
       
       <section class="card secondary">
         <h2>Technical Detail</h2>
         <details class="engineering-detail" open><summary>Engineering View</summary><div class="engineering-detail-body"><section class="supportive-block"><h3>Scoring Detail</h3><div class="info-grid">
             <div class="info-box">
-              <strong>Primary Issue Score</strong>
-              <div>0.6</div>
-            </div>
-            
-            <div class="info-box">
               <strong>Confidence Score</strong>
-              <div>0.6</div>
+              <div>0.2</div>
             </div>
             
             <div class="info-box">
               <strong>Severity Score</strong>
               <div>0.4</div>
             </div>
-            </div></section><section class="supportive-block"><h3>Supporting Metrics</h3><ul><li><strong>CPU_UTIL_P95:</strong> 43.8</li><li><strong>DB_CPU_PCT_DB_TIME:</strong> 43.8</li></ul></section><section class="supportive-block"><h3>Domain Scores</h3><div class="item"><div class="meta">Domain Scores</div><ul><li><strong>CPU:</strong> 0.6</li></ul></div></section><section class="supportive-block"><h3>Context Notes</h3><ul><li>Anomaly windows in scope: 11</li></ul></section></div></details>
+            </div></section><section class="supportive-block"><h3>Domain Scores</h3><div class="item"><div class="meta">No score content is available.</div></div></section><section class="supportive-block"><h3>Context Notes</h3><ul><li>Anomaly windows in scope: 15</li></ul></section></div></details>
       </section>
       
     </div>
     
 
-    <div class="footer">Generated at Apr 23, 2026, 10:17 AM</div>
+    <div class="footer">Generated at May 1, 2026, 10:07 AM</div>
   </div>
 
 

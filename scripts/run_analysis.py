@@ -31,7 +31,12 @@ from src.analysis.similarity_intelligence import (
     is_similarity_intelligence_disabled,
 )
 from src.analysis.violin_panel_builder import build_violin_panel_data
-from src.ingest.awr_adb_loader import build_feature_vector_record, get_db_connection
+from src.ingest.awr_adb_loader import (
+    build_feature_vector_record,
+    get_db_connection,
+    process_awr_batch,
+    upsert_feature_vector,
+)
 from src.parser.awr_parser import parse_awr_file
 from src.reporting.html_dashboard import generate_html_dashboard
 
@@ -46,7 +51,11 @@ def _load_local_env_file() -> tuple[bool, Path]:
     """Load the repository-local .env file for consistent provider resolution."""
 
     env_path = Path(__file__).resolve().parents[1] / ".env"
-    loaded = load_dotenv(dotenv_path=env_path, override=False) if env_path.exists() else False
+    loaded = (
+        load_dotenv(dotenv_path=env_path, override=False)
+        if env_path.exists()
+        else False
+    )
     return loaded, env_path
 
 
@@ -155,9 +164,11 @@ def _format_generated_at_local() -> str:
 def _format_datetime_display(value: datetime | None) -> str:
     if value is None:
         return "Unavailable"
-    return value.strftime("%b ") + str(value.day) + value.strftime(
-        ", %Y, %I:%M %p"
-    ).replace(" 0", " ")
+    return (
+        value.strftime("%b ")
+        + str(value.day)
+        + value.strftime(", %Y, %I:%M %p").replace(" 0", " ")
+    )
 
 
 def _format_interval_display(
@@ -353,12 +364,7 @@ def _series_note_from_rows(metric_rows: list[dict[str, Any]]) -> str | None:
         return None
     quality_text = ", ".join(data_quality_flags) if data_quality_flags else "Unknown"
     collapse_text = ", ".join(collapse_rules) if collapse_rules else "Unknown"
-    return (
-        "Data quality: "
-        + quality_text
-        + "; collapse rule: "
-        + collapse_text
-    )
+    return "Data quality: " + quality_text + "; collapse rule: " + collapse_text
 
 
 def _build_db_scope_metric_history(
@@ -434,7 +440,9 @@ def _build_db_scope_metric_history(
             "point_count": point_count,
             "chronological": all(
                 earlier["SNAP_BEGIN_TIME"] <= later["SNAP_BEGIN_TIME"]
-                for earlier, later in zip(metric_scope_rows, metric_scope_rows[1:], strict=False)
+                for earlier, later in zip(
+                    metric_scope_rows, metric_scope_rows[1:], strict=False
+                )
             ),
             "data_quality_flags": sorted(
                 {
@@ -451,7 +459,9 @@ def _build_db_scope_metric_history(
                 }
             ),
         }
-        metrics_by_domain[definition.domain].append(metrics_by_name[definition.metric_name])
+        metrics_by_domain[definition.domain].append(
+            metrics_by_name[definition.metric_name]
+        )
         debug_lines.append(
             "DB metric "
             + definition.metric_name
@@ -461,9 +471,7 @@ def _build_db_scope_metric_history(
         )
 
     non_empty_domain_metrics = {
-        domain: metrics
-        for domain, metrics in metrics_by_domain.items()
-        if metrics
+        domain: metrics for domain, metrics in metrics_by_domain.items() if metrics
     }
     rendered_domains = list(non_empty_domain_metrics)
     debug_lines.append(
@@ -488,7 +496,9 @@ def _history_values_for_metric(
 ) -> list[float | None]:
     snapshot_labels = db_scope_metrics.get("snapshot_labels") or []
     for metric_name in metric_names:
-        metric_history = (db_scope_metrics.get("metrics_by_name") or {}).get(metric_name)
+        metric_history = (db_scope_metrics.get("metrics_by_name") or {}).get(
+            metric_name
+        )
         if metric_history:
             return list(metric_history["values"])
     return [None] * len(snapshot_labels)
@@ -676,9 +686,13 @@ def _collect_event_classes(
 ) -> list[str]:
     return list(
         dict.fromkeys(
-            str((context.get("topology") or {}).get("operational_event_class") or "").strip()
+            str(
+                (context.get("topology") or {}).get("operational_event_class") or ""
+            ).strip()
             for context in snapshot_contexts
-            if str((context.get("topology") or {}).get("operational_event_class") or "").strip()
+            if str(
+                (context.get("topology") or {}).get("operational_event_class") or ""
+            ).strip()
             not in {"", "NONE"}
         )
     )
@@ -688,7 +702,9 @@ def _collect_topology_labels(
     snapshot_contexts: list[dict[str, Any]],
 ) -> list[str]:
     labels: list[str] = []
-    if any((context.get("topology") or {}).get("is_rac") for context in snapshot_contexts):
+    if any(
+        (context.get("topology") or {}).get("is_rac") for context in snapshot_contexts
+    ):
         labels.append("RAC")
     if any(
         (context.get("topology") or {}).get("is_dataguard")
@@ -703,7 +719,10 @@ def _collect_topology_labels(
 def _collect_platform_labels(
     snapshot_contexts: list[dict[str, Any]],
 ) -> list[str]:
-    if any((context.get("topology") or {}).get("is_exadata") for context in snapshot_contexts):
+    if any(
+        (context.get("topology") or {}).get("is_exadata")
+        for context in snapshot_contexts
+    ):
         return ["Exadata"]
     return ["Generic"]
 
@@ -745,9 +764,7 @@ def _format_dataguard_evidence_phrase(
     role_text = str(database_role or "UNKNOWN").strip() or "UNKNOWN"
     lag_parts: list[str] = []
     if transport_lag_sec is not None:
-        lag_parts.append(
-            f"transport lag is {_format_metric(transport_lag_sec, 's')}"
-        )
+        lag_parts.append(f"transport lag is {_format_metric(transport_lag_sec, 's')}")
     if apply_lag_sec is not None:
         lag_parts.append(f"apply lag is {_format_metric(apply_lag_sec, 's')}")
     if lag_parts:
@@ -864,9 +881,7 @@ def _dashboard_decision_recommendation_dicts(
         normalized.append(
             {
                 "issue_type": issue_type,
-                "severity": str(
-                    recommendation_dict.get("priority") or "low"
-                ).lower(),
+                "severity": str(recommendation_dict.get("priority") or "low").lower(),
                 "recommendation": recommendation_dict.get("action", ""),
                 "rationale": recommendation_dict.get("rationale", ""),
                 "next_step": recommendation_dict.get("title", ""),
@@ -886,22 +901,16 @@ def _build_summary_key_signals(
 
     event_class = str(topology.get("operational_event_class") or "").strip()
     if event_class and event_class != "NONE":
-        signals.append(
-            "Operational event: " + _humanize_classification(event_class)
-        )
+        signals.append("Operational event: " + _humanize_classification(event_class))
     elif topology.get("interconnect_stress_flag"):
         signals.append("Operational state: Interconnect Stress")
 
-    signals.append(
-        f"CPU: {_format_metric(metrics.get('cpu_pct'), '%')} DB time"
-    )
+    signals.append(f"CPU: {_format_metric(metrics.get('cpu_pct'), '%')} DB time")
     signals.append(
         "Top SQL concentration (top 3 share): "
         + _format_metric(metrics.get("top_sql_concentration"), "%")
     )
-    signals.append(
-        f"User I/O: {_format_metric(metrics.get('user_io_pct'), '%')}"
-    )
+    signals.append(f"User I/O: {_format_metric(metrics.get('user_io_pct'), '%')}")
 
     if metrics.get("cluster_wait_pct_db_time") is not None:
         signals.append(
@@ -918,13 +927,11 @@ def _build_summary_key_signals(
 
     if metrics.get("transport_lag_sec") is not None:
         signals.append(
-            "Transport lag: "
-            + _format_metric(metrics.get("transport_lag_sec"), "s")
+            "Transport lag: " + _format_metric(metrics.get("transport_lag_sec"), "s")
         )
     elif metrics.get("apply_lag_sec") is not None:
         signals.append(
-            "Apply lag: "
-            + _format_metric(metrics.get("apply_lag_sec"), "s")
+            "Apply lag: " + _format_metric(metrics.get("apply_lag_sec"), "s")
         )
 
     if metrics.get("exa_cell_io_pct_db_time") is not None:
@@ -1029,11 +1036,16 @@ def _transition_metric_tokens(metric: str) -> list[str]:
         for part in re.split(r"\s*/\s*", normalized)
         if part.strip()
     ]
-    return [part for part in parts if part in {
-        "Failover Event",
-        "Role Transition",
-        "Post-Failover Recovery",
-    }]
+    return [
+        part
+        for part in parts
+        if part
+        in {
+            "Failover Event",
+            "Role Transition",
+            "Post-Failover Recovery",
+        }
+    ]
 
 
 def _dedupe_anomaly_windows(
@@ -1053,9 +1065,9 @@ def _dedupe_anomaly_windows(
         if existing is None:
             deduped[key] = normalized_window
             continue
-        if _severity_score(str(normalized_window.get("severity") or "")) > _severity_score(
-            str(existing.get("severity") or "")
-        ):
+        if _severity_score(
+            str(normalized_window.get("severity") or "")
+        ) > _severity_score(str(existing.get("severity") or "")):
             deduped[key] = normalized_window
             continue
         if len(str(normalized_window.get("reason") or "")) > len(
@@ -1093,13 +1105,18 @@ def _collapse_transition_event_windows(
         distinct_transition_tokens = [
             metric
             for metric in transition_order
-            if any(metric in _transition_metric_tokens(window["metric"]) for window in interval_windows)
+            if any(
+                metric in _transition_metric_tokens(window["metric"])
+                for window in interval_windows
+            )
         ]
         if len(distinct_transition_tokens) == 1:
             matching_window = next(
                 (
-                    window for window in interval_windows
-                    if distinct_transition_tokens[0] in _transition_metric_tokens(window["metric"])
+                    window
+                    for window in interval_windows
+                    if distinct_transition_tokens[0]
+                    in _transition_metric_tokens(window["metric"])
                 ),
                 interval_windows[0],
             )
@@ -1143,8 +1160,7 @@ def _build_local_time_series(snapshot_contexts: list[dict[str, Any]]) -> dict[st
         context["metrics"]["concurrency_pct"] for context in snapshot_contexts
     ]
     sql_concentration_trend = [
-        context["metrics"]["top_sql_concentration"]
-        for context in snapshot_contexts
+        context["metrics"]["top_sql_concentration"] for context in snapshot_contexts
     ]
     hard_parses_trend = [
         context["metrics"]["hard_parses_per_sec"] for context in snapshot_contexts
@@ -1206,9 +1222,7 @@ def _build_local_time_series(snapshot_contexts: list[dict[str, Any]]) -> dict[st
             "dg_transport_lag": _trend_direction(dg_transport_lag_trend),
             "dg_apply_lag": _trend_direction(dg_apply_lag_trend),
             "exa_cell_io": _trend_direction(exa_cell_io_trend),
-            "exa_offload_efficiency": _trend_direction(
-                exa_offload_efficiency_trend
-            ),
+            "exa_offload_efficiency": _trend_direction(exa_offload_efficiency_trend),
         },
     }
 
@@ -1313,9 +1327,7 @@ def _build_time_series(
             "dg_transport_lag": _trend_direction(dg_transport_lag_trend),
             "dg_apply_lag": _trend_direction(dg_apply_lag_trend),
             "exa_cell_io": _trend_direction(exa_cell_io_trend),
-            "exa_offload_efficiency": _trend_direction(
-                exa_offload_efficiency_trend
-            ),
+            "exa_offload_efficiency": _trend_direction(exa_offload_efficiency_trend),
         },
     }
 
@@ -1386,7 +1398,10 @@ def _build_anomaly_windows(
     anomalies = _collapse_transition_event_windows(anomalies)
     anomalies = _dedupe_anomaly_windows(anomalies)
     anomalies.sort(
-        key=lambda window: (_severity_score(window["severity"]), window["snapshot_label"]),
+        key=lambda window: (
+            _severity_score(window["severity"]),
+            window["snapshot_label"],
+        ),
         reverse=True,
     )
     return anomalies
@@ -1436,9 +1451,12 @@ def _build_topology_event_windows(
                 event_specs.append(
                     (
                         humanized,
-                        "high"
-                        if event_class in {"FAILOVER_EVENT", "POST_FAILOVER_RECOVERY"}
-                        else "medium",
+                        (
+                            "high"
+                            if event_class
+                            in {"FAILOVER_EVENT", "POST_FAILOVER_RECOVERY"}
+                            else "medium"
+                        ),
                         "Deterministic topology/event classification flagged "
                         f"{humanized.lower()} in this interval.",
                         None,
@@ -1512,7 +1530,8 @@ def _build_trend_findings(time_series: dict[str, Any]) -> list[str]:
         (
             "Available populated intervals suggest commit latency "
             f"{describe_sparse_direction(trend_directions['commit'])}."
-            if is_sparse_series("commit_trend") or has_fragmented_history("commit_trend")
+            if is_sparse_series("commit_trend")
+            or has_fragmented_history("commit_trend")
             else f"Commit latency {describe_direction(trend_directions['commit'])} over the same period."
         ),
         (
@@ -1645,13 +1664,9 @@ def _build_topology_assessment(context: dict[str, Any]) -> str | None:
         apply_lag = context["metrics"].get("apply_lag_sec")
         lag_parts: list[str] = []
         if transport_lag is not None:
-            lag_parts.append(
-                f"transport lag is {_format_metric(transport_lag, 's')}"
-            )
+            lag_parts.append(f"transport lag is {_format_metric(transport_lag, 's')}")
         if apply_lag is not None:
-            lag_parts.append(
-                f"apply lag is {_format_metric(apply_lag, 's')}"
-            )
+            lag_parts.append(f"apply lag is {_format_metric(apply_lag, 's')}")
         lag_text = (", with " + " and ".join(lag_parts) + ".") if lag_parts else "."
         if role == "UNKNOWN":
             statements.append(
@@ -1689,8 +1704,7 @@ def _build_topology_window_summary(
     time_series = multi_snapshot_analysis["time_series"]
 
     has_rac = any(
-        (context.get("topology") or {}).get("is_rac")
-        for context in snapshot_contexts
+        (context.get("topology") or {}).get("is_rac") for context in snapshot_contexts
     )
     has_dataguard = any(
         (context.get("topology") or {}).get("is_dataguard")
@@ -2010,8 +2024,12 @@ def _build_analysis_context(
     elif len(observed_hostnames) <= 2:
         hostname = " | ".join(observed_hostnames)
     else:
-        hostname = " | ".join(observed_hostnames[:2] + [f"+{len(observed_hostnames) - 2} more"])
-    operating_system = " | ".join(observed_platforms) if observed_platforms else "Unknown"
+        hostname = " | ".join(
+            observed_hostnames[:2] + [f"+{len(observed_hostnames) - 2} more"]
+        )
+    operating_system = (
+        " | ".join(observed_platforms) if observed_platforms else "Unknown"
+    )
     if not observed_versions:
         db_version = "Unknown"
     elif len(observed_versions) == 1:
@@ -2089,9 +2107,8 @@ def _build_analysis_context(
             cumulative_core_total = sum(core_values)
         if cpu_values and observed_host_count:
             cumulative_cpu_total = sum(cpu_values)
-    if (
-        normalized_instance_count
-        and normalized_instance_count > max(observed_host_count, 1)
+    if normalized_instance_count and normalized_instance_count > max(
+        observed_host_count, 1
     ):
         if latest_core_count is not None:
             cumulative_core_total = latest_core_count * normalized_instance_count
@@ -2164,7 +2181,9 @@ def _build_analysis_context(
         "operating_system": operating_system,
         "source_database": db_identity,
         "hostname": hostname,
-        "instance_count": str(normalized_instance_count) if normalized_instance_count else "Unknown",
+        "instance_count": (
+            str(normalized_instance_count) if normalized_instance_count else "Unknown"
+        ),
     }
 
 
@@ -2219,8 +2238,7 @@ def _snapshot_score(context: dict[str, Any]) -> float:
     issues = _get_compatibility_issues(context)
     metrics = context["metrics"]
     severity_points = sum(
-        _severity_score(str(issue.get("severity") or ""))
-        for issue in issues
+        _severity_score(str(issue.get("severity") or "")) for issue in issues
     )
     numeric_signals = [
         metrics.get("cpu_pct") or 0.0,
@@ -2379,9 +2397,7 @@ def _build_confidence(
         else "Only one snapshot is available"
     )
     if io_direction == commit_direction:
-        trend_phrase = (
-            f"User I/O and commit pressure both followed a {io_direction} pattern over the same window"
-        )
+        trend_phrase = f"User I/O and commit pressure both followed a {io_direction} pattern over the same window"
     else:
         trend_phrase = (
             f"User I/O followed a {io_direction} pattern while commit "
@@ -2420,8 +2436,10 @@ def _build_confidence(
             "pressure."
         )
 
-    if snapshot_count >= 4 and non_insufficient >= 4 and (
-        anomaly_windows or latest_issue_strength >= 3
+    if (
+        snapshot_count >= 4
+        and non_insufficient >= 4
+        and (anomaly_windows or latest_issue_strength >= 3)
     ):
         return {
             "level": "HIGH",
@@ -2461,10 +2479,13 @@ def _build_root_cause_interpretation(
     issues = _get_compatibility_issues(latest_context)
     topology = latest_context.get("topology") or {}
     issue_types = {str(issue.get("issue_type") or "") for issue in issues}
-    dominant_user_io = _dominant_wait_event(
-        latest_context["result"],
-        "User I/O",
-    ) or "single-block read activity"
+    dominant_user_io = (
+        _dominant_wait_event(
+            latest_context["result"],
+            "User I/O",
+        )
+        or "single-block read activity"
+    )
     module_text = (
         _top_sql_module_name(latest_context["result"])
         or "the dominant application module"
@@ -2601,7 +2622,9 @@ def _build_executive_summary_rationale(
     elif platform_text:
         second_sentence = f"The window reflects {platform_text} platform behavior"
     else:
-        second_sentence = "Topology and platform state remain part of the interpretation"
+        second_sentence = (
+            "Topology and platform state remain part of the interpretation"
+        )
 
     if unique_event_classes:
         transition_events = [
@@ -2712,12 +2735,8 @@ def _build_technical_narrative_text(
     summary_label = (
         "Multi-Snapshot Summary" if snapshot_count > 1 else "Snapshot Summary"
     )
-    trend_label = (
-        "Trend Findings" if snapshot_count > 1 else "Trend View"
-    )
-    anomaly_label = (
-        "Anomaly Windows" if snapshot_count > 1 else "Anomaly Detection"
-    )
+    trend_label = "Trend Findings" if snapshot_count > 1 else "Trend View"
+    anomaly_label = "Anomaly Windows" if snapshot_count > 1 else "Anomaly Detection"
     return (
         f"{summary_label}\n"
         f"{paragraph_one}\n\n{paragraph_two}\n\n{paragraph_three}\n\n"
@@ -2823,9 +2842,7 @@ def _build_time_series_section_html(
     chart_specs: list[dict[str, Any]],
     snapshot_count: int,
 ) -> str:
-    kicker = (
-        "Multi-Snapshot Trends" if snapshot_count > 1 else "Trend View"
-    )
+    kicker = "Multi-Snapshot Trends" if snapshot_count > 1 else "Trend View"
     if not chart_specs:
         return (
             '\n      <section id="time-series-charts" class="card secondary">'
@@ -2844,9 +2861,7 @@ def _build_time_series_section_html(
         domain for domain in DOMAIN_DISPLAY_ORDER if grouped_specs.get(domain)
     ]
     ordered_domains.extend(
-        domain
-        for domain in grouped_specs
-        if domain not in ordered_domains
+        domain for domain in grouped_specs if domain not in ordered_domains
     )
     domain_sections = []
     for domain in ordered_domains:
@@ -3104,7 +3119,7 @@ def _replace_executive_summary_rationale(
             (
                 r'(<section id="ai-summary" class="card primary">.*?<div '
                 r'class="decision-banner[^"]*">.*?</div>\s*<p[^>]*>)'
-                r'(.*?)(</p>)'
+                r"(.*?)(</p>)"
             ),
             re.DOTALL,
         ),
@@ -3142,11 +3157,7 @@ def _inject_executive_summary_scope_label(
     match = pattern.search(html)
     if match is None:
         return html
-    label_html = (
-        '\n        <p class="section-kicker">'
-        + scope_label
-        + "</p>\n        "
-    )
+    label_html = '\n        <p class="section-kicker">' + scope_label + "</p>\n        "
     return (
         html[: match.start()]
         + match.group(1)
@@ -3360,11 +3371,7 @@ def _replace_primary_posture_banner(
     if match is None:
         return html
     replacement = f'<div class="decision-banner {banner_class}">{posture}</div>'
-    return (
-        html[: match.start()]
-        + replacement
-        + html[match.end() :]
-    )
+    return html[: match.start()] + replacement + html[match.end() :]
 
 
 def _postprocess_dashboard_html(
@@ -3448,12 +3455,9 @@ def _build_decision_posture(
             "The latest snapshot sits inside a failover or role-transition event, "
             "so topology state should be stabilized before generic scaling conclusions are drawn."
         )
-    elif (
-        latest_topology.get("is_dataguard")
-        and (
-            (latest_metrics.get("transport_lag_sec") or 0.0) >= 30.0
-            or (latest_metrics.get("apply_lag_sec") or 0.0) >= 30.0
-        )
+    elif latest_topology.get("is_dataguard") and (
+        (latest_metrics.get("transport_lag_sec") or 0.0) >= 30.0
+        or (latest_metrics.get("apply_lag_sec") or 0.0) >= 30.0
     ):
         posture = "INVESTIGATE FURTHER"
         rationale = (
@@ -3539,16 +3543,11 @@ def _build_agentic_decision(
     issues: list[dict],
     decision_posture: dict[str, str] | None = None,
 ) -> dict:
-    issue_by_type = {
-        str(issue.get("issue_type") or ""): issue for issue in issues
-    }
+    issue_by_type = {str(issue.get("issue_type") or ""): issue for issue in issues}
 
     execution_plan = [
         "Tune the highest CPU-consuming SQL and execution paths first.",
-        (
-            "Prioritize the top elapsed-time OrderService SQL statements "
-            "immediately."
-        ),
+        ("Prioritize the top elapsed-time OrderService SQL statements " "immediately."),
         (
             "Reduce physical reads by correcting SQL and access paths "
             "behind the dominant User I/O waits."
@@ -3575,8 +3574,7 @@ def _build_agentic_decision(
         )
     else:
         primary_decision = (
-            "Start with the most material SQL and execution-path "
-            "bottlenecks first."
+            "Start with the most material SQL and execution-path " "bottlenecks first."
         )
 
     scaling_decision = "INSUFFICIENT DATA"
@@ -3609,9 +3607,7 @@ def _build_oci_guidance(
     issues: list[dict],
     decision_posture: dict[str, str] | None = None,
 ) -> dict:
-    issue_by_type = {
-        str(issue.get("issue_type") or ""): issue for issue in issues
-    }
+    issue_by_type = {str(issue.get("issue_type") or ""): issue for issue in issues}
 
     current_state = (
         "The workload is CPU-bound and driven by a small number of "
@@ -3661,17 +3657,13 @@ def _build_oci_guidance(
 
 
 def _build_executive_summary(issues: list[dict]) -> str:
-    issue_by_type = {
-        str(issue.get("issue_type") or ""): issue for issue in issues
-    }
+    issue_by_type = {str(issue.get("issue_type") or ""): issue for issue in issues}
 
     summary_parts: list[str] = []
 
     cpu_issue = issue_by_type.get("cpu_pressure")
     if cpu_issue:
-        pct_db_time = _format_pct(
-            cpu_issue.get("evidence", {}).get("pct_db_time")
-        )
+        pct_db_time = _format_pct(cpu_issue.get("evidence", {}).get("pct_db_time"))
         summary_parts.append(
             "The workload is primarily CPU-bound, with DB CPU consuming "
             f"{pct_db_time} of total database time."
@@ -3698,12 +3690,8 @@ def _build_executive_summary(issues: list[dict]) -> str:
 
     commit_issue = issue_by_type.get("commit_pressure")
     if commit_issue:
-        commit_pct = _format_pct(
-            commit_issue.get("evidence", {}).get("pct_db_time")
-        )
-        secondary_factors.append(
-            f"commit latency is also contributing at {commit_pct}"
-        )
+        commit_pct = _format_pct(commit_issue.get("evidence", {}).get("pct_db_time"))
+        secondary_factors.append(f"commit latency is also contributing at {commit_pct}")
 
     concurrency_issue = issue_by_type.get("concurrency_pressure")
     if concurrency_issue and str(concurrency_issue.get("severity") or "") in {
@@ -3724,9 +3712,7 @@ def _build_executive_summary(issues: list[dict]) -> str:
     if sql_issue:
         sql_evidence = sql_issue.get("evidence", {})
         modules = sql_evidence.get("modules") or []
-        combined_pct_total = _format_pct(
-            sql_evidence.get("combined_pct_total")
-        )
+        combined_pct_total = _format_pct(sql_evidence.get("combined_pct_total"))
         if len(modules) == 1:
             summary_parts.append(
                 "SQL activity is concentrated in module "
@@ -3778,14 +3764,16 @@ def _build_snapshot_context(file_path: Path) -> dict[str, Any]:
             "gc_cr_wait_pct_db_time",
         ),
         "gc_total_wait_pct_db_time": (
-            (_topology_pct(result, "gc_cr_wait_pct_db_time") or 0.0)
-            + (_topology_pct(result, "gc_current_wait_pct_db_time") or 0.0)
-        )
-        if (
-            _topology_pct(result, "gc_cr_wait_pct_db_time") is not None
-            or _topology_pct(result, "gc_current_wait_pct_db_time") is not None
-        )
-        else None,
+            (
+                (_topology_pct(result, "gc_cr_wait_pct_db_time") or 0.0)
+                + (_topology_pct(result, "gc_current_wait_pct_db_time") or 0.0)
+            )
+            if (
+                _topology_pct(result, "gc_cr_wait_pct_db_time") is not None
+                or _topology_pct(result, "gc_current_wait_pct_db_time") is not None
+            )
+            else None
+        ),
         "transport_lag_sec": _topology_float(result, "transport_lag_sec"),
         "apply_lag_sec": _topology_float(result, "apply_lag_sec"),
         "exa_cell_io_pct_db_time": _topology_pct(
@@ -3851,9 +3839,12 @@ def _build_ingestion_runtime_context(
     snapshot_contexts: list[dict[str, Any]],
     awr_files: list[Path],
     generated_at_display: str,
+    db_ingestion_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build plain runtime intake data for Screen 1 mapping."""
 
+    db_ingestion_context = db_ingestion_context or {}
+    db_report_rows = db_ingestion_context.get("report_rows") or {}
     report_rows: list[dict[str, Any]] = []
     validation_notes: list[str] = []
     succeeded = 0
@@ -3862,23 +3853,36 @@ def _build_ingestion_runtime_context(
     for context in snapshot_contexts:
         result = context["result"]
         metadata = result.run_metadata
-        warnings = list(
-            dict.fromkeys((result.parse_warnings or []) + (result.parse_errors or []))
-        )
+        parser_notes = [
+            _normalize_parser_note(note)
+            for note in list(
+                dict.fromkeys(
+                    (result.parse_warnings or []) + (result.parse_errors or [])
+                )
+            )
+        ]
+        warning_notes = [
+            note for note in parser_notes if _is_warning_parser_note(note)
+        ]
         if result.parse_errors:
             parse_status = "FAILED"
             failed += 1
-        elif warnings:
+        elif warning_notes:
             parse_status = "WARNINGS"
             succeeded += 1
         else:
-            parse_status = "SUCCEEDED"
+            parse_status = "SUCCESS"
             succeeded += 1
 
+        db_row = db_report_rows.get(context["file_name"]) or {}
         report_rows.append(
             {
                 "file_name": context["file_name"],
                 "parse_status": parse_status,
+                "db_status": db_row.get("db_status"),
+                "awr_id": db_row.get("awr_id"),
+                "vector_status": db_row.get("vector_status"),
+                "similarity_eligible": db_row.get("similarity_eligible"),
                 "db_name": metadata.database_name,
                 "dbid": metadata.db_id,
                 "instance_name": metadata.instance_name,
@@ -3886,11 +3890,12 @@ def _build_ingestion_runtime_context(
                 "snapshot_begin": metadata.begin_snapshot_time,
                 "snapshot_end": metadata.end_snapshot_time,
                 "topology_hints": _topology_hint_labels(context.get("topology") or {}),
-                "validation_notes": warnings,
+                "validation_notes": warning_notes,
+                "parser_notes": parser_notes,
             }
         )
         validation_notes.extend(
-            f"{context['file_name']}: {warning}" for warning in warnings
+            f"{context['file_name']}: {note}" for note in parser_notes
         )
 
     total_files = len(awr_files)
@@ -3909,7 +3914,37 @@ def _build_ingestion_runtime_context(
         },
         "report_rows": report_rows,
         "validation_notes": validation_notes,
+        "db_ingestion": db_ingestion_context,
     }
+
+
+def _normalize_parser_note(note: Any) -> str:
+    text = str(note or "").strip()
+    optional_match = re.match(
+        r"Optional section not found:\s*(.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if optional_match:
+        section_name = optional_match.group(1).strip()
+        if section_name.lower() == "io":
+            return "INFO: Optional IO section not present."
+        return f"INFO: Optional section not present: {section_name}."
+    return text
+
+
+def _is_warning_parser_note(note: str) -> bool:
+    normalized = str(note or "").strip().lower()
+    if not normalized:
+        return False
+    if normalized.startswith("info:"):
+        return False
+    return (
+        normalized.startswith("required section not found")
+        or normalized.startswith("unknown section header")
+        or "error" in normalized
+        or "failed" in normalized
+    )
 
 
 def _build_comparison_runtime_context(
@@ -3922,17 +3957,13 @@ def _build_comparison_runtime_context(
     latest_score = _snapshot_score(latest_snapshot)
     worst_score = max(_snapshot_score(worst_snapshot), 0.0001)
     if latest_snapshot["snapshot_label"] == worst_snapshot["snapshot_label"]:
-        latest_vs_trend = (
-            "The latest interval confirms the strongest pressure seen in the broader window."
-        )
+        latest_vs_trend = "The latest interval confirms the strongest pressure seen in the broader window."
     elif latest_score >= worst_score * 0.85:
         latest_vs_trend = (
             "The latest interval broadly aligns with the broader multi-snapshot trend."
         )
     else:
-        latest_vs_trend = (
-            "The latest interval departs from the worst interval and should be read in broader context."
-        )
+        latest_vs_trend = "The latest interval departs from the worst interval and should be read in broader context."
 
     return {
         "snapshot_count": len(multi_snapshot_analysis["ordered_snapshots"]),
@@ -3943,7 +3974,9 @@ def _build_comparison_runtime_context(
             "source_database"
         ),
         "latest_snapshot_summary": multi_snapshot_analysis["latest_snapshot_summary"],
-        "worst_snapshot_summary": _build_latest_snapshot_summary(worst_snapshot),
+        "worst_snapshot_summary": _build_latest_snapshot_summary(
+            worst_snapshot
+        ).replace("Latest snapshot", "Worst interval", 1),
         "latest_vs_trend": latest_vs_trend,
         "drift_summary": multi_snapshot_analysis["multi_snapshot_summary"],
     }
@@ -3980,6 +4013,207 @@ def _runtime_feature_vector(context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _lookup_loaded_awr_record(
+    connection: Any,
+    context: dict[str, Any],
+) -> dict[str, Any] | None:
+    metadata = context["result"].run_metadata
+    dbid = str(metadata.db_id or "").strip()
+    binds = {
+        "source_file_name": context["file_name"],
+        "dbid": int(dbid) if dbid.isdigit() else None,
+        "db_name": str(metadata.database_name or "").strip() or None,
+        "instance_name": str(metadata.instance_name or "").strip() or None,
+        "snap_begin": context.get("begin_time"),
+        "snap_end": context.get("end_time"),
+    }
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT r.AWR_ID,
+                   r.SOURCE_SYSTEM_ID,
+                   fv.FEATURE_VECTOR_ID
+              FROM AWR_REPORT r
+              LEFT JOIN AWR_FEATURE_VECTOR fv
+                ON fv.AWR_ID = r.AWR_ID
+               AND fv.FEATURE_VECTOR IS NOT NULL
+             WHERE r.SOURCE_FILE_NAME = :source_file_name
+               AND (:dbid IS NULL OR r.DBID = :dbid)
+               AND (:db_name IS NULL OR UPPER(r.DB_NAME) = UPPER(:db_name))
+               AND (:instance_name IS NULL OR UPPER(r.INSTANCE_NAME) = UPPER(:instance_name))
+               AND (:snap_begin IS NULL OR r.SNAP_TIME_BEGIN = :snap_begin)
+               AND (:snap_end IS NULL OR r.SNAP_TIME_END = :snap_end)
+             ORDER BY CASE WHEN fv.FEATURE_VECTOR_ID IS NOT NULL THEN 0 ELSE 1 END,
+                      r.AWR_ID DESC
+             FETCH FIRST 1 ROWS ONLY
+            """,
+            binds,
+        )
+        row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "awr_id": int(row[0]),
+        "source_system_id": int(row[1]),
+        "feature_vector_id": int(row[2]) if row[2] is not None else None,
+    }
+
+
+def _lookup_loaded_awr_id(
+    connection: Any,
+    context: dict[str, Any],
+) -> int | None:
+    record = _lookup_loaded_awr_record(connection, context)
+    return int(record["awr_id"]) if record else None
+
+
+def _ensure_loaded_feature_vector(
+    connection: Any,
+    context: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    if record.get("feature_vector_id") is not None:
+        return {
+            "feature_vector_id": int(record["feature_vector_id"]),
+            "vector_status": "Existing",
+            "vector_action": "existing",
+        }
+
+    feature_vector_record = build_feature_vector_record(
+        parse_result=context["result"],
+        awr_id=int(record["awr_id"]),
+        source_system_id=int(record["source_system_id"]),
+    )
+    feature_vector_id, action = upsert_feature_vector(connection, feature_vector_record)
+    connection.commit()
+    print(
+        "Similarity load/reuse: "
+        f"{action} feature vector {feature_vector_id} for AWR_ID {record['awr_id']}"
+    )
+    action_text = str(action or "").strip().lower()
+    if "update" in action_text:
+        vector_status = "Updated"
+    elif "create" in action_text or "insert" in action_text or "upsert" in action_text:
+        vector_status = "Created"
+    else:
+        vector_status = "Created"
+    return {
+        "feature_vector_id": int(feature_vector_id),
+        "vector_status": vector_status,
+        "vector_action": action or vector_status,
+    }
+
+
+def _prepare_db_backed_similarity_runtime(
+    connection: Any,
+    snapshot_contexts: list[dict[str, Any]],
+    latest_context: dict[str, Any],
+) -> dict[str, Any]:
+    loaded_records = {
+        context["file_name"]: _lookup_loaded_awr_record(connection, context)
+        for context in snapshot_contexts
+    }
+    initially_loaded = {
+        file_name: record
+        for file_name, record in loaded_records.items()
+        if record is not None
+    }
+    if any(record is None for record in loaded_records.values()):
+        missing = [
+            file_name
+            for file_name, record in loaded_records.items()
+            if record is None
+        ]
+        print(
+            "Similarity load/reuse: loading missing AWR history into ADB for "
+            + ", ".join(missing[:5])
+            + (" ..." if len(missing) > 5 else "")
+        )
+        process_awr_batch(Path("data/input"), conn=connection)
+        loaded_records = {
+            context["file_name"]: _lookup_loaded_awr_record(connection, context)
+            for context in snapshot_contexts
+        }
+
+    file_rows: dict[str, dict[str, Any]] = {}
+    vector_existing = 0
+    vector_changed = 0
+    for context in snapshot_contexts:
+        file_name = context["file_name"]
+        record = loaded_records.get(context["file_name"])
+        if record is None:
+            file_rows[file_name] = {
+                "db_status": "Failed",
+                "awr_id": None,
+                "vector_status": "Missing",
+                "similarity_eligible": False,
+            }
+            continue
+        vector_result = _ensure_loaded_feature_vector(connection, context, record)
+        vector_status = vector_result.get("vector_status")
+        if vector_status == "Existing":
+            vector_existing += 1
+        elif vector_status in {"Created", "Updated"}:
+            vector_changed += 1
+        if file_name in initially_loaded:
+            db_status = "Already Loaded"
+        else:
+            db_status = "Newly Loaded"
+        file_rows[file_name] = {
+            "db_status": db_status,
+            "awr_id": int(record["awr_id"]),
+            "source_system_id": int(record["source_system_id"]),
+            "vector_status": vector_status,
+            "feature_vector_id": vector_result.get("feature_vector_id"),
+            "similarity_eligible": bool(vector_result.get("feature_vector_id")),
+        }
+
+    latest_record = loaded_records.get(latest_context["file_name"])
+    analysis_awr_id = (
+        int(latest_record["awr_id"])
+        if latest_record
+        else _runtime_awr_id(latest_context)
+    )
+    newly_loaded = sum(
+        1 for file_name, row in file_rows.items()
+        if row.get("db_status") == "Newly Loaded"
+    )
+    already_loaded = len(initially_loaded)
+    return {
+        "analysis_awr_id": analysis_awr_id,
+        "db_ingestion": {
+            "summary": {
+                "db_connectivity": "Connected",
+                "db_load_mode": "Insert missing" if newly_loaded else "Reuse existing",
+                "already_loaded": already_loaded,
+                "newly_loaded": newly_loaded,
+                "reused_awr_ids": already_loaded,
+                "feature_vectors_existing": vector_existing,
+                "feature_vectors_created_updated": vector_changed,
+                "db_similarity_ready": bool(
+                    latest_record
+                    and file_rows.get(latest_context["file_name"], {}).get(
+                        "similarity_eligible"
+                    )
+                ),
+            },
+            "report_rows": file_rows,
+        },
+    }
+
+
+def _db_ingestion_not_checked_context(reason: str, *, failed: bool = False) -> dict[str, Any]:
+    return {
+        "summary": {
+            "db_connectivity": "Failed" if failed else "Not checked",
+            "db_load_mode": "Local only",
+            "db_similarity_ready": False,
+            "status_message": reason,
+        },
+        "report_rows": {},
+    }
+
+
 def _build_feature_visual_series(
     snapshot_contexts: list[dict[str, Any]],
 ) -> dict[str, list[float | None]]:
@@ -3993,6 +4227,10 @@ def _build_feature_visual_series(
         "cluster_wait_pct_db_time": [],
         "gc_current_wait_pct_db_time": [],
         "gc_cr_wait_pct_db_time": [],
+        "gc_total_wait_pct_db_time": [],
+        "interconnect_stress_flag": [],
+        "transport_lag_sec": [],
+        "apply_lag_sec": [],
         "cell_single_block_read_pct_db_time": [],
         "smart_scan_pct_db_time": [],
     }
@@ -4020,6 +4258,20 @@ def _build_feature_visual_series(
         series["gc_cr_wait_pct_db_time"].append(
             _safe_float(feature_json.get("GC_CR_WAIT_PCT_DB_TIME"))
         )
+        gc_current = _safe_float(feature_json.get("GC_CURRENT_WAIT_PCT_DB_TIME"))
+        gc_cr = _safe_float(feature_json.get("GC_CR_WAIT_PCT_DB_TIME"))
+        series["gc_total_wait_pct_db_time"].append(
+            (gc_current or 0.0) + (gc_cr or 0.0)
+            if gc_current is not None or gc_cr is not None
+            else None
+        )
+        series["interconnect_stress_flag"].append(
+            _safe_float(feature_json.get("INTERCONNECT_STRESS_FLAG"))
+        )
+        series["transport_lag_sec"].append(
+            _safe_float(feature_json.get("TRANSPORT_LAG_SEC"))
+        )
+        series["apply_lag_sec"].append(_safe_float(feature_json.get("APPLY_LAG_SEC")))
         series["cell_single_block_read_pct_db_time"].append(
             _safe_float(feature_json.get("CELL_SINGLE_BLOCK_READ_PCT_DB_TIME"))
         )
@@ -4040,6 +4292,19 @@ def _coalesce_series(
     if isinstance(existing, list) and _series_has_numeric_values(existing):
         return existing
     return fallback
+
+
+def _absolute_delta_series(
+    left_values: list[float | None],
+    right_values: list[float | None],
+) -> list[float | None]:
+    deltas: list[float | None] = []
+    for left_value, right_value in zip(left_values, right_values, strict=False):
+        if left_value is None or right_value is None:
+            deltas.append(None)
+            continue
+        deltas.append(round(abs(float(left_value) - float(right_value)), 4))
+    return deltas
 
 
 def _supplement_time_series_charts(
@@ -4110,6 +4375,29 @@ def _supplement_violin_panel_payload(
         topology.get("gc_cr_wait_pct_db_time"),
         feature_visual_series.get("gc_cr_wait_pct_db_time") or [],
     )
+    topology["combined_gc_wait_pct_db_time"] = _coalesce_series(
+        topology.get("combined_gc_wait_pct_db_time"),
+        feature_visual_series.get("gc_total_wait_pct_db_time") or [],
+    )
+    topology["interconnect_stress_flag"] = _coalesce_series(
+        topology.get("interconnect_stress_flag"),
+        feature_visual_series.get("interconnect_stress_flag") or [],
+    )
+    topology["transport_lag_sec"] = _coalesce_series(
+        topology.get("transport_lag_sec"),
+        feature_visual_series.get("transport_lag_sec") or [],
+    )
+    topology["apply_lag_sec"] = _coalesce_series(
+        topology.get("apply_lag_sec"),
+        feature_visual_series.get("apply_lag_sec") or [],
+    )
+    topology["lag_stability_sec"] = _coalesce_series(
+        topology.get("lag_stability_sec"),
+        _absolute_delta_series(
+            feature_visual_series.get("transport_lag_sec") or [],
+            feature_visual_series.get("apply_lag_sec") or [],
+        ),
+    )
     platform["cell_single_block_read_pct_db_time"] = _coalesce_series(
         platform.get("cell_single_block_read_pct_db_time"),
         feature_visual_series.get("cell_single_block_read_pct_db_time") or [],
@@ -4171,9 +4459,7 @@ def _grouped_deterministic_findings(
     severity = (
         "high"
         if decision.overall_status == "CRITICAL"
-        else "medium"
-        if decision.overall_status == "WARNING"
-        else "low"
+        else "medium" if decision.overall_status == "WARNING" else "low"
     )
     domain_scores = (
         decision.evidence.get("domain_scores", {}) if decision.evidence else {}
@@ -4184,15 +4470,24 @@ def _grouped_deterministic_findings(
     findings: list[dict[str, Any]] = []
     ordered_domains = [decision.primary_issue, *list(decision.secondary_issues)]
     seen_domains: set[str] = set()
-    for domain in ordered_domains:
+
+    for raw_domain in ordered_domains:
+        if raw_domain is None:
+            continue
+
+        domain = str(raw_domain).upper()
+
         if domain in seen_domains:
             continue
+
         seen_domains.add(domain)
+
         reasons = (
             decision.evidence.get("primary_reasons", [])
-            if domain == decision.primary_issue and decision.evidence
+            if domain == str(decision.primary_issue or "").upper() and decision.evidence
             else []
         )
+
         summary = (
             reasons[0]
             if reasons
@@ -4201,6 +4496,7 @@ def _grouped_deterministic_findings(
                 f"{_format_metric(_safe_float(domain_scores.get(domain)))}."
             )
         )
+
         findings.append(
             {
                 "domain": domain,
@@ -4233,7 +4529,9 @@ def _grouped_deterministic_findings(
             "domain": primary_finding.get("domain") if primary_finding else None,
             "summary": primary_finding.get("summary") if primary_finding else None,
             "score": primary_finding.get("score") if primary_finding else None,
-            "feature_values": primary_finding.get("evidence", {}) if primary_finding else {},
+            "feature_values": (
+                primary_finding.get("evidence", {}) if primary_finding else {}
+            ),
             "reasons": (
                 list(decision.evidence.get("primary_reasons", []))
                 if decision.evidence
@@ -4325,7 +4623,9 @@ def _narrative_findings_from_grouped(
     for evidence_item in secondary_evidence:
         findings.append(
             {
-                "issue_type": str(evidence_item.get("issue_type") or "secondary_evidence"),
+                "issue_type": str(
+                    evidence_item.get("issue_type") or "secondary_evidence"
+                ),
                 "severity": str(evidence_item.get("severity") or "medium"),
                 "summary": evidence_item.get("summary"),
                 "evidence": evidence_item.get("evidence", {}),
@@ -4338,7 +4638,9 @@ def _narrative_findings_from_grouped(
                 "issue_type": "trend_context",
                 "severity": "medium",
                 "summary": trend_summary.get("summary"),
-                "evidence": {"trend_findings": list(trend_summary.get("findings") or [])[:3]},
+                "evidence": {
+                    "trend_findings": list(trend_summary.get("findings") or [])[:3]
+                },
             }
         )
     if anomaly_summary.get("windows"):
@@ -4347,7 +4649,8 @@ def _narrative_findings_from_grouped(
             {
                 "issue_type": "anomaly_context",
                 "severity": str(lead_window.get("severity") or "medium").lower(),
-                "summary": anomaly_summary.get("summary") or str(lead_window.get("reason") or ""),
+                "summary": anomaly_summary.get("summary")
+                or str(lead_window.get("reason") or ""),
                 "evidence": {
                     "metric": lead_window.get("metric"),
                     "snapshot_label": lead_window.get("snapshot_label"),
@@ -4537,10 +4840,7 @@ def _compose_dashboard_narrative(
         ),
         "",
         "Confidence Assessment",
-        (
-            f"{confidence['level']}\n\n"
-            f"Reason: {confidence['reason']}"
-        ),
+        (f"{confidence['level']}\n\n" f"Reason: {confidence['reason']}"),
         "",
         "Risk of Being Wrong",
         "\n".join(risk_lines),
@@ -4602,7 +4902,14 @@ if __name__ == "__main__":
     feature_visual_series = _build_feature_visual_series(snapshot_contexts)
     generated_at_display = _format_generated_at_local()
     decision_posture = multi_snapshot_analysis["decision_posture"]
+    db_ingestion_context = _db_ingestion_not_checked_context(
+        "DB ingestion status not reported by current run."
+    )
     if runtime_config.get("disable_similarity_intelligence"):
+        analysis_awr_id = _runtime_awr_id(latest_context)
+        db_ingestion_context = _db_ingestion_not_checked_context(
+            "DB ingestion status not reported by current run."
+        )
         similarity_intelligence = build_disabled_similarity_intelligence(
             "Disabled by DISABLE_SIMILARITY_INTELLIGENCE"
         )
@@ -4610,15 +4917,28 @@ if __name__ == "__main__":
         connection = None
         try:
             connection = get_db_connection()
+            db_similarity_runtime = _prepare_db_backed_similarity_runtime(
+                connection=connection,
+                snapshot_contexts=snapshot_contexts,
+                latest_context=latest_context,
+            )
+            analysis_awr_id = int(db_similarity_runtime["analysis_awr_id"])
+            db_ingestion_context = db_similarity_runtime["db_ingestion"]
             similarity_intelligence = build_similarity_intelligence(
                 connection=connection,
-                awr_id=_runtime_awr_id(latest_context),
+                awr_id=analysis_awr_id,
                 feature_vector=runtime_feature_vector["feature_vector_record"][
                     "feature_vector"
                 ],
                 top_k=5,
             )
         except Exception as exc:
+            analysis_awr_id = _runtime_awr_id(latest_context)
+            print(f"Similarity intelligence failed: {type(exc).__name__}: {exc}")
+            db_ingestion_context = _db_ingestion_not_checked_context(
+                "DB ingestion status not reported by current run.",
+                failed=True,
+            )
             similarity_intelligence = build_failed_similarity_intelligence(str(exc))
         finally:
             if connection is not None:
@@ -4636,7 +4956,7 @@ if __name__ == "__main__":
         similarity_intelligence=similarity_intelligence,
         recommendations=decision_recommendations,
         metadata={
-            "awr_id": _runtime_awr_id(latest_context),
+            "awr_id": analysis_awr_id,
             "db_name": getattr(result.run_metadata, "db_name", None)
             or getattr(result.run_metadata, "database_name", None),
             "snapshot_begin": result.run_metadata.begin_snapshot_time,
@@ -4718,6 +5038,7 @@ if __name__ == "__main__":
         snapshot_contexts,
         awr_files,
         generated_at_display,
+        db_ingestion_context,
     )
     comparison_context = _build_comparison_runtime_context(multi_snapshot_analysis)
     # Canonical payload is the authoritative backend contract.
@@ -4762,18 +5083,14 @@ if __name__ == "__main__":
             "log_file_sync_trend": multi_snapshot_analysis["time_series"][
                 "log_file_sync_trend"
             ],
-            "temp_io_trend": multi_snapshot_analysis["time_series"][
-                "temp_io_trend"
-            ],
+            "temp_io_trend": multi_snapshot_analysis["time_series"]["temp_io_trend"],
             "pga_spill_trend": multi_snapshot_analysis["time_series"][
                 "pga_spill_trend"
             ],
             "cluster_wait_trend": multi_snapshot_analysis["time_series"][
                 "cluster_wait_trend"
             ],
-            "gc_wait_trend": multi_snapshot_analysis["time_series"][
-                "gc_wait_trend"
-            ],
+            "gc_wait_trend": multi_snapshot_analysis["time_series"]["gc_wait_trend"],
             "dg_transport_lag_trend": multi_snapshot_analysis["time_series"][
                 "dg_transport_lag_trend"
             ],
@@ -4809,7 +5126,9 @@ if __name__ == "__main__":
         # Top-level recommendations are canonical deterministic output.
         # Compatibility recommendation shapes are adapter-only under compatibility.
         "recommendations": canonical_payload["recommendations"],
-        "grouped_deterministic_findings": canonical_payload["grouped_deterministic_findings"],
+        "grouped_deterministic_findings": canonical_payload[
+            "grouped_deterministic_findings"
+        ],
         "llm_explanation": canonical_payload["llm_explanation"],
         "compatibility": canonical_payload["compatibility"],
         "analysis_output": canonical_payload,
@@ -4819,13 +5138,9 @@ if __name__ == "__main__":
         "violin_panel": violin_panel,
         "derived_pressure_metrics": derived_pressure_metrics,
         "derived_scalar_metrics": {
-            "pga_spill_pressure": (
-                derived_pressure_metrics["pga_spill_pressure"]
-            ),
+            "pga_spill_pressure": (derived_pressure_metrics["pga_spill_pressure"]),
             "temp_io_pressure": derived_pressure_metrics["temp_io_pressure"],
-            "hard_parses_per_sec": (
-                derived_pressure_metrics["hard_parses_per_sec"]
-            ),
+            "hard_parses_per_sec": (derived_pressure_metrics["hard_parses_per_sec"]),
         },
         "agentic_decision": compatibility_payload["agentic_decision"],
         "oci_guidance": compatibility_payload["oci_guidance"],
@@ -4912,17 +5227,10 @@ if __name__ == "__main__":
     for line in derived_pressure_metrics["debug_summary"]:
         print(f"  {line}")
     print("\nDerived Metric Values:")
+    print("  pga_spill_pressure: " f"{derived_pressure_metrics['pga_spill_pressure']}")
+    print("  temp_io_pressure: " f"{derived_pressure_metrics['temp_io_pressure']}")
     print(
-        "  pga_spill_pressure: "
-        f"{derived_pressure_metrics['pga_spill_pressure']}"
-    )
-    print(
-        "  temp_io_pressure: "
-        f"{derived_pressure_metrics['temp_io_pressure']}"
-    )
-    print(
-        "  hard_parses_per_sec: "
-        f"{derived_pressure_metrics['hard_parses_per_sec']}"
+        "  hard_parses_per_sec: " f"{derived_pressure_metrics['hard_parses_per_sec']}"
     )
     print(f"  availability: {derived_pressure_metrics['availability']}")
 

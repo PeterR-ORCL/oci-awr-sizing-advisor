@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Screen 3 - History Selector</title>
+  <title>Screen 6 - Fleet Overview</title>
   <style>
 
     :root {
@@ -559,7 +559,7 @@
     <div class="top-shell sticky-shell">
       <section class="hero">
         <div class="eyebrow">AWR PERFORMANCE INTELLIGENCE</div>
-        <h1>Screen 3 - History Selector</h1>
+        <h1>Screen 6 - Fleet Overview</h1>
         
       <div class="runtime-badge">
         <span class="status-pill success">FULL DB MODE</span>
@@ -575,159 +575,264 @@
         <div class="hero-meta">Generated: May 1, 2026, 10:07 AM</div>
       </section>
 
-      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link active" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
+      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link active" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
     </div>
 
     
     <div class="grid">
-      <!-- Screen 3 = history selector / filter / scope definition. -->
-      <section class="card secondary">
-        <div class="section-kicker">Screen 3</div>
-        <h2>History Selector / Filter / Scope Definition</h2>
-        <p class="static-selection-note">
-          Select the time window and comparison scope used to drive deterministic
-          analysis and historical validation.
-        </p>
-        <div class="subgrid selector-subgrid">
-          <section class="evidence-pane selector-pane">
-            <h3>Header</h3>
-            <div class="info-grid selector-header-grid">
+      <!-- Screen 6 = fleet overview / clusters / outliers / repeated issues. -->
+      <section class="card prominent">
+        <div class="section-kicker">Screen 6</div>
+        <h2>Fleet Overview</h2>
+        <div class="info-grid">
             <div class="info-box">
-              <strong>DB Name</strong>
-              <div>SPRTRN</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>DBID</strong>
-              <div>8101005004</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Instance</strong>
-              <div>sprtrn1</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Host</strong>
-              <div>sprtrn-db01</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Window</strong>
-              <div>24 / 106h</div>
-            </div>
-            </div>
-          </section>
-          <section class="half evidence-pane selector-pane">
-            <h3>Scope Selection</h3>
-            <div class="scope-chip-row"><span class="scope-chip">DBID</span><span class="scope-chip">DB name</span><span class="scope-chip">INSTANCE_NAME</span><span class="scope-chip">HOST_NAME</span><span class="scope-chip">fleet/global</span></div>
-            <div class="info-strip">
-            <div class="info-strip-box">
               <strong>Scope</strong>
               <div>SPRTRN / 8101005004</div>
             </div>
+            
+            <div class="info-box">
+              <strong>DB / DBID</strong>
+              <div>SPRTRN / 8101005004</div>
             </div>
-          </section>
-          <section class="evidence-pane selector-pane">
-            <h3>Selection Controls</h3>
-            <p class="static-selection-note">
-              This view reflects the selected analysis window used across all
-              downstream screens.
-            </p>
-            <div class="selector-control-grid">
-      <label class="selector-control">
-        <span>DB / DBID</span>
-        <input value="SPRTRN / 8101005004" readonly>
-      </label>
-    
-      <label class="selector-control">
-        <span>Host / Instance</span>
-        <input value="sprtrn-db01
-sprtrn1" readonly>
-      </label>
-    
-      <label class="selector-control">
-        <span>Snapshot Window</span>
-        <input value="24 / 106h" readonly>
-      </label>
-    
-      <label class="selector-control">
-        <span>Latest Interval</span>
-        <input value="Latest snapshot (2026-04-05 18:00 -&gt; 19:00)" readonly>
-      </label>
-    
-      <label class="selector-control">
-        <span>Worst Interval</span>
-        <input value="Worst interval (2026-04-03 00:00 -&gt; 01:00) metrics: CPU data was not sufficient in this interval to establish a reliable conclusion" readonly>
-      </label>
-    
-      <label class="selector-control">
-        <span>Comparison Mode</span>
-        <input value="history" readonly>
-        <div class="scope-chip-row static-option-row"><span class="scope-chip active">history</span><span class="scope-chip">similar AWRs</span><span class="scope-chip">cluster</span><span class="scope-chip">fleet</span></div>
-      </label>
-    
-      <label class="selector-control">
-        <span>Review Mode</span>
-        <input value="historical proof" readonly>
-        <div class="scope-chip-row static-option-row"><span class="scope-chip">diagnosis</span><span class="scope-chip active">historical proof</span><span class="scope-chip">anomaly</span><span class="scope-chip">similarity</span><span class="scope-chip">fleet</span></div>
-      </label>
-    </div>
-          </section>
-          <section class="half evidence-pane selector-pane">
-            <h3>Timeframe Selection</h3>
-            <div class="info-grid selector-compact-grid">
+            
+            <div class="info-box">
+              <strong>Snapshot Count</strong>
+              <div>24</div>
+            </div>
+            
             <div class="info-box">
               <strong>Comparison Window</strong>
               <div>24 / 106h</div>
             </div>
-            
+            </div>
+      </section>
+      <section class="card secondary">
+        <div class="section-kicker">Fleet Summary</div>
+        <h2>Nearest Similar AWRs</h2>
+        <p class="meta">Similarity results are informative but not currently strong enough to independently drive decisions.</p>
+        <div class="info-grid">
             <div class="info-box">
-              <strong>Start / End Period</strong>
-              <div>Apr 1, 2026, 9:00 AM -&gt; Apr 5, 2026, 7:00 PM</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Window A</strong>
-              <div>Latest snapshot (2026-04-05 18:00 -&gt; 19:00)</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Window B</strong>
-              <div>Worst interval (2026-04-03 00:00 -&gt; 01:00) metrics: CPU data was not sufficient in this interval to establish a reliable conclusion</div>
-            </div>
-            </div>
-          </section>
-          <section class="half evidence-pane selector-pane">
-            <h3>Review Mode / Intent</h3>
-            <div class="scope-chip-row"><span class="scope-chip">diagnosis</span><span class="scope-chip">historical proof</span><span class="scope-chip">anomaly</span><span class="scope-chip">similarity</span><span class="scope-chip">fleet</span></div>
-            <div class="info-strip">
-            <div class="info-strip-box">
-              <strong>Active Review Mode</strong>
-              <div>historical proof</div>
-            </div>
-            </div>
-          </section>
-          <section class="half evidence-pane selector-pane">
-            <h3>Current Selection Summary</h3>
-            <div class="info-grid selector-compact-grid">
-            <div class="info-box">
-              <strong>Scope</strong>
-              <div>SPRTRN / 8101005004</div>
+              <strong>Similar AWRs</strong>
+              <div>5</div>
             </div>
             
             <div class="info-box">
-              <strong>Timeframe</strong>
-              <div>24 / 106h</div>
+              <strong>Cluster</strong>
+              <div>No stable similarity cluster has been established for this dataset.</div>
             </div>
             
             <div class="info-box">
-              <strong>Review Mode</strong>
-              <div>historical proof</div>
+              <strong>Rarity</strong>
+              <div>Pattern appears common within the current similarity space.</div>
             </div>
             </div>
-          </section>
-        </div>
+      </section>
+      <section class="card secondary">
+        <h2>Nearest Similar AWRs</h2>
+        <p class="meta">These are nearest-neighbor AWR cases from vector similarity, not validated workload clusters.</p>
+        <div class="meta similarity-note">Nearest vectors are identical at current precision; inspect feature-vector uniqueness if this persists.</div><div class="stack">
+            <article class="item similarity-case">
+              <div class="meta">Nearest-neighbor case · AWR 96</div>
+              <h3>MLTBAL1</h3>
+              <div class="info-grid similarity-case-grid">
+            <div class="info-box">
+              <strong>Similarity</strong>
+              <div>1.000000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Distance</strong>
+              <div>0.0000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Domain</strong>
+              <div>DG</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Risk</strong>
+              <div>LOW</div>
+            </div>
+            </div>
+            </article>
+            
+            <article class="item similarity-case">
+              <div class="meta">Nearest-neighbor case · AWR 104</div>
+              <h3>RECIO</h3>
+              <div class="info-grid similarity-case-grid">
+            <div class="info-box">
+              <strong>Similarity</strong>
+              <div>1.000000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Distance</strong>
+              <div>0.0000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Domain</strong>
+              <div>CPU</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Risk</strong>
+              <div>LOW</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Workload</strong>
+              <div>IO_BOUND</div>
+            </div>
+            </div>
+            </article>
+            
+            <article class="item similarity-case">
+              <div class="meta">Nearest-neighbor case · AWR 92</div>
+              <h3>FPOSCPU</h3>
+              <div class="info-grid similarity-case-grid">
+            <div class="info-box">
+              <strong>Similarity</strong>
+              <div>1.000000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Distance</strong>
+              <div>0.0000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Domain</strong>
+              <div>CPU</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Risk</strong>
+              <div>LOW</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Workload</strong>
+              <div>CPU_BOUND</div>
+            </div>
+            </div>
+            </article>
+            
+            <article class="item similarity-case">
+              <div class="meta">Nearest-neighbor case · AWR 87</div>
+              <h3>CNTREND</h3>
+              <div class="info-grid similarity-case-grid">
+            <div class="info-box">
+              <strong>Similarity</strong>
+              <div>1.000000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Distance</strong>
+              <div>0.0000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Domain</strong>
+              <div>CPU</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Risk</strong>
+              <div>LOW</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Workload</strong>
+              <div>CPU_BOUND</div>
+            </div>
+            </div>
+            </article>
+            
+            <article class="item similarity-case">
+              <div class="meta">Nearest-neighbor case · AWR 106</div>
+              <h3>SPRWAT</h3>
+              <div class="info-grid similarity-case-grid">
+            <div class="info-box">
+              <strong>Similarity</strong>
+              <div>1.000000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Distance</strong>
+              <div>0.0000</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Domain</strong>
+              <div>IO</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Risk</strong>
+              <div>LOW</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Workload</strong>
+              <div>IO_BOUND</div>
+            </div>
+            </div>
+            </article>
+            </div>
+      </section>
+      <section class="card secondary">
+        <h2>Outliers / Rare Patterns</h2>
+        <div class="info-grid">
+            <div class="info-box">
+              <strong>Rare Pattern</strong>
+              <div>No</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Nearest Distance</strong>
+              <div>0</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Mean Distance</strong>
+              <div>0</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Reason</strong>
+              <div>Nearest similar case distance 0.0000 is within the rarity threshold.</div>
+            </div>
+            </div>
+        <div class="item"><div class="meta">No outlier case aggregation is established yet.</div></div>
+      </section>
+      <section class="card secondary">
+        <h2>Repeated Issues</h2>
+        <div class="stack"><article class="item"><h3>CPU</h3><div class="meta">Count: 3</div></article><article class="item"><h3>DG</h3><div class="meta">Count: 1</div></article><article class="item"><h3>IO</h3><div class="meta">Count: 1</div></article></div>
+      </section>
+      <section class="card secondary">
+        <h2>Anomaly Validation</h2>
+        <div class="info-grid">
+            <div class="info-box">
+              <strong>Supports Anomaly</strong>
+              <div>No</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Similar Case Count</strong>
+              <div>5</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Reason</strong>
+              <div>Nearest similar cases provide mixed support for the current anomaly interpretation.</div>
+            </div>
+            </div>
+      </section>
+      <section class="card secondary">
+        <h2>Recommendation Backlog</h2>
+        <div class="item"><div class="meta">No recommendation backlog is available.</div></div>
       </section>
     </div>
     

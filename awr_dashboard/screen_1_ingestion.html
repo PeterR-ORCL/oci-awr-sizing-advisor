@@ -35,7 +35,7 @@
       line-height: 1.6;
     }
     .container {
-      max-width: 1280px;
+      max-width: 1600px;
       margin: 0 auto;
       padding: 28px 20px 40px;
     }
@@ -52,7 +52,9 @@
       backdrop-filter: blur(14px);
     }
     .hero {
+      position: relative;
       padding: 28px;
+      padding-right: 280px;
       border: 1px solid var(--line);
       border-radius: 22px;
       background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
@@ -71,10 +73,13 @@
     .hero-summary { margin: 0 0 10px; color: var(--text); max-width: 820px; }
     .hero-meta, .meta { color: var(--muted); font-size: 13px; }
     .page-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      width: 100%;
+      gap: 8px;
+      overflow-x: visible;
+      white-space: nowrap;
+      padding: 10px;
       border: 1px solid var(--line);
       border-radius: 18px;
       background: rgba(10, 20, 34, 0.88);
@@ -83,8 +88,10 @@
     .nav-link {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      width: 100%;
       border-radius: 999px;
-      padding: 8px 14px;
+      padding: 7px 12px;
       color: var(--text);
       text-decoration: none;
       border: 1px solid rgba(159, 176, 199, 0.26);
@@ -96,6 +103,17 @@
       color: #08111d;
       background: var(--accent);
       border-color: rgba(90, 209, 255, 0.6);
+    }
+    .runtime-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      text-align: right;
+    }
+    .runtime-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
     }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;
@@ -155,6 +173,88 @@
       gap: 14px;
     }
     .visual-layer-grid, .scalar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .diagnostic-block {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .diagnostic-block:first-of-type { margin-top: 0; }
+    .domain-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .domain-strip-item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .domain-strip-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .domain-strip-track {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(159, 176, 199, 0.18);
+    }
+    .domain-strip-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+    }
+    .selector-control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .selector-control {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .selector-control input,
+    .selector-control select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: rgba(16, 28, 45, 0.82);
+      font: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .static-selection-note {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .scope-chip.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.6);
+    }
+    .static-option-row {
+      margin-top: 2px;
+    }
+    .decision-summary-confidence {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -428,9 +528,25 @@
       .half, .chart-panel { grid-column: span 6; }
     }
     @media (max-width: 780px) {
+      .page-nav {
+        display: flex;
+        overflow-x: auto;
+      }
+      .hero {
+        padding-right: 28px;
+      }
+      .runtime-badge {
+        position: static;
+        text-align: left;
+        margin-bottom: 12px;
+      }
+      .nav-link {
+        flex: 0 0 auto;
+        width: auto;
+      }
       .flow-grid, .nav-card-grid, .health-check-grid,
       .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
-      .visual-summary-grid {
+      .visual-summary-grid, .domain-strip, .selector-control-grid {
         grid-template-columns: 1fr;
       }
       h1 { font-size: 28px; }
@@ -442,16 +558,24 @@
   <div class="container">
     <div class="top-shell sticky-shell">
       <section class="hero">
-        <div class="eyebrow">AWR Performance Intelligence Dashboard</div>
-        <h1>AWR Performance Intelligence Dashboard</h1>
+        <div class="eyebrow">AWR PERFORMANCE INTELLIGENCE</div>
+        <h1>Screen 1 - Ingestion</h1>
+        
+      <div class="runtime-badge">
+        <span class="status-pill success">FULL DB MODE</span>
+        <div class="runtime-meta">
+          DB: Connected · Similarity: Available
+        </div>
+      </div>
+    
         <p class="hero-summary">
-          Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
-          and action guidance.
+          Deterministic Oracle AWR intelligence delivering consistent diagnosis,
+          historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: Apr 23, 2026, 10:17 AM</div>
+        <div class="hero-meta">Generated: May 1, 2026, 10:07 AM</div>
       </section>
 
-      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link active" href="screen_1_ingestion.html">Screen 1 - Ingestion</a><a class="nav-link" href="screen_2_analysis.html">Screen 2 - Analysis</a><a class="nav-link" href="screen_3_history_selector.html">Screen 3 - History Selector</a><a class="nav-link" href="screen_4_historical_review.html">Screen 4 - Historical Review</a><a class="nav-link" href="screen_5_recommendation_action.html">Screen 5 - Recommendation / Action</a></nav>
+      <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link active" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
     </div>
 
     
@@ -465,7 +589,7 @@
         <div class="info-grid">
             <div class="info-box">
               <strong>Run Label</strong>
-              <div>Apr 23, 2026, 10:17 AM</div>
+              <div>May 1, 2026, 10:07 AM</div>
             </div>
             
             <div class="info-box">
@@ -475,7 +599,7 @@
             
             <div class="info-box">
               <strong>Total Files / Success / Skipped</strong>
-              <div>Total 21 / Success 21 / Skipped 0</div>
+              <div>Total 24 / Success 24 / Skipped 0</div>
             </div>
             </div>
       </section>
@@ -486,11 +610,11 @@
       <div class="subgrid">
         <section class="evidence-pane">
           <h3>Analysis Information</h3>
-          <div class="meta context-note">Selected decision scope: RCCPU / 7001001002 on rccpu-db01.</div>
+          <div class="meta context-note">Selected decision scope: SPRTRN / 8101005004 on sprtrn-db01.</div>
           <div class="info-grid">
             <div class="info-box">
               <strong>Hostname</strong>
-              <div>rccpu-db01</div>
+              <div>sprtrn-db01</div>
             </div>
             
             <div class="info-box">
@@ -500,7 +624,7 @@
             
             <div class="info-box">
               <strong>Source Database / DBID</strong>
-              <div>RCCPU / 7001001002</div>
+              <div>SPRTRN / 8101005004</div>
             </div>
             
             <div class="info-box">
@@ -540,22 +664,22 @@
             
             <div class="info-box">
               <strong>Snapshot Start</strong>
-              <div>Mar 1, 2026, 10:00 AM</div>
+              <div>Apr 1, 2026, 9:00 AM</div>
             </div>
             
             <div class="info-box">
               <strong>Snapshot End</strong>
-              <div>Mar 8, 2026, 4:00 PM</div>
+              <div>Apr 5, 2026, 7:00 PM</div>
             </div>
             
             <div class="info-box">
               <strong>Total Reports / Snapshot Window</strong>
-              <div>21 / 174h</div>
+              <div>24 / 106h</div>
             </div>
             
             <div class="info-box">
               <strong>Last Snapshot</strong>
-              <div>Mar 8, 2026, 3:00 PM to 4:00 PM</div>
+              <div>Apr 5, 2026, 6:00 PM to 7:00 PM</div>
             </div>
             </div>
         </section>
@@ -564,17 +688,17 @@
           <div class="info-grid intake-summary-grid">
             <div class="info-box">
               <strong>Total Files</strong>
-              <div>21.0</div>
+              <div>24</div>
             </div>
             
             <div class="info-box">
               <strong>Processed</strong>
-              <div>21.0</div>
+              <div>24</div>
             </div>
             
             <div class="info-box">
               <strong>Succeeded</strong>
-              <div>21.0</div>
+              <div>24</div>
             </div>
             
             <div class="info-box">
@@ -594,258 +718,458 @@
             </div>
         </section>
         <section class="evidence-pane">
+          <h3>DB Ingestion / Reuse</h3>
+          <div class="info-grid intake-summary-grid">
+            <div class="info-box">
+              <strong>DB Connectivity</strong>
+              <div>Connected</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>DB Load Mode</strong>
+              <div>Reuse existing</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Already Loaded</strong>
+              <div>24</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Newly Loaded</strong>
+              <div>0</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Reused AWR IDs</strong>
+              <div>24</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Feature Vectors Existing</strong>
+              <div>24</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Feature Vectors Created/Updated</strong>
+              <div>0</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>DB Similarity Ready</strong>
+              <div>Yes</div>
+            </div>
+            </div>
+        </section>
+        <section class="evidence-pane">
           <h3>File / Report Table</h3>
-          <div class="data-table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Status</th><th>DB Name</th><th>DBID</th><th>Instance</th><th>Host</th><th>Snapshot Begin</th><th>Snapshot End</th><th>File-Level Parser Hints</th></tr></thead><tbody>
+          <div class="data-table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Parse Status</th><th>DB Status</th><th>AWR_ID</th><th>Vector Status</th><th>Similarity Eligible</th><th>DB Name</th><th>DBID</th><th>Instance</th><th>Host</th><th>Snapshot Begin</th><th>Snapshot End</th><th>File-Level Parser Hints</th><th>Parser Notes</th></tr></thead><tbody>
             <tr>
-              <td>awr_cpu_moderate.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>CPUPRD</td>
-              <td>1182736401</td>
-              <td>cpuprd1</td>
-              <td>cpuprd-db01</td>
-              <td>2026-03-01 10:00:00</td>
-              <td>2026-03-01 11:00:00</td>
+              <td>AWR_CONTRADICT_HOSTCPU_EXTERNAL_01.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>88</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>CNTRCPU</td>
+              <td>8101001001</td>
+              <td>cntrcpu1</td>
+              <td>cntrcpu-db01</td>
+              <td>2026-04-01 09:00:00</td>
+              <td>2026-04-01 10:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_cpu_severe.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>CPUPRD</td>
-              <td>1182736401</td>
-              <td>cpuprd1</td>
-              <td>cpuprd-db01</td>
-              <td>2026-03-01 13:00:00</td>
-              <td>2026-03-01 14:00:00</td>
+              <td>AWR_CONTRADICT_DBCPU_IOWAIT_02.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>86</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>CNTRIO</td>
+              <td>8101001002</td>
+              <td>cntrio1</td>
+              <td>cntrio-db01</td>
+              <td>2026-04-01 12:00:00</td>
+              <td>2026-04-01 13:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_io_moderate.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>IOPRD</td>
-              <td>1182736402</td>
-              <td>ioprd1</td>
-              <td>ioprd-db01</td>
-              <td>2026-03-01 16:00:00</td>
-              <td>2026-03-01 17:00:00</td>
+              <td>AWR_CONTRADICT_SPIKE_STABLEAVG_03.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>89</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>CNTRAVG</td>
+              <td>8101001003</td>
+              <td>cntravg1</td>
+              <td>cntravg-db01</td>
+              <td>2026-04-01 15:00:00</td>
+              <td>2026-04-01 16:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_io_severe.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>IOPRD</td>
-              <td>1182736402</td>
-              <td>ioprd1</td>
-              <td>ioprd-db01</td>
-              <td>2026-03-01 19:00:00</td>
-              <td>2026-03-01 20:00:00</td>
+              <td>AWR_CONTRADICT_SQLHOT_LOWLOAD_04.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>90</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>CNTRSQL</td>
+              <td>8101001004</td>
+              <td>cntrsql1</td>
+              <td>cntrsql-db01</td>
+              <td>2026-04-01 18:00:00</td>
+              <td>2026-04-01 19:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_memory_moderate.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>MEMPRD</td>
-              <td>1182736403</td>
-              <td>memprd1</td>
-              <td>memprd-db01</td>
-              <td>2026-03-01 22:00:00</td>
-              <td>2026-03-01 23:00:00</td>
+              <td>AWR_CONTRADICT_COMMIT_LOWVOL_05.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>85</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>CNTRCMT</td>
+              <td>8101001005</td>
+              <td>cntrcmt1</td>
+              <td>cntrcmt-db01</td>
+              <td>2026-04-01 21:00:00</td>
+              <td>2026-04-01 22:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_memory_severe.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>MEMPRD</td>
-              <td>1182736403</td>
-              <td>memprd1</td>
-              <td>memprd-db01</td>
-              <td>2026-03-02 01:00:00</td>
-              <td>2026-03-02 02:00:00</td>
+              <td>AWR_CONTRADICT_ENDSPIKE_CPU_06.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>87</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>CNTREND</td>
+              <td>8101001006</td>
+              <td>cntrend1</td>
+              <td>cntrend-db01</td>
+              <td>2026-04-02 00:00:00</td>
+              <td>2026-04-02 01:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_commit_moderate.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>CMTPRD</td>
-              <td>1182736404</td>
-              <td>cmtprd1</td>
-              <td>cmtprd-db01</td>
-              <td>2026-03-02 04:00:00</td>
-              <td>2026-03-02 05:00:00</td>
+              <td>AWR_MULTI_CPU_IO_07.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>98</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>MLTCPU1</td>
+              <td>8101002001</td>
+              <td>mltcpu1</td>
+              <td>mltcpu1-db01</td>
+              <td>2026-04-02 09:00:00</td>
+              <td>2026-04-02 10:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_commit_severe.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>CMTPRD</td>
-              <td>1182736404</td>
-              <td>cmtprd1</td>
-              <td>cmtprd-db01</td>
-              <td>2026-03-02 07:00:00</td>
-              <td>2026-03-02 08:00:00</td>
+              <td>AWR_MULTI_CPU_COMMIT_CONCUR_08.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>97</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>MLTMIX2</td>
+              <td>8101002002</td>
+              <td>mltmix2</td>
+              <td>mltmix2-db01</td>
+              <td>2026-04-02 12:00:00</td>
+              <td>2026-04-02 13:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_rac_moderate.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>RACPRD</td>
-              <td>1182736405</td>
-              <td>racprd1</td>
-              <td>racprd-db01</td>
-              <td>2026-03-02 10:00:00</td>
-              <td>2026-03-02 11:00:00</td>
+              <td>AWR_MULTI_RAC_CPU_09.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>100</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>RACADV</td>
+              <td>8101002003</td>
+              <td>racadv1</td>
+              <td>racadv-db01</td>
+              <td>2026-04-02 15:00:00</td>
+              <td>2026-04-02 16:00:00</td>
               <td>RAC</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_rac_severe.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>RACPRD</td>
-              <td>1182736405</td>
-              <td>racprd1</td>
-              <td>racprd-db01</td>
-              <td>2026-03-02 13:00:00</td>
-              <td>2026-03-02 14:00:00</td>
+              <td>AWR_MULTI_ADG_COMMIT_10.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>95</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>ADGADV</td>
+              <td>8101002004</td>
+              <td>adgadv1</td>
+              <td>adgadv-db01</td>
+              <td>2026-04-02 18:00:00</td>
+              <td>2026-04-02 19:00:00</td>
+              <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
+            </tr>
+            
+            <tr>
+              <td>AWR_MULTI_MEMORY_IO_11.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>99</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>MLTMEM1</td>
+              <td>8101002005</td>
+              <td>mltmem1</td>
+              <td>mltmem1-db01</td>
+              <td>2026-04-02 21:00:00</td>
+              <td>2026-04-02 22:00:00</td>
+              <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
+            </tr>
+            
+            <tr>
+              <td>AWR_MULTI_BALANCED_ALL_12.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>96</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>MLTBAL1</td>
+              <td>8101002006</td>
+              <td>mltbal1</td>
+              <td>mltbal1-db01</td>
+              <td>2026-04-03 00:00:00</td>
+              <td>2026-04-03 01:00:00</td>
               <td>RAC</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_adg_moderate.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>ADGREP</td>
-              <td>1182736406</td>
-              <td>adgrep1</td>
-              <td>adgrep-db01</td>
-              <td>2026-03-02 16:00:00</td>
-              <td>2026-03-02 17:00:00</td>
+              <td>AWR_FALSEPOS_HIGHCPU_LOWDBTIME_13.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>92</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>FPOSCPU</td>
+              <td>8101003001</td>
+              <td>fposcpu1</td>
+              <td>fposcpu-db01</td>
+              <td>2026-04-03 09:00:00</td>
+              <td>2026-04-03 10:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_adg_severe.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>ADGREP</td>
-              <td>1182736406</td>
-              <td>adgrep1</td>
-              <td>adgrep-db01</td>
-              <td>2026-03-02 19:00:00</td>
-              <td>2026-03-02 20:00:00</td>
+              <td>AWR_FALSEPOS_HIGHWAIT_SHORTELAP_14.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>94</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>FPOSWAT</td>
+              <td>8101003002</td>
+              <td>fposwat1</td>
+              <td>fposwat-db01</td>
+              <td>2026-04-03 12:00:00</td>
+              <td>2026-04-03 12:15:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_mix_cpu_io.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>MIXPRD1</td>
-              <td>1182736411</td>
-              <td>mixprd1</td>
-              <td>mixprd1-db01</td>
-              <td>2026-03-02 22:00:00</td>
-              <td>2026-03-02 23:00:00</td>
+              <td>AWR_FALSEPOS_BRIEF_SPIKE_15.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>91</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>FPOSSPK</td>
+              <td>8101003003</td>
+              <td>fposspk1</td>
+              <td>fposspk-db01</td>
+              <td>2026-04-03 15:00:00</td>
+              <td>2026-04-03 16:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_mix_io_memory.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>MIXPRD2</td>
-              <td>1182736412</td>
-              <td>mixprd2</td>
-              <td>mixprd2-db01</td>
-              <td>2026-03-03 01:00:00</td>
-              <td>2026-03-03 02:00:00</td>
+              <td>AWR_FALSEPOS_HIGHLOAD_EFFICIENTSQL_16.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>93</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>FPOSTHR</td>
+              <td>8101003004</td>
+              <td>fposthr1</td>
+              <td>fposthr-db01</td>
+              <td>2026-04-03 18:00:00</td>
+              <td>2026-04-03 19:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_mix_cpu_memory_commit.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>MIXPRD3</td>
-              <td>1182736413</td>
-              <td>mixprd3</td>
-              <td>mixprd3-db01</td>
-              <td>2026-03-03 04:00:00</td>
-              <td>2026-03-03 05:00:00</td>
+              <td>AWR_RECOVERY_CPU_PRETUNE_17.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>102</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>RECCPU</td>
+              <td>8101004001</td>
+              <td>reccpu1</td>
+              <td>reccpu-db01</td>
+              <td>2026-04-04 09:00:00</td>
+              <td>2026-04-04 10:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_trend_io_01.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>TRNIO</td>
-              <td>7001001001</td>
-              <td>trnio1</td>
-              <td>trnio-db01</td>
-              <td>2026-03-06 11:00:00</td>
-              <td>2026-03-06 12:00:00</td>
+              <td>AWR_RECOVERY_CPU_POSTTUNE_18.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>101</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>RECCPU</td>
+              <td>8101004001</td>
+              <td>reccpu1</td>
+              <td>reccpu-db01</td>
+              <td>2026-04-04 11:00:00</td>
+              <td>2026-04-04 12:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_trend_io_02.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>TRNIO</td>
-              <td>7001001001</td>
-              <td>trnio1</td>
-              <td>trnio-db01</td>
-              <td>2026-03-06 13:00:00</td>
-              <td>2026-03-06 14:00:00</td>
+              <td>AWR_RECOVERY_IO_PREINDEX_19.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>104</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>RECIO</td>
+              <td>8101004002</td>
+              <td>recio1</td>
+              <td>recio-db01</td>
+              <td>2026-04-04 13:00:00</td>
+              <td>2026-04-04 14:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_trend_io_03.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>TRNIO</td>
-              <td>7001001001</td>
-              <td>trnio1</td>
-              <td>trnio-db01</td>
-              <td>2026-03-06 15:00:00</td>
-              <td>2026-03-06 16:00:00</td>
+              <td>AWR_RECOVERY_IO_POSTINDEX_20.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>103</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>RECIO</td>
+              <td>8101004002</td>
+              <td>recio1</td>
+              <td>recio-db01</td>
+              <td>2026-04-04 15:00:00</td>
+              <td>2026-04-04 16:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_recovery_cpu_01.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>RCCPU</td>
-              <td>7001001002</td>
-              <td>rccpu1</td>
-              <td>rccpu-db01</td>
-              <td>2026-03-08 11:00:00</td>
-              <td>2026-03-08 12:00:00</td>
+              <td>AWR_SPARSE_NOTOPSQL_21.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>105</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>SPRSQL</td>
+              <td>8101005001</td>
+              <td>sprsql1</td>
+              <td>sprsql-db01</td>
+              <td>2026-04-05 09:00:00</td>
+              <td>2026-04-05 10:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_recovery_cpu_02.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>RCCPU</td>
-              <td>7001001002</td>
-              <td>rccpu1</td>
-              <td>rccpu-db01</td>
-              <td>2026-03-08 13:00:00</td>
-              <td>2026-03-08 14:00:00</td>
+              <td>AWR_SPARSE_NOWAITDETAIL_22.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>106</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>SPRWAT</td>
+              <td>8101005002</td>
+              <td>sprwat1</td>
+              <td>sprwat-db01</td>
+              <td>2026-04-05 12:00:00</td>
+              <td>2026-04-05 13:00:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             
             <tr>
-              <td>awr_recovery_cpu_03.out</td>
-              <td><span class="status-pill success">SUCCEEDED</span></td>
-              <td>RCCPU</td>
-              <td>7001001002</td>
-              <td>rccpu1</td>
-              <td>rccpu-db01</td>
-              <td>2026-03-08 15:00:00</td>
-              <td>2026-03-08 16:00:00</td>
+              <td>AWR_SPARSE_PARTIALSNAP_23.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>107</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>SPRPRT</td>
+              <td>8101005003</td>
+              <td>sprprt1</td>
+              <td>sprprt-db01</td>
+              <td>2026-04-05 15:00:00</td>
+              <td>2026-04-05 15:20:00</td>
               <td>Single Instance</td>
+              <td>INFO: Optional IO section not present.</td>
+            </tr>
+            
+            <tr>
+              <td>AWR_SPARSE_TRUNCATED_MIXED_24.out</td>
+              <td><span class="status-pill success">SUCCESS</span></td>
+              <td><span class="status-pill success">Already Loaded</span></td>
+              <td>108</td>
+              <td><span class="status-pill success">Existing</span></td>
+              <td>Yes</td>
+              <td>SPRTRN</td>
+              <td>8101005004</td>
+              <td>sprtrn1</td>
+              <td>sprtrn-db01</td>
+              <td>2026-04-05 18:00:00</td>
+              <td>2026-04-05 19:00:00</td>
+              <td>RAC</td>
+              <td>INFO: Optional IO section not present.</td>
             </tr>
             </tbody></table></div>
         </section>
@@ -880,8 +1204,8 @@
           <h3>Validation Notes</h3>
           
       <article class="item">
-        <p>No intake or validation warnings were recorded.</p>
-        
+        <p>24 intake or validation notes captured.</p>
+        <ul><li>AWR_CONTRADICT_HOSTCPU_EXTERNAL_01.out: INFO: Optional IO section not present.</li><li>AWR_CONTRADICT_DBCPU_IOWAIT_02.out: INFO: Optional IO section not present.</li><li>AWR_CONTRADICT_SPIKE_STABLEAVG_03.out: INFO: Optional IO section not present.</li><li>AWR_CONTRADICT_SQLHOT_LOWLOAD_04.out: INFO: Optional IO section not present.</li><li>AWR_CONTRADICT_COMMIT_LOWVOL_05.out: INFO: Optional IO section not present.</li><li>AWR_CONTRADICT_ENDSPIKE_CPU_06.out: INFO: Optional IO section not present.</li><li>AWR_MULTI_CPU_IO_07.out: INFO: Optional IO section not present.</li><li>AWR_MULTI_CPU_COMMIT_CONCUR_08.out: INFO: Optional IO section not present.</li><li>AWR_MULTI_RAC_CPU_09.out: INFO: Optional IO section not present.</li><li>AWR_MULTI_ADG_COMMIT_10.out: INFO: Optional IO section not present.</li><li>AWR_MULTI_MEMORY_IO_11.out: INFO: Optional IO section not present.</li><li>AWR_MULTI_BALANCED_ALL_12.out: INFO: Optional IO section not present.</li><li>AWR_FALSEPOS_HIGHCPU_LOWDBTIME_13.out: INFO: Optional IO section not present.</li><li>AWR_FALSEPOS_HIGHWAIT_SHORTELAP_14.out: INFO: Optional IO section not present.</li><li>AWR_FALSEPOS_BRIEF_SPIKE_15.out: INFO: Optional IO section not present.</li><li>AWR_FALSEPOS_HIGHLOAD_EFFICIENTSQL_16.out: INFO: Optional IO section not present.</li><li>AWR_RECOVERY_CPU_PRETUNE_17.out: INFO: Optional IO section not present.</li><li>AWR_RECOVERY_CPU_POSTTUNE_18.out: INFO: Optional IO section not present.</li><li>AWR_RECOVERY_IO_PREINDEX_19.out: INFO: Optional IO section not present.</li><li>AWR_RECOVERY_IO_POSTINDEX_20.out: INFO: Optional IO section not present.</li><li>AWR_SPARSE_NOTOPSQL_21.out: INFO: Optional IO section not present.</li><li>AWR_SPARSE_NOWAITDETAIL_22.out: INFO: Optional IO section not present.</li><li>AWR_SPARSE_PARTIALSNAP_23.out: INFO: Optional IO section not present.</li><li>AWR_SPARSE_TRUNCATED_MIXED_24.out: INFO: Optional IO section not present.</li></ul>
       </article>
     
         </section>
@@ -891,7 +1215,7 @@
             <div class="meta">
               Supportive, non-authoritative explanation derived from canonical intake findings.
             </div>
-            <div class="narrative">This page is intake-oriented and confirms how the platform understood 21 parsed report(s). Selected decision scope: RCCPU / 7001001002 on rccpu-db01. No intake contradictions were detected in the current runtime scope.</div>
+            <div class="narrative">This page is intake-oriented and confirms how the platform understood 24 parsed report(s). Selected decision scope: SPRTRN / 8101005004 on sprtrn-db01. 24 validation note(s) remain in scope for operator review.</div>
           </div>
         </section>
       </div>
@@ -900,7 +1224,7 @@
     </div>
     
 
-    <div class="footer">Generated at Apr 23, 2026, 10:17 AM</div>
+    <div class="footer">Generated at May 1, 2026, 10:07 AM</div>
   </div>
 
 

@@ -151,6 +151,10 @@ def build_analysis_screen_model(
                 "primary_issue_display_score"
             ),
         },
+        "diagnostic_snapshot": {
+            "domain_scores": normalized_decision.get("domain_scores") or {},
+            "similarity_context": _build_similarity_compact_context(canonical_payload),
+        },
         "visual_summary": _build_analysis_visual_summary(report_data),
         "evidence_panel": {
             "primary_evidence": primary_evidence,
@@ -238,11 +242,9 @@ def build_ingestion_screen_model(
     report_rows = [
         _as_dict(row) for row in (ingestion_context.get("report_rows") or [])
     ]
+    db_ingestion = _as_dict(ingestion_context.get("db_ingestion"))
     validation_notes = list(ingestion_context.get("validation_notes") or [])
-    warning_count = sum(
-        len(row.get("validation_notes") or [])
-        for row in report_rows
-    )
+    warning_count = sum(1 for row in report_rows if row.get("parse_status") == "WARNINGS")
     topology_hints = sorted(
         {
             str(row.get("topology_hints") or "").strip()
@@ -279,6 +281,7 @@ def build_ingestion_screen_model(
             "source_mode": ingestion_context.get("source_mode") or "LOCAL",
         },
         "intake_summary": intake_summary,
+        "db_ingestion": db_ingestion,
         "environment_context": {
             **environment_context,
             "source_mode": ingestion_context.get("source_mode") or "LOCAL",
@@ -502,6 +505,7 @@ def build_recommendation_screen_model(
                 list(normalized_decision.get("secondary_issues") or [None])[0]
             ),
         },
+        "canonical_recommendation_count": len(recommendations),
         "recommendation_list": recommendation_cards,
         "recommendation_groups": recommendation_groups,
         "recommendation_evidence_tie_back": {
@@ -512,6 +516,7 @@ def build_recommendation_screen_model(
                 grouped_findings.get("secondary_evidence") or []
             ),
         },
+        "similarity_support": _build_similarity_action_support(canonical_payload),
         "action_explanation": (
             llm_explanation.get("action_explanation")
             or _as_dict(grouped_findings.get("recommendation_summary")).get("summary")
@@ -736,6 +741,7 @@ def build_review_comparison_screen_model(
             "exadata_summary": historical_topology.get("exadata_summary"),
             "host_instance_notes": host_instance_notes,
         },
+        "similarity_evidence": _build_similarity_evidence(canonical_payload),
         "visual_analysis": {
             "time_series_available": any(
                 _as_dict(family).get("data_quality") == "ok"
@@ -818,13 +824,8 @@ def build_history_selector_screen_model(
         comparison_context.get("comparison_window")
         or analysis_context.get("awr_count_and_window")
     )
-    review_modes = [
-        "historical trend view",
-        "period comparison",
-        "anomaly review",
-        "cross-run review",
-        "future memory / similarity view",
-    ]
+    review_modes = ["diagnosis", "historical proof", "anomaly", "similarity", "fleet"]
+    comparison_modes = ["history", "similar AWRs", "cluster", "fleet"]
     latest_snapshot_summary = _compact_selector_summary(
         comparison_context.get("latest_snapshot_summary")
     )
@@ -844,9 +845,31 @@ def build_history_selector_screen_model(
         "screen": "history_selector",
         "header": {
             "db_name": metadata.get("db_name"),
+            "dbid": metadata.get("dbid"),
             "instance_name": metadata.get("instance_name"),
             "host_name": metadata.get("host_name"),
             "window": comparison_window,
+        },
+        "selection_controls": {
+            "db_dbid": _format_scope_label(
+                metadata.get("db_name"),
+                metadata.get("dbid"),
+                fallback=scope,
+            ),
+            "host_instance": _join_display_lines(
+                [metadata.get("host_name"), metadata.get("instance_name")]
+            ),
+            "snapshot_window": comparison_window,
+            "latest_interval": latest_snapshot_summary,
+            "worst_interval": worst_snapshot_summary,
+            "comparison_modes": comparison_modes,
+            "active_comparison_mode": (
+                "history" if snapshot_count and snapshot_count > 1 else "similar AWRs"
+            ),
+            "review_modes": review_modes,
+            "active_review_mode": (
+                "historical proof" if snapshot_count and snapshot_count > 1 else "diagnosis"
+            ),
         },
         "scope_selection": {
             "options": ["DBID", "DB name", "INSTANCE_NAME", "HOST_NAME", "fleet/global"],
@@ -873,20 +896,165 @@ def build_history_selector_screen_model(
         "review_mode": {
             "options": review_modes,
             "active_mode": (
-                "historical trend view"
+                "historical proof"
                 if snapshot_count and snapshot_count > 1
-                else "period comparison"
+                else "diagnosis"
             ),
         },
         "current_selection_summary": {
             "scope": scope_label,
             "timeframe": comparison_window,
             "review_mode": (
-                "historical trend view"
+                "historical proof"
                 if snapshot_count and snapshot_count > 1
-                else "period comparison"
+                else "diagnosis"
             ),
         },
+    }
+
+
+def _build_similarity_compact_context(
+    canonical_payload: dict[str, Any],
+) -> dict[str, Any]:
+    similarity = _as_dict(canonical_payload.get("similarity_intelligence"))
+    similar_cases = list(similarity.get("similar_cases") or [])
+    cluster = _as_dict(similarity.get("workload_cluster"))
+    rarity = _as_dict(similarity.get("pattern_rarity"))
+    return {
+        "enabled": bool(similarity.get("enabled")),
+        "similar_awr_count": len(similar_cases),
+        "cluster_label": cluster.get("cluster_label"),
+        "cluster_confidence": cluster.get("cluster_confidence"),
+        "rarity": (
+            "rare pattern"
+            if rarity.get("is_rare_pattern")
+            else "common pattern"
+            if similarity.get("enabled")
+            else "unavailable"
+        ),
+        "reason": rarity.get("reason") or similarity.get("reason") or similarity.get("error"),
+    }
+
+
+def _build_similarity_evidence(canonical_payload: dict[str, Any]) -> dict[str, Any]:
+    similarity = _as_dict(canonical_payload.get("similarity_intelligence"))
+    return {
+        "enabled": bool(similarity.get("enabled")),
+        "similar_cases": list(similarity.get("similar_cases") or []),
+        "pattern_rarity": _as_dict(similarity.get("pattern_rarity")),
+        "anomaly_validation": _as_dict(similarity.get("anomaly_validation")),
+        "workload_cluster": _as_dict(similarity.get("workload_cluster")),
+        "unavailable_reason": similarity.get("reason") or similarity.get("error"),
+    }
+
+
+def _build_similarity_action_support(
+    canonical_payload: dict[str, Any],
+) -> dict[str, Any]:
+    similarity = _as_dict(canonical_payload.get("similarity_intelligence"))
+    recommendation_context = _as_dict(similarity.get("recommendation_context"))
+    return {
+        "enabled": bool(similarity.get("enabled")),
+        "similarity_explanation": recommendation_context.get("similarity_explanation"),
+        "supporting_cases": list(recommendation_context.get("supporting_cases") or []),
+        "recommended_use": recommendation_context.get("recommended_use"),
+        "unavailable_reason": similarity.get("reason") or similarity.get("error"),
+    }
+
+
+def _case_distribution(cases: list[dict[str, Any]], field_name: str) -> dict[str, int]:
+    distribution: dict[str, int] = {}
+    for case in cases:
+        key = str(case.get(field_name) or "UNKNOWN").strip().upper() or "UNKNOWN"
+        distribution[key] = distribution.get(key, 0) + 1
+    return distribution
+
+
+def build_fleet_overview_screen_model(
+    canonical_payload: dict[str, Any],
+    report_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build Screen 6 as a fleet/similarity overview without changing backend output."""
+
+    report_data = report_data or {}
+    metadata = _as_dict(canonical_payload.get("metadata"))
+    decision = _as_dict(canonical_payload.get("decision"))
+    recommendations = [
+        _as_dict(item) for item in (canonical_payload.get("recommendations") or [])
+    ]
+    comparison_context = _as_dict(report_data.get("comparison_context"))
+    similarity = _as_dict(canonical_payload.get("similarity_intelligence"))
+    similar_cases = [_as_dict(case) for case in (similarity.get("similar_cases") or [])]
+    cluster = _as_dict(similarity.get("workload_cluster"))
+    rarity = _as_dict(similarity.get("pattern_rarity"))
+    anomaly_validation = _as_dict(similarity.get("anomaly_validation"))
+    source_scope = _format_scope_label(
+        metadata.get("db_name"),
+        metadata.get("dbid"),
+        fallback=comparison_context.get("analysis_scope_label"),
+    )
+
+    risk_distribution = _case_distribution(similar_cases, "risk_level")
+    domain_distribution = _case_distribution(similar_cases, "primary_signal_domain")
+    repeated_issues = [
+        {"issue": key, "count": value}
+        for key, value in sorted(
+            domain_distribution.items(),
+            key=lambda item: (-item[1], item[0]),
+        )
+        if key != "UNKNOWN"
+    ]
+    outliers = [
+        case
+        for case in similar_cases
+        if (_safe_float(case.get("distance")) or 0.0) >= 0.25
+        or str(case.get("risk_level") or "").upper() in {"HIGH", "CRITICAL"}
+    ]
+
+    return {
+        "screen": "fleet_overview",
+        "header": {
+            "scope_label": source_scope,
+            "db_name": metadata.get("db_name"),
+            "dbid": metadata.get("dbid"),
+            "snapshot_count": comparison_context.get("snapshot_count")
+            or len(report_data.get("snapshot_labels") or []),
+            "comparison_window": comparison_context.get("comparison_window"),
+        },
+        "fleet_summary": {
+            "similar_awrs": len(similar_cases),
+            "cluster_label": cluster.get("cluster_label"),
+            "cluster_confidence": cluster.get("cluster_confidence"),
+            "rarity": (
+                "rare pattern"
+                if rarity.get("is_rare_pattern")
+                else "common pattern"
+                if similarity.get("enabled")
+                else "unavailable"
+            ),
+            "primary_issue": decision.get("primary_issue"),
+            "risk_distribution": risk_distribution,
+            "domain_distribution": domain_distribution,
+        },
+        "clusters": {
+            "workload_cluster": cluster,
+            "similar_cases": similar_cases,
+        },
+        "outliers": outliers,
+        "rare_patterns": rarity,
+        "repeated_issues": repeated_issues,
+        "anomaly_validation": anomaly_validation,
+        "recommendation_backlog": [
+            {
+                "priority": item.get("priority"),
+                "domain": item.get("domain"),
+                "action": item.get("action"),
+                "confidence": item.get("confidence"),
+            }
+            for item in recommendations
+        ],
+        "similarity_enabled": bool(similarity.get("enabled")),
+        "unavailable_reason": similarity.get("reason") or similarity.get("error"),
     }
 
 
@@ -914,6 +1082,10 @@ def build_phase5_screen_models(
             report_data=report_data,
         ),
         "screen_5_recommendation_action": build_recommendation_screen_model(
+            canonical_payload,
+            report_data=report_data,
+        ),
+        "screen_6_fleet_overview": build_fleet_overview_screen_model(
             canonical_payload,
             report_data=report_data,
         ),
@@ -1290,10 +1462,16 @@ def _build_historical_memory_review(
         }
 
     if memory_status == "weak":
+        primary_label = _issue_product_label(primary_issue)
+        relative_pattern = (
+            "dominant workload pattern"
+            if primary_label in {"the dominant workload pattern", "the governing pattern"}
+            else f"dominant {primary_label} pattern"
+        )
         return {
             "summary": "Memory was reviewed and remains non-governing in this window.",
             "items": [
-                f"{memory_label} is present only as a weak secondary signal relative to the dominant {_issue_product_label(primary_issue)} pattern."
+                f"{memory_label} is present only as a weak secondary signal relative to the {relative_pattern}."
             ],
         }
 
@@ -1311,7 +1489,7 @@ def _build_analysis_explanation_recap(
     trend_summary: dict[str, Any],
     anomaly_summary: dict[str, Any],
 ) -> str:
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     section_titles = [
         _clean_context_value(section.get("title"))
         for section in technical_sections
@@ -1341,34 +1519,10 @@ def _build_analysis_visual_summary(
     report_data: dict[str, Any],
 ) -> dict[str, Any]:
     time_series = _as_dict(report_data.get("time_series_charts"))
-    analysis_context = _as_dict(report_data.get("analysis_context"))
-    metadata = _as_dict(report_data.get("metadata"))
-    decision = _as_dict(report_data.get("decision"))
-    feature_values = _flatten_domain_feature_values(
-        _as_dict(decision.get("evidence")).get("feature_evidence")
-    )
     labels = list(time_series.get("snapshot_labels") or [])
-    instance_count = _resolve_display_instance_count(
-        report_data,
-        analysis_context,
-        feature_values,
-        metadata=metadata,
-        selected_scope_only=True,
-    )
-    topology_detected = str(
-        _derive_display_topology(
-            analysis_context,
-            feature_values,
-            instance_count,
-            report_data=report_data,
-            selected_scope_only=True,
-        )
-        or ""
-    ).strip().lower()
-    has_rac = "rac" in topology_detected
     return {
         "cpu": _select_visual_summary_card(
-            card_title="CPU Trend",
+            card_title="CPU Signal",
             labels=labels,
             domain="cpu",
             candidates=[
@@ -1377,21 +1531,21 @@ def _build_analysis_visual_summary(
                     "series_key": "cpu_trend",
                     "card_subtitle": "DB CPU % DB Time",
                     "selected_label": "DB CPU % DB Time",
-                    "reason": "This trend reflects the clearest CPU measure available in this window.",
+                    "reason": "This signal reflects the clearest CPU measure available in this window.",
                 },
                 {
                     "selected_key": "cpu_util_p95_trend",
                     "series_key": "cpu_util_p95_trend",
                     "card_subtitle": "CPU Util P95",
                     "selected_label": "CPU Util P95",
-                    "reason": "This trend reflects the clearest CPU measure available in this window.",
+                    "reason": "This signal reflects the clearest CPU measure available in this window.",
                 },
                 {
                     "selected_key": "cpu_pressure_proxy_trend",
                     "series_key": "cpu_pressure_proxy_trend",
                     "card_subtitle": "CPU Pressure Proxy",
                     "selected_label": "CPU Pressure Proxy",
-                    "reason": "This trend reflects the clearest CPU measure available in this window.",
+                    "reason": "This signal reflects the clearest CPU measure available in this window.",
                 },
             ],
             empty_subtitle="No Material CPU Pressure",
@@ -1399,7 +1553,7 @@ def _build_analysis_visual_summary(
             time_series=time_series,
         ),
         "io": _select_visual_summary_card(
-            card_title="I/O Trend",
+            card_title="I/O Signal",
             labels=labels,
             domain="io",
             candidates=[
@@ -1408,28 +1562,28 @@ def _build_analysis_visual_summary(
                     "series_key": "io_trend",
                     "card_subtitle": "User I/O Pressure",
                     "selected_label": "User I/O Pressure",
-                    "reason": "This trend reflects the clearest I/O measure available in this window.",
+                    "reason": "This signal reflects the clearest I/O measure available in this window.",
                 },
                 {
                     "selected_key": "read_latency_ms_trend",
                     "series_key": "read_latency_ms_trend",
                     "card_subtitle": "Read Latency",
                     "selected_label": "Read Latency",
-                    "reason": "This trend reflects the clearest I/O measure available in this window.",
+                    "reason": "This signal reflects the clearest I/O measure available in this window.",
                 },
                 {
                     "selected_key": "log_file_sync_ms_trend",
                     "series_key": "log_file_sync_trend",
                     "card_subtitle": "Commit / Log File Sync",
                     "selected_label": "Commit / Log File Sync",
-                    "reason": "This trend reflects the clearest I/O measure available in this window.",
+                    "reason": "This signal reflects the clearest I/O measure available in this window.",
                 },
                 {
                     "selected_key": "top_sql_load_concentration_trend",
                     "series_key": "sql_concentration_trend",
                     "card_subtitle": "Top SQL Load Concentration",
                     "selected_label": "Top SQL Load Concentration",
-                    "reason": "This trend reflects the clearest workload-access measure available in this window.",
+                    "reason": "This signal reflects the clearest workload-access measure available in this window.",
                 },
             ],
             empty_subtitle="No Material I/O Pressure",
@@ -1437,7 +1591,7 @@ def _build_analysis_visual_summary(
             time_series=time_series,
         ),
         "memory": _select_visual_summary_card(
-            card_title="Memory Trend",
+            card_title="Memory Signal",
             labels=labels,
             domain="memory",
             candidates=[
@@ -1446,68 +1600,88 @@ def _build_analysis_visual_summary(
                     "series_key": "pga_spill_trend",
                     "card_subtitle": "PGA Spill Pressure",
                     "selected_label": "PGA Spill Pressure",
-                    "reason": "This trend reflects the clearest memory-related measure available in this window.",
+                    "reason": "This signal reflects the clearest memory-related measure available in this window.",
                 },
                 {
                     "selected_key": "concurrency_pressure_trend",
                     "series_key": "concurrency_trend",
                     "card_subtitle": "Concurrency Pressure",
                     "selected_label": "Concurrency Pressure",
-                    "reason": "This trend reflects the clearest memory-related measure available in this window.",
+                    "reason": "This signal reflects the clearest memory-related measure available in this window.",
                 },
                 {
                     "selected_key": "temp_io_pressure_trend",
                     "series_key": "temp_io_trend",
                     "card_subtitle": "Temp I/O Pressure",
                     "selected_label": "Temp I/O Pressure",
-                    "reason": "This trend reflects the clearest memory/workarea measure available in this window.",
+                    "reason": "This signal reflects the clearest memory/workarea measure available in this window.",
                 },
                 {
                     "selected_key": "hard_parses_per_sec_trend",
                     "series_key": "hard_parses_trend",
                     "card_subtitle": "Hard Parses / Second",
                     "selected_label": "Hard Parses / Second",
-                    "reason": "This trend reflects the clearest memory-adjacent measure available in this window.",
+                    "reason": "This signal reflects the clearest memory-adjacent measure available in this window.",
                 },
             ],
             empty_subtitle="No Material Memory Pressure",
             empty_reason="No meaningful memory signal is available for this window.",
             time_series=time_series,
         ),
-        "cluster": (
-            _select_visual_summary_card(
-                card_title="Cluster Trend",
-                labels=labels,
-                domain="cluster",
-                candidates=[
-                    {
-                        "selected_key": "cluster_wait_pct_db_time_trend",
-                        "series_key": "cluster_wait_trend",
-                        "card_subtitle": "Cluster Wait %",
-                        "selected_label": "Cluster Wait %",
-                        "reason": "This trend reflects the clearest cluster measure available in this window.",
-                    },
-                    {
-                        "selected_key": "gc_current_wait_pct_db_time_trend",
-                        "series_key": "gc_current_wait_trend",
-                        "card_subtitle": "GC Current Wait %",
-                        "selected_label": "GC Current Wait %",
-                        "reason": "This trend reflects the clearest cluster measure available in this window.",
-                    },
-                    {
-                        "selected_key": "gc_cr_wait_pct_db_time_trend",
-                        "series_key": "gc_cr_wait_trend",
-                        "card_subtitle": "GC CR Wait %",
-                        "selected_label": "GC CR Wait %",
-                        "reason": "This trend reflects the clearest cluster measure available in this window.",
-                    },
-                ],
-                empty_subtitle="No Material Cluster Pressure",
-                empty_reason="No meaningful cluster signal is available for this window.",
-                time_series=time_series,
-            )
-            if has_rac
-            else None
+        "rac": _select_visual_summary_card(
+            card_title="RAC Signal",
+            labels=labels,
+            domain="cluster",
+            candidates=[
+                {
+                    "selected_key": "cluster_wait_pct_db_time_trend",
+                    "series_key": "cluster_wait_trend",
+                    "card_subtitle": "Cluster Wait %",
+                    "selected_label": "Cluster Wait %",
+                    "reason": "This signal reflects the clearest RAC/cluster measure available in this window.",
+                },
+                {
+                    "selected_key": "gc_current_wait_pct_db_time_trend",
+                    "series_key": "gc_current_wait_trend",
+                    "card_subtitle": "GC Current Wait %",
+                    "selected_label": "GC Current Wait %",
+                    "reason": "This signal reflects the clearest RAC/cluster measure available in this window.",
+                },
+                {
+                    "selected_key": "gc_cr_wait_pct_db_time_trend",
+                    "series_key": "gc_cr_wait_trend",
+                    "card_subtitle": "GC CR Wait %",
+                    "selected_label": "GC CR Wait %",
+                    "reason": "This signal reflects the clearest RAC/cluster measure available in this window.",
+                },
+            ],
+            empty_subtitle="No Material RAC Pressure",
+            empty_reason="No meaningful RAC signal is available for this window.",
+            time_series=time_series,
+        ),
+        "adg": _select_visual_summary_card(
+            card_title="ADG Signal",
+            labels=labels,
+            domain="adg",
+            candidates=[
+                {
+                    "selected_key": "transport_lag_sec_trend",
+                    "series_key": "dg_transport_lag_trend",
+                    "card_subtitle": "Transport Lag",
+                    "selected_label": "Transport Lag",
+                    "reason": "This signal reflects the clearest Data Guard transport measure available in this window.",
+                },
+                {
+                    "selected_key": "apply_lag_sec_trend",
+                    "series_key": "dg_apply_lag_trend",
+                    "card_subtitle": "Apply Lag",
+                    "selected_label": "Apply Lag",
+                    "reason": "This signal reflects the clearest Data Guard apply measure available in this window.",
+                },
+            ],
+            empty_subtitle="No Material ADG Lag",
+            empty_reason="No meaningful ADG signal is available for this window.",
+            time_series=time_series,
         ),
         "hint": "View full historical analysis in Screen 4",
     }
@@ -1523,6 +1697,7 @@ def _select_visual_summary_card(
     empty_reason: str,
     time_series: dict[str, Any],
 ) -> dict[str, Any]:
+    rejected_card: dict[str, Any] | None = None
     for candidate in candidates:
         series_values = _numeric_series(time_series.get(candidate["series_key"]))
         if not series_values:
@@ -1532,7 +1707,7 @@ def _select_visual_summary_card(
             domain=domain,
             selected_key=str(candidate.get("selected_key") or ""),
         )
-        return {
+        card = {
             "card_title": card_title,
             "card_subtitle": candidate["card_subtitle"],
             "selected_key": candidate["selected_key"],
@@ -1541,6 +1716,21 @@ def _select_visual_summary_card(
             "series": series_values,
             "status": status,
             "reason": candidate["reason"],
+        }
+        if status == "ok":
+            return card
+        if rejected_card is None or (
+            status == "weak" and rejected_card.get("status") != "weak"
+        ):
+            rejected_card = card
+    if rejected_card is not None:
+        if rejected_card.get("status") == "weak":
+            return rejected_card
+        return {
+            **rejected_card,
+            "series": [],
+            "status": "suppressed",
+            "reason": empty_reason,
         }
     return {
         "card_title": card_title,
@@ -1633,6 +1823,7 @@ def _summary_conflicts_with_primary_issue(
 
 def _issue_product_label(issue: Any) -> str:
     normalized = _normalize_issue_key(issue)
+    fallback = str(issue or "").strip()
     return {
         "CPU": "CPU",
         "IO": "I/O",
@@ -1640,7 +1831,7 @@ def _issue_product_label(issue: Any) -> str:
         "COMMIT": "commit latency",
         "RAC": "cluster coordination",
         "ADG": "Data Guard lag",
-    }.get(normalized, str(issue or "the selected domain").strip() or "the selected domain")
+    }.get(normalized, fallback or "the governing pattern")
 
 
 def _governing_issue_statement(issue: Any, scope_text: str) -> str:
@@ -2279,8 +2470,11 @@ def _build_screen_4_visual_story(
                         "cluster_wait_pct_db_time",
                         "gc_current_wait_pct_db_time",
                         "gc_cr_wait_pct_db_time",
+                        "combined_gc_wait_pct_db_time",
+                        "interconnect_stress_flag",
                         "transport_lag_sec",
                         "apply_lag_sec",
+                        "lag_stability_sec",
                     ],
                     violin=True,
                 )
@@ -2411,6 +2605,7 @@ def _build_screen_4_visual_story(
                 "cluster_wait_pct_db_time",
                 "gc_current_wait_pct_db_time",
                 "gc_cr_wait_pct_db_time",
+                "combined_gc_wait_pct_db_time",
             ],
             "rac_instance": [
                 "per_instance_cpu_pct_db_time",
@@ -2431,6 +2626,7 @@ def _build_screen_4_visual_story(
                 "cluster_wait_pct_db_time",
                 "gc_current_wait_pct_db_time",
                 "gc_cr_wait_pct_db_time",
+                "combined_gc_wait_pct_db_time",
             ],
         },
         "MEMORY": {
@@ -2453,6 +2649,8 @@ def _build_screen_4_visual_story(
                 "cluster_wait_pct_db_time",
                 "gc_current_wait_pct_db_time",
                 "gc_cr_wait_pct_db_time",
+                "combined_gc_wait_pct_db_time",
+                "interconnect_stress_flag",
             ],
             "rac_instance": [
                 "per_instance_cluster_wait_pct_db_time",
@@ -2465,6 +2663,7 @@ def _build_screen_4_visual_story(
             "topology": [
                 "transport_lag_sec",
                 "apply_lag_sec",
+                "lag_stability_sec",
                 "cluster_wait_pct_db_time",
             ],
         },
@@ -2713,7 +2912,7 @@ def _build_historical_summary_text(
     fallback_summary: Any,
     visual_story: dict[str, Any] | None = None,
 ) -> str:
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     visual_story = visual_story or {}
     anomaly_count = int(_safe_float(anomaly_summary.get("count")) or 0.0)
     if _normalize_issue_key(primary_issue) == "CPU":
@@ -2732,8 +2931,16 @@ def _build_historical_summary_text(
             f"Primary evidence comes from {', '.join(primary_labels[:3])}, keeping the broader window aligned to the same governing pattern."
         )
     if anomaly_count > 0:
+        posture = (
+            _clean_context_value(normalized_decision.get("historical_posture"))
+            or _clean_context_value(normalized_decision.get("decision_posture"))
+        )
         summary_parts.append(
-            f"Anomaly burden remains visible in {anomaly_count} window(s), but it does not displace {_issue_product_label(primary_issue)} as the governing pattern."
+            (
+                f"Anomaly burden remains visible but does not overturn the current {posture} posture."
+                if posture
+                else "Anomaly burden remains visible but does not overturn the current deterministic posture."
+            )
         )
     return " ".join(summary_parts)
 
@@ -2744,7 +2951,7 @@ def _build_historical_executive_explanation(
     fallback_text: Any,
     visual_story: dict[str, Any] | None = None,
 ) -> str:
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     primary_proof = [
         _clean_context_value(item.get("label"))
         for item in ((visual_story or {}).get("primary_visual_proof") or [])
@@ -2775,7 +2982,7 @@ def _build_historical_technical_explanation(
     anomaly_summary: dict[str, Any],
     visual_story: dict[str, Any],
 ) -> str:
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     card_statuses = _as_dict(visual_story.get("card_statuses"))
     promoted = [
         _clean_context_value(item.get("label"))
@@ -2797,9 +3004,13 @@ def _build_historical_technical_explanation(
         for item in (visual_story.get("suppressed_visual_groups") or [])
         if _clean_context_value(_as_dict(item).get("label"))
     ]
-    lines = [
-        f"The historical review is organized around {_issue_product_label(primary_issue)}-first evidence."
-    ]
+    primary_label = _issue_product_label(primary_issue)
+    if primary_label in {"the governing pattern", "the dominant workload pattern"}:
+        lines = ["The historical review is organized around the strongest available evidence first."]
+    else:
+        lines = [
+            f"The historical review is organized around {primary_label}-first evidence."
+        ]
     if promoted:
         lines.append(f"Primary support comes from {', '.join(promoted[:3])}.")
     if _normalize_issue_key(primary_issue) != "MEMORY":
@@ -2809,7 +3020,7 @@ def _build_historical_technical_explanation(
             )
         else:
             lines.append(
-                "Memory is reviewed explicitly between the primary proof and the supporting trend layer, but no sustained memory pressure is established relative to the CPU-led evidence."
+                "Memory is reviewed explicitly between the primary proof and the supporting trend layer, but no sustained memory pressure is established relative to the dominant evidence."
             )
     if supporting:
         lines.append(f"Supporting evidence then follows with {', '.join(supporting[:3])}.")
@@ -2847,7 +3058,7 @@ def _build_historical_interpretation(
         normalized_decision.get("primary_issue"),
     )
     anomaly_count = int(_safe_float(anomaly_summary.get("count")) or 0.0)
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "The selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     card_statuses = _as_dict(visual_story.get("card_statuses"))
     contextual = [
         _clean_context_value(item.get("label"))
@@ -2888,7 +3099,7 @@ def _build_historical_action_explanation(
     recommendation_summary: dict[str, Any],
 ) -> str:
     posture = _clean_context_value(normalized_decision.get("decision_posture"))
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     if posture:
         return (
             f"The historical record aligns with {posture} because "
@@ -3114,7 +3325,7 @@ def _build_historical_drift_summary(
         comparison_context.get("latest_vs_trend"),
         limit=180,
     )
-    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the selected domain"
+    primary_issue = _clean_context_value(normalized_decision.get("primary_issue")) or "the governing pattern"
     parts = [
         f"Period comparison should be read through the deterministic {primary_issue} posture."
     ]
@@ -3593,6 +3804,7 @@ def _build_analysis_health_check(
         primary_issue=str(decision.get("primary_issue") or ""),
         anomaly_count=anomaly_count,
     )
+    rows = _align_health_rows_with_signal_data(rows, report_data)
     summary_status = "PASS"
     if any(row["status"] == "FAIL" for row in rows):
         summary_status = "FAIL"
@@ -3657,6 +3869,47 @@ def _align_health_check_rows(
             )
         else:
             aligned_rows.append(row)
+    return aligned_rows
+
+
+def _align_health_rows_with_signal_data(
+    rows: list[dict[str, Any]],
+    report_data: dict[str, Any],
+) -> list[dict[str, Any]]:
+    visual_summary = _build_analysis_visual_summary(report_data)
+    signal_checks = {
+        "CPU": "cpu",
+        "I/O": "io",
+        "MEMORY": "memory",
+        "RAC": "rac",
+        "ADG": "adg",
+    }
+    aligned_rows: list[dict[str, Any]] = []
+    for row in rows:
+        check = str(row.get("check") or "")
+        signal_key = signal_checks.get(check)
+        signal = _as_dict(visual_summary.get(signal_key))
+        if (
+            signal_key
+            and signal.get("status") == "ok"
+            and str(row.get("observed_value") or "").lower() == "no material signal observed"
+        ):
+            aligned_rows.append(
+                {
+                    **row,
+                    "status": "MARGINAL"
+                    if row.get("status") == "PASS"
+                    else row.get("status"),
+                    "observed_value": (
+                        f"Signal present: {signal.get('card_subtitle')}"
+                    ),
+                    "reason": (
+                        "Signal data is present on this page; per-domain health scoring did not provide a stronger deterministic classification."
+                    ),
+                }
+            )
+            continue
+        aligned_rows.append(row)
     return aligned_rows
 
 
@@ -3808,11 +4061,11 @@ def _domain_health_row(
     )
     status = _max_status(score_status, observed_status)
     if score is None and observed_value is None:
-        status = "PASS"
+        status = "N/A"
     observed_text = (
         f"{_metric_display_label(observed_label)}: {_format_metric_value(observed_value)}"
         if observed_label is not None and observed_value is not None
-        else "No material signal observed"
+        else "Not scored"
     )
     if observed_status == "FAIL":
         score_text = (
@@ -3827,7 +4080,7 @@ def _domain_health_row(
             "Decision contribution is present and aligns with the observed evidence."
         )
     else:
-        score_text = "No material deterministic pressure was identified for this domain."
+        score_text = "Per-domain deterministic health scoring is unavailable for this domain."
     return {
         "check": check,
         "observed_value": observed_text,

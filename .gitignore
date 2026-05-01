@@ -21,3 +21,4 @@ validation_*.json
 *.gold.*
 scoring_diagnostics_*.json
 scoring_diagnostics_*.md
+.vscode/launch.json

@@ -59,7 +59,7 @@ def build_disabled_similarity_intelligence(reason: str) -> dict[str, Any]:
 
 
 def build_failed_similarity_intelligence(error: str) -> dict[str, Any]:
-    safe_error = str(error or "").strip() or "Similarity intelligence unavailable."
+    safe_error = "Similarity unavailable — DB-backed similarity query failed."
     return {
         "enabled": False,
         "error": safe_error,
@@ -80,6 +80,7 @@ def _prepare_similar_cases(
             continue
         if candidate_awr_id == source_awr_id:
             continue
+        distance = max(0.0, distance)
         if candidate_awr_id not in nearest_by_awr:
             nearest_by_awr[candidate_awr_id] = distance
     if not nearest_by_awr:

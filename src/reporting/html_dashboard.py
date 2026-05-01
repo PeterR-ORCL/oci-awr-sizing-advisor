@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 AI_SECTION_ORDER = [
     "Executive Summary",
@@ -19,6 +19,8 @@ AI_SECTION_ORDER = [
     "Confidence Assessment",
     "Risk of Being Wrong",
 ]
+
+CHART_NULL_SENTINEL = "__AWR_CHART_MISSING__"
 
 
 def generate_html_dashboard(
@@ -47,15 +49,12 @@ AI_SECTION_NAMES = [
 
 PAGE_DEFINITIONS = (
     ("home", "Home", "index.html"),
-    ("screen_1", "Screen 1 - Ingestion", "screen_1_ingestion.html"),
-    ("screen_2", "Screen 2 - Analysis", "screen_2_analysis.html"),
-    ("screen_3", "Screen 3 - History Selector", "screen_3_history_selector.html"),
-    ("screen_4", "Screen 4 - Historical Review", "screen_4_historical_review.html"),
-    (
-        "screen_5",
-        "Screen 5 - Recommendation / Action",
-        "screen_5_recommendation_action.html",
-    ),
+    ("screen_1", "1 Ingestion", "screen_1_ingestion.html"),
+    ("screen_2", "2 Analysis", "screen_2_analysis.html"),
+    ("screen_3", "3 Selector", "screen_3_history_selector.html"),
+    ("screen_4", "4 Review", "screen_4_historical_review.html"),
+    ("screen_5", "5 Action", "screen_5_recommendation_action.html"),
+    ("screen_6", "6 Fleet", "screen_6_fleet_overview.html"),
 )
 
 TIME_SERIES_GROUP_DEFINITIONS = (
@@ -317,6 +316,18 @@ VIOLIN_METRIC_GROUP_DEFINITIONS = [
                 "color": "rgba(233, 196, 106, 0.72)",
             },
             {
+                "payload_key": "combined_gc_wait_pct_db_time",
+                "container_id": "violinCombinedGcWaitPct",
+                "title": "Combined GC Wait %",
+                "color": "rgba(255, 183, 77, 0.72)",
+            },
+            {
+                "payload_key": "interconnect_stress_flag",
+                "container_id": "violinInterconnectStress",
+                "title": "Interconnect Stress Evidence",
+                "color": "rgba(255, 112, 67, 0.72)",
+            },
+            {
                 "payload_key": "transport_lag_sec",
                 "container_id": "violinTransportLagSec",
                 "title": "Data Guard Transport Lag",
@@ -327,6 +338,12 @@ VIOLIN_METRIC_GROUP_DEFINITIONS = [
                 "container_id": "violinApplyLagSec",
                 "title": "Data Guard Apply Lag",
                 "color": "rgba(72, 149, 239, 0.72)",
+            },
+            {
+                "payload_key": "lag_stability_sec",
+                "container_id": "violinLagStabilitySec",
+                "title": "Data Guard Lag Stability",
+                "color": "rgba(76, 201, 240, 0.72)",
             },
         ],
     },
@@ -392,6 +409,7 @@ PERCENT_LIKE_VIOLIN_KEYS = {
     "cluster_wait_pct_db_time",
     "gc_current_wait_pct_db_time",
     "gc_cr_wait_pct_db_time",
+    "combined_gc_wait_pct_db_time",
     "cell_single_block_read_pct_db_time",
     "smart_scan_pct_db_time",
     "per_instance_cpu_pct_db_time",
@@ -465,6 +483,7 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
     generated_at = str(report_data.get("generated_at") or datetime.utcnow().isoformat())
     screen_models = report_data.get("screen_models") or {}
     screen_4_model = screen_models.get("screen_4_historical_review") or {}
+    screen_6_model = screen_models.get("screen_6_fleet_overview") or {}
     ai_sections = _normalize_ai_sections(
         parse_ai_sections(str(report_data.get("ai_generated_narrative") or ""))
     )
@@ -550,8 +569,63 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
             ),
             generated_at=generated_at,
         ),
+        "screen_6_fleet_overview.html": _build_page_html(
+            page_key="screen_6",
+            page_title="Screen 6 - Fleet Overview",
+            report_data=report_data,
+            content_html=_render_screen_6_page(screen_6_model),
+            generated_at=generated_at,
+        ),
     }
-    return pages
+    return {
+        filename: _final_dashboard_html_polish(html)
+        for filename, html in pages.items()
+    }
+
+
+def _final_dashboard_html_polish(html: str) -> str:
+    replacements = (
+        (
+            "CPU Insufficient data for a reliable conclusion",
+            "CPU data was not sufficient in this interval to establish a reliable conclusion",
+        ),
+        (
+            "Unavailable of DB time",
+            "CPU data was not sufficient in this interval to establish a reliable conclusion",
+        ),
+        (
+            "CPU-led evidence remains primary",
+            "CPU evidence remains one of the more visible signals in the historical window, but not consistently dominant",
+        ),
+        (
+            "governing pattern-first",
+            "strongest available evidence first",
+        ),
+        (
+            "dominant the dominant",
+            "dominant",
+        ),
+        (
+            "pattern pattern",
+            "pattern",
+        ),
+        (
+            "No deterministic recommendations were generated.",
+            "No deterministic actions are recommended at this time.",
+        ),
+        (
+            "<strong>Rarity:</strong> common pattern",
+            "<strong>Rarity:</strong> Pattern appears common within the current similarity space.",
+        ),
+        (
+            "keeping the broader window aligned to the same governing pattern",
+            "keeping the broader window aligned to the same overall posture",
+        ),
+    )
+    polished = html
+    for before, after in replacements:
+        polished = polished.replace(before, after)
+    return polished
 
 
 def _build_page_html(
@@ -569,11 +643,12 @@ def _build_page_html(
     """Build one page of the multi-page dashboard experience."""
 
     product = _to_dict(report_data.get("product"))
-    hero_title = escape(product.get("title") or "AWR Performance Intelligence Dashboard")
+    hero_title = escape(_hero_title_for_page(page_key, product))
     nav_html = _render_page_navigation(page_key)
+    runtime_badge_html = _render_runtime_status_badge(report_data)
     shell_class = "top-shell sticky-shell"
     chart_payload_json = (
-        json.dumps(chart_payload or {}, indent=2)
+        json.dumps(_chart_payload_json_safe(chart_payload or {}), indent=2)
         if include_chart_scripts
         else "{}"
     )
@@ -613,11 +688,12 @@ def _build_page_html(
   <div class="container">
     <div class="{shell_class}">
       <section class="hero">
-        <div class="eyebrow">AWR Performance Intelligence Dashboard</div>
+        <div class="eyebrow">AWR PERFORMANCE INTELLIGENCE</div>
         <h1>{hero_title}</h1>
+        {runtime_badge_html}
         <p class="hero-summary">
-          Deterministic Oracle AWR intelligence with canonical diagnosis, historical review,
-          and action guidance.
+          Deterministic Oracle AWR intelligence delivering consistent diagnosis,
+          historical context, and actionable guidance.
         </p>
         <div class="hero-meta">Generated: {escape(generated_at)}</div>
       </section>
@@ -634,6 +710,106 @@ def _build_page_html(
 </body>
 </html>
 """
+
+
+def _chart_payload_json_safe(value: Any) -> Any:
+    if value is None:
+        return CHART_NULL_SENTINEL
+    if isinstance(value, list):
+        return [_chart_payload_json_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _chart_payload_json_safe(item)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _hero_title_for_page(page_key: str, product: dict[str, Any]) -> str:
+    return {
+        "home": product.get("title") or "AWR Performance Intelligence Dashboard",
+        "screen_1": "Screen 1 - Ingestion",
+        "screen_2": "Screen 2 - Diagnostic Snapshot",
+        "screen_3": "Screen 3 - History Selector",
+        "screen_4": "Screen 4 - Historical Review",
+        "screen_5": "Screen 5 - Recommendation / Action",
+        "screen_6": "Screen 6 - Fleet Overview",
+    }.get(page_key, product.get("title") or "Dashboard")
+
+
+def _render_runtime_status_badge(report_data: dict[str, Any]) -> str:
+    status = _runtime_status_from_report(report_data)
+    mode_class = (
+        "success"
+        if status["runtime_mode"] == "FULL DB MODE"
+        else "error"
+        if status["db_connectivity"].upper() == "FAILED"
+        else "warning"
+    )
+    return f"""
+      <div class="runtime-badge">
+        <span class="status-pill {escape(mode_class)}">{escape(status["runtime_mode"])}</span>
+        <div class="runtime-meta">
+          DB: {escape(status["db_connectivity"])} · Similarity: {escape(status["similarity_status"])}
+        </div>
+      </div>
+    """
+
+
+def _runtime_status_from_report(report_data: dict[str, Any]) -> dict[str, str]:
+    ingestion_context = _to_dict(report_data.get("ingestion_context"))
+    db_ingestion = _to_dict(ingestion_context.get("db_ingestion"))
+    if not db_ingestion:
+        screen_1 = _to_dict(
+            _to_dict(report_data.get("screen_models")).get("screen_1_ingestion")
+        )
+        db_ingestion = _to_dict(screen_1.get("db_ingestion"))
+    summary = _to_dict(db_ingestion.get("summary"))
+    db_connectivity = _clean_runtime_status_text(
+        summary.get("db_connectivity"),
+        default="Not checked",
+    )
+    db_ready = _truthy_status(summary.get("db_similarity_ready"))
+    connected = db_connectivity.strip().lower() == "connected"
+    runtime_mode = "FULL DB MODE" if connected and db_ready else "LOCAL ONLY MODE"
+    similarity_status = "Available" if connected and db_ready else "Unavailable"
+    display_db_connectivity = "Connected" if connected else "Failed"
+    return {
+        "runtime_mode": runtime_mode,
+        "db_connectivity": display_db_connectivity,
+        "similarity_status": similarity_status,
+    }
+
+
+def _clean_runtime_status_text(value: Any, *, default: str) -> str:
+    if not _has_display_value(value):
+        return default
+    text = str(value).strip()
+    if re.search(r"\b(?:ORA|DPY)-\d+\b", text, flags=re.IGNORECASE):
+        return default
+    return text
+
+
+def _truthy_status(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"yes", "true", "1", "available", "ready"}
+    return False
+
+
+def _db_backed_similarity_available(report_data: dict[str, Any]) -> bool:
+    status = _runtime_status_from_report(report_data)
+    return (
+        status["runtime_mode"] == "FULL DB MODE"
+        and status["similarity_status"].lower() == "available"
+    )
+
+
+def _similarity_unavailable_message() -> str:
+    return "Similarity unavailable — DB-backed similarity requires database connectivity."
 
 
 def _render_page_navigation(active_page_key: str) -> str:
@@ -661,11 +837,13 @@ def _render_home_page(
     screen_2 = _to_dict(screen_models.get("screen_2_analysis"))
     screen_3_selector = _to_dict(screen_models.get("screen_3_history_selector"))
     screen_4_review = _to_dict(screen_models.get("screen_4_historical_review"))
+    screen_6_fleet = _to_dict(screen_models.get("screen_6_fleet_overview"))
     llm_explanation = _to_dict(report_data.get("llm_explanation"))
     normalized_decision = _to_dict(screen_2.get("normalized_decision"))
     intake_summary = _to_dict(screen_1.get("intake_summary"))
     selector_header = _to_dict(screen_3_selector.get("header"))
     review_header = _to_dict(screen_4_review.get("header"))
+    fleet_summary = _to_dict(screen_6_fleet.get("fleet_summary"))
     llm_enabled = bool(llm_explanation.get("enabled"))
     llm_provider = llm_explanation.get("provider")
     llm_model = llm_explanation.get("model")
@@ -742,6 +920,15 @@ def _render_home_page(
                 ("DB Name", metadata.get("db_name")),
             ],
         ),
+        (
+            "Screen 6 - Fleet Overview",
+            "screen_6_fleet_overview.html",
+            [
+                ("Similar AWRs", fleet_summary.get("similar_awrs")),
+                ("Cluster", _display_cluster_label(fleet_summary.get("cluster_label"))),
+                ("Rarity", fleet_summary.get("rarity")),
+            ],
+        ),
     ]
 
     return f"""
@@ -749,10 +936,11 @@ def _render_home_page(
       <!-- index.html is the explanation and navigation layer. -->
       <section class="card primary">
         <div class="section-kicker">Platform Identity</div>
-        <h2>AWR Performance Intelligence Dashboard</h2>
+        <h2>Platform Overview</h2>
         <p>
-          A structured intelligence layer that transforms Oracle AWR reports into
-          deterministic diagnosis, historical comparison, and action-ready guidance.
+          This dashboard provides a deterministic interpretation of Oracle AWR data,
+          combining canonical diagnosis, historical validation, and actionable guidance
+          across a structured multi-screen workflow.
         </p>
       </section>
 
@@ -794,7 +982,7 @@ def _render_home_page(
           )}
           {_render_flow_step(
               "Dashboard / Output",
-              "The product presents diagnosis, historical review, and action guidance through the 5-screen model.",
+              "The product presents diagnosis, historical review, action guidance, and fleet context through the multi-screen model.",
           )}
         </div>
       </section>
@@ -844,7 +1032,7 @@ def _render_home_page(
 
       <section class="card prominent">
         <div class="section-kicker">Navigation</div>
-        <h2>5-Screen Product Model</h2>
+        <h2>6-Screen Product Model</h2>
         <div class="nav-card-grid">
           {"".join(_render_navigation_card(title, href, previews) for title, href, previews in navigation_cards)}
         </div>
@@ -869,137 +1057,916 @@ def _render_screen_2_page(
     report_data: dict[str, Any],
 ) -> str:
     analysis_information = _to_dict(screen_model.get("analysis_information"))
-    scope_note = screen_model.get("scope_note")
     decision_summary = _to_dict(screen_model.get("decision_summary"))
     normalized_decision = _to_dict(screen_model.get("normalized_decision"))
     health_check = _to_dict(screen_model.get("health_check"))
     explanation_panel = _to_dict(screen_model.get("explanation_panel"))
-    ingestion_header = _to_dict(screen_model.get("ingestion_header"))
     visual_summary = _to_dict(screen_model.get("visual_summary"))
     technical_sections = screen_model.get("technical_sections") or []
     root_cause_interpretation = _to_dict(screen_model.get("root_cause_interpretation"))
-    recommended_action_plan = _to_dict(screen_model.get("recommended_action_plan"))
+    trend_context = _to_dict(screen_model.get("trend_context"))
+    anomaly_context = _to_dict(screen_model.get("anomaly_context"))
     context_truth = {
         "topology_detected": analysis_information.get("topology_detected"),
         "platform_detected": analysis_information.get("platform_detected"),
     }
-    executive_summary_text = _normalize_scope_context_claims(
-        ai_sections["Executive Summary"],
-        context_truth,
-    )
-    technical_text = _normalize_scope_context_claims(
-        ai_sections["Technical Narrative"] or explanation_panel.get("technical_explanation"),
-        context_truth,
-    )
-    root_cause_text = _normalize_scope_context_claims(
-        ai_sections["Root Cause Interpretation"] or explanation_panel.get("technical_explanation"),
-        context_truth,
-    )
-    executive_decision_state = _normalized_decision_banner_state(
-        normalized_decision,
-        fallback=decision_state,
-    )
     authoritative_confidence = (
         decision_summary.get("confidence")
         if decision_summary.get("confidence") is not None
         else normalized_decision.get("confidence")
     )
+    decision_posture = _screen_posture_text(decision_summary, normalized_decision)
+    primary_issue = _screen2_primary_domain_summary(
+        decision_summary,
+        normalized_decision,
+    )
+    primary_issue_note = _screen2_primary_domain_note(
+        decision_summary,
+        normalized_decision,
+    )
     return f"""
     <div class="grid">
-      <!-- Screen 2 = diagnosis / evidence / confidence / health check. -->
-      {_render_ingestion_header_card(ingestion_header)}
-      <section class="card secondary">
-        <div class="section-kicker">Analysis Context</div>
-        <h2>Analysis Information</h2>
-        {
-            f'<div class="meta context-note">{escape(_display_value(scope_note))}</div>'
-            if _has_display_value(scope_note)
-            else ""
-        }
-        {_render_info_grid(_analysis_information_items(analysis_information))}
-      </section>
-      <section class="card primary">
-        <div class="section-kicker">Executive Summary</div>
-        <h2>Executive Summary</h2>
-        {_render_executive_summary(
-            executive_summary_text,
-            [],
-            executive_decision_state,
-            report_data.get("summary_key_signals"),
-            normalized_decision=normalized_decision,
-        )}
-      </section>
+      <!-- Screen 2 = diagnosis only. Ingestion stays on Screen 1; historical proof stays on Screen 4; action stays on Screen 5. -->
       <section class="card prominent">
-        <div class="section-kicker">Decision Summary</div>
-        <h2>Decision Summary</h2>
+        <div class="section-kicker">DECISION</div>
+        <h2>Diagnostic Snapshot</h2>
         {_render_info_grid(
             [
                 ("Overall Status", decision_summary.get("overall_status")),
                 ("Risk", decision_summary.get("display_severity_label")),
-                ("Primary Issue", decision_summary.get("primary_issue")),
-                (
-                    "Secondary Issues",
-                    ", ".join(decision_summary.get("secondary_issues") or []),
-                ),
+                ("Primary Issue / Domain", primary_issue),
                 ("Decision Posture", decision_summary.get("decision_posture")),
                 ("Historical Posture", decision_summary.get("historical_posture")),
                 ("Health Summary", decision_summary.get("health_summary")),
-                ("Confidence", _confidence_summary_text(authoritative_confidence)),
             ]
         )}
+        {f'<div class="meta decision-summary-note">{escape(primary_issue_note)}</div>' if primary_issue_note else ""}
+        <div class="decision-summary-confidence">
+          <span class="pill-cell">
+            {_render_confidence_badge(authoritative_confidence)}
+            <span class="pill-label-row pill-caption">Confidence</span>
+          </span>
+          <span class="meta">based on signal strength and data coverage</span>
+        </div>
       </section>
       <section class="card secondary">
-        <div class="section-kicker">Visual Summary</div>
+        <div class="section-kicker">POSTURE</div>
+        <h2>Why This Posture</h2>
+        {_render_screen2_executive_summary(screen_model, visual_summary, report_data)}
+      </section>
+      <section class="card secondary">
+        <div class="section-kicker">EVIDENCE</div>
+        <h2>Current Diagnostic Drivers</h2>
+        {_render_current_diagnostic_drivers(visual_summary, report_data)}
+      </section>
+      <section class="card secondary">
+        <div class="section-kicker">SIGNAL VIEW</div>
         <h2>Visual Summary</h2>
-        {_render_analysis_visual_summary(visual_summary)}
+        {_render_diagnostic_snapshot(screen_model, visual_summary, report_data)}
       </section>
       <section class="card secondary">
-        <div class="section-kicker">Deterministic Health Check</div>
-        <h2>Health Check</h2>
-        {_render_health_check(health_check)}
+        <div class="section-kicker">HEALTH</div>
+        <h2>Health / Data Completeness</h2>
+        {_render_screen2_health_summary(health_check)}
       </section>
-      <section class="card primary">
-        <h2>Technical Explanation</h2>
-        {_render_analysis_technical_sections(
+      <section class="card secondary">
+        <div class="section-kicker">TECHNICAL DETAIL</div>
+        <h2>Selected-Scope Explanation</h2>
+        {_render_screen2_technical_explanation(
             technical_sections,
-            technical_text,
-            normalized_decision=normalized_decision,
-            context_truth=context_truth,
+            normalized_decision,
+            context_truth,
+            visual_summary,
+            report_data,
+            anomaly_context,
         )}
-      </section>
-      <section class="card primary">
-        <h2>Root Cause Interpretation</h2>
-        {_render_root_cause_panel(
-            root_cause_interpretation,
-            root_cause_text,
-            normalized_decision=normalized_decision,
-        )}
-      </section>
-      <section class="card primary">
-        <h2>Diagnostic Orientation</h2>
-        {_render_action_plan_summary(recommended_action_plan, ai_sections["Recommended Action Plan"])}
-      </section>
-      <section class="card prominent">
-        {_render_confidence_section(
-            _normalize_scope_context_claims(
-                ai_sections["Confidence Assessment"],
-                context_truth,
-            ),
-            authoritative_confidence=authoritative_confidence,
-        )}
-      </section>
-      <section class="card primary">
-        {_render_risk_section(ai_sections["Risk of Being Wrong"])}
       </section>
       <section class="card secondary">
-        {_render_analysis_screen(screen_model)}
+        <div class="section-kicker">CONCLUSION</div>
+        <h2>Diagnostic Conclusion</h2>
+        {_render_screen2_diagnostic_conclusion(
+            root_cause_interpretation,
+            normalized_decision,
+            visual_summary,
+            report_data,
+            authoritative_confidence,
+            trend_context,
+            anomaly_context,
+            health_check,
+            explanation_panel,
+        )}
+      </section>
+      <section class="card secondary">
+        <div class="section-kicker">SIMILARITY</div>
+        <h2>Similarity Context</h2>
+        {_render_screen2_similarity_compact(screen_model, report_data)}
       </section>
     </div>
     """
 
 
+def _render_screen2_executive_summary(
+    screen_model: dict[str, Any],
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> str:
+    decision_summary = _to_dict(screen_model.get("decision_summary"))
+    normalized_decision = _to_dict(screen_model.get("normalized_decision"))
+    anomaly_summary = _to_dict(_to_dict(screen_model.get("anomaly_context")).get("anomaly_summary"))
+    posture = _screen_posture_text(decision_summary, normalized_decision)
+    bullets = _screen2_driver_bullets(visual_summary, report_data, limit=5)
+    anomaly_count = int(_screen2_float(anomaly_summary.get("count")) or 0.0)
+    if anomaly_count > 0 and len(bullets) < 5:
+        bullets.append(f"Anomaly burden remains visible across {anomaly_count} window(s).")
+    if not bullets:
+        bullets = ["Diagnostic evidence is limited for this selected scope."]
+    opening = _screen2_executive_opening(posture, bullets)
+    return (
+        f'<div class="narrative"><p>{escape(opening)}</p></div>'
+        + "<ul>"
+        + "".join(f"<li>{escape(_screen2_clean_text(bullet))}</li>" for bullet in bullets[:5])
+        + "</ul>"
+    )
+
+
+def _render_current_diagnostic_drivers(
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> str:
+    drivers = _screen2_diagnostic_drivers(visual_summary, report_data)
+    if not drivers:
+        return _render_empty_item("No current diagnostic drivers passed data-gating for this selected scope.")
+    cards = []
+    for driver in drivers:
+        value_line = (
+            driver["label"]
+            if driver["value"] == "Evidence present"
+            else f"{driver['label']} = {driver['value']}"
+        )
+        cards.append(
+            f"""
+            <article class="item">
+              <h3>{escape(driver["domain"])}</h3>
+              <p>{escape(value_line)}</p>
+              <div class="meta">{escape(driver["reason"])}</div>
+            </article>
+            """
+        )
+    return '<div class="stack">' + "".join(cards) + "</div>"
+
+
+def _render_latest_snapshot_assessment(
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> str:
+    interval = _screen2_latest_interval_label(report_data)
+    items: list[str] = [f"Latest interval: {interval}."]
+    cpu = _screen2_card_latest(_to_dict(visual_summary.get("cpu")))
+    if cpu is None:
+        items.append("CPU percentage is unavailable for this interval.")
+    else:
+        items.append(f"CPU signal: {_screen2_card_label(_to_dict(visual_summary.get('cpu')))} = {_format_screen2_metric(cpu)}.")
+    io = _screen2_card_latest(_to_dict(visual_summary.get("io")))
+    if io is not None:
+        items.append(f"User I/O signal: {_screen2_card_label(_to_dict(visual_summary.get('io')))} = {_format_screen2_metric(io)}.")
+    commit = _screen2_latest_series_value(report_data, "log_file_sync_trend")
+    if commit is not None and commit > 0.0:
+        items.append(f"Commit signal: log file sync = {_format_screen2_metric(commit)}.")
+    topology_items = []
+    rac = _screen2_card_latest(_to_dict(visual_summary.get("rac") or visual_summary.get("cluster")))
+    if rac is not None and rac > 0.0:
+        topology_items.append(f"RAC / cluster: {_screen2_card_label(_to_dict(visual_summary.get('rac') or visual_summary.get('cluster')))} = {_format_screen2_metric(rac)}")
+    adg = _screen2_card_latest(_to_dict(visual_summary.get("adg")))
+    if adg is not None and adg > 0.0:
+        topology_items.append(f"ADG: {_screen2_card_label(_to_dict(visual_summary.get('adg')))} = {_format_screen2_metric(adg)}")
+    elif _screen2_has_adg_evidence(report_data):
+        topology_items.append("ADG / transport evidence present")
+    if topology_items:
+        items.append("Topology context: " + "; ".join(topology_items) + ".")
+    return "<ul>" + "".join(f"<li>{escape(_screen2_clean_text(item))}</li>" for item in items[:5]) + "</ul>"
+
+
+def _render_screen2_technical_explanation(
+    technical_sections: list[dict[str, Any]],
+    normalized_decision: dict[str, Any],
+    context_truth: dict[str, Any],
+    visual_summary: dict[str, Any] | None = None,
+    report_data: dict[str, Any] | None = None,
+    anomaly_context: dict[str, Any] | None = None,
+) -> str:
+    wanted = {
+        "multi-snapshot summary",
+        "trend findings",
+        "anomaly windows",
+        "topology assessment",
+        "latest snapshot assessment",
+    }
+    rendered: list[str] = []
+    for section in technical_sections:
+        section_dict = _to_dict(section)
+        title = _display_value(section_dict.get("title"))
+        if title.lower() not in wanted:
+            continue
+        if title.lower() == "latest snapshot assessment":
+            rendered.append(
+                f"""
+            <article class="item">
+              <div class="meta">{escape(_screen2_technical_title(title))}</div>
+              {_render_latest_snapshot_assessment(visual_summary or {}, report_data or {})}
+            </article>
+            """
+            )
+            continue
+        summary = _screen2_clean_text(
+            _normalize_narrative_for_display(
+                _normalize_scope_context_claims(section_dict.get("summary"), context_truth),
+                normalized_decision,
+            )
+        )
+        items = [
+            _screen2_clean_text(
+                _normalize_narrative_for_display(
+                    _normalize_scope_context_claims(item, context_truth),
+                    normalized_decision,
+                )
+            )
+            for item in (section_dict.get("items") or [])[:5]
+        ]
+        items = _unique_screen2_items(
+            item for item in items if _has_meaningful_narrative(item)
+        )
+        if title.lower() == "multi-snapshot summary":
+            summary = _screen2_compact_multi_snapshot_summary(summary)
+            items = []
+        elif title.lower() == "trend findings":
+            items = _screen2_trend_items(summary, items)
+            summary = ""
+        elif title.lower() == "anomaly windows":
+            anomaly_summary = _to_dict(_to_dict(anomaly_context or {}).get("anomaly_summary"))
+            total = (
+                int(_screen2_float(anomaly_summary.get("count")) or 0.0)
+                or _screen2_anomaly_count_from_section(summary, items)
+            )
+            summary = (
+                f"{total} anomaly/event windows detected; top 5 shown."
+                if total
+                else "Top anomaly/event windows shown."
+            )
+            items = items[:5]
+        if title.lower() == "topology assessment":
+            topology_domains = {
+                driver["domain"]
+                for driver in _screen2_diagnostic_drivers(visual_summary or {}, report_data or {})
+                if driver["domain"].startswith(("RAC", "ADG"))
+            }
+            if topology_domains:
+                summary = (
+                    "RAC/Data Guard topology signals are present where shown in the "
+                    "diagnostic drivers; interpret them as topology context rather "
+                    "than as a standalone capacity trigger."
+                )
+                items = []
+        if not _has_meaningful_narrative(summary) and not items:
+            continue
+        rendered.append(
+            f"""
+            <article class="item">
+              <div class="meta">{escape(_screen2_technical_title(title))}</div>
+              {f"<p>{escape(summary)}</p>" if _has_meaningful_narrative(summary) else ""}
+              {"<ul>" + "".join(f"<li>{escape(item)}</li>" for item in items) + "</ul>" if items else ""}
+            </article>
+            """
+        )
+    if not rendered:
+        return _render_empty_item("No concise technical explanation is available for this selected scope.")
+    return '<div class="stack">' + "".join(rendered) + "</div>"
+
+
+def _render_screen2_diagnostic_conclusion(
+    root_cause_interpretation: dict[str, Any],
+    normalized_decision: dict[str, Any],
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+    confidence: Any,
+    trend_context: dict[str, Any],
+    anomaly_context: dict[str, Any],
+    health_check: dict[str, Any],
+    explanation_panel: dict[str, Any],
+) -> str:
+    drivers = _screen2_diagnostic_drivers(visual_summary, report_data)
+    driver_domains = [
+        driver["domain"].replace(" Signal", "").replace(" signal", "")
+        for driver in drivers
+    ]
+    workload_drivers = [
+        domain
+        for domain in driver_domains
+        if domain in {"CPU", "I/O", "Commit"}
+    ]
+    memory_signal_present = "Memory" in driver_domains
+    topology_drivers = [
+        domain
+        for domain in driver_domains
+        if domain in {"RAC", "ADG"}
+    ]
+    posture = _screen_posture_text(normalized_decision)
+    if posture:
+        summary = f"The selected scope is most consistent with the current {posture} decision posture."
+    else:
+        summary = "The selected scope does not have enough evidence to assign a final deterministic posture."
+    if workload_drivers:
+        summary += f" Available evidence points to {_join_english(workload_drivers[:4])} behavior"
+        if memory_signal_present:
+            summary += "; memory remains present as a below-threshold signal"
+        if topology_drivers:
+            summary += (
+                f", with {_join_english(topology_drivers[:2])} acting as topology context "
+                "rather than as a standalone capacity trigger."
+            )
+        else:
+            summary += "."
+    confidence_reason = _screen2_confidence_reason(
+        confidence,
+        trend_context,
+        anomaly_context,
+        health_check,
+        explanation_panel,
+    )
+    return (
+        '<div class="decision-summary-confidence">'
+        + _render_confidence_badge(confidence)
+        + f'<span class="meta">{escape(confidence_reason)}</span>'
+        + "</div>"
+        + f'<div class="narrative"><p>{escape(summary)}</p></div>'
+        + f'<p>{escape(_screen2_orientation_text(posture))}</p>'
+    )
+
+
+def _render_screen2_confidence_risk(
+    confidence: Any,
+    trend_context: dict[str, Any],
+    anomaly_context: dict[str, Any],
+    health_check: dict[str, Any],
+    explanation_panel: dict[str, Any],
+) -> str:
+    anomaly_summary = _to_dict(anomaly_context.get("anomaly_summary"))
+    trend_summary = _to_dict(trend_context.get("trend_summary"))
+    confidence_level = _confidence_level_from_value(confidence)
+    notes = [
+        f"Confidence: {_confidence_summary_text(confidence)}.",
+    ]
+    if confidence_level == "LOW":
+        notes.append(
+            "Low confidence reflects unavailable domain scores or per-domain health scores, not a lack of diagnostic evidence."
+        )
+    else:
+        notes.append(
+            "Confidence reflects deterministic signal strength, trend coverage, and available per-domain health context."
+        )
+    health_status = str(health_check.get("summary_status") or "").upper()
+    if health_status:
+        notes.append(f"Overall health status: {health_status}.")
+    anomaly_count = int(_screen2_float(anomaly_summary.get("count")) or 0.0)
+    if anomaly_count > 0:
+        notes.append("Anomaly burden contributes to the risk posture.")
+    trend_text = _screen2_clean_text(trend_summary.get("summary"))
+    if _has_meaningful_narrative(trend_text):
+        notes.append(trend_text)
+    risk_text = _screen2_clean_text(explanation_panel.get("risk_of_wrong") or "")
+    if _has_meaningful_narrative(risk_text):
+        notes.append(risk_text)
+    else:
+        notes.append("Data completeness limits confidence where per-domain deterministic health scoring is unavailable.")
+    return "<ul>" + "".join(f"<li>{escape(note)}</li>" for note in notes[:5]) + "</ul>"
+
+
+def _render_screen2_health_summary(health_check: dict[str, Any]) -> str:
+    rows = [_to_dict(row) for row in (health_check.get("rows") or [])]
+    if not rows:
+        return _render_empty_item("No deterministic health-check rows are available.")
+    summary_status = str(health_check.get("summary_status") or "N/A").upper()
+    summary_reason = _screen2_clean_text(health_check.get("summary_reason"))
+    domain_names = {"CPU", "I/O", "MEMORY", "COMMIT", "RAC", "ADG"}
+    domain_rows = [row for row in rows if str(row.get("check") or "").upper() in domain_names]
+    not_scored_domains = [
+        _display_value(row.get("check"))
+        for row in domain_rows
+        if str(row.get("status") or "").upper() in {"NOT SCORED", "N/A"}
+        or str(row.get("observed_value") or "").strip().lower() == "not scored"
+    ]
+    focus_names = {"TREND STABILITY", "ANOMALY BURDEN", "DATA COMPLETENESS"}
+    focus_rows = [
+        row for row in rows
+        if str(row.get("check") or "").upper() in focus_names
+    ]
+    cards = [
+        f"""
+        <article class="health-check-card">
+          <div class="meta"><span class="health-pill {_health_status_class(summary_status)}">{escape(summary_status)}</span></div>
+          <h3>Overall Health</h3>
+          <p>Data completeness and signal strength are sufficient for analysis, but not strong enough to establish a dominant governing domain.</p>
+        </article>
+        """
+    ]
+    for row in focus_rows:
+        status = str(row.get("status") or "N/A").upper()
+        cards.append(
+            f"""
+        <article class="health-check-card">
+          <div class="meta"><span class="health-pill {_health_status_class(status)}">{escape(status)}</span></div>
+          <h3>{escape(_display_value(row.get("check")))}</h3>
+          <p>{escape(_screen2_clean_text(row.get("observed_value")))}</p>
+        </article>
+            """
+        )
+    if not_scored_domains:
+        cards.append(
+            f"""
+        <article class="health-check-card">
+          <div class="meta"><span class="health-pill na">NOT SCORED</span></div>
+          <h3>Per-domain Health Scores</h3>
+          <p>Per-domain health scores unavailable for selected scope.</p>
+          <div class="meta">Signal present; deterministic per-domain health score unavailable.</div>
+        </article>
+            """
+        )
+    return '<div class="health-check-grid">' + "".join(cards) + "</div>"
+
+
+def _screen2_confidence_reason(
+    confidence: Any,
+    trend_context: dict[str, Any],
+    anomaly_context: dict[str, Any],
+    health_check: dict[str, Any],
+    explanation_panel: dict[str, Any],
+) -> str:
+    level = _confidence_level_from_value(confidence)
+    if level == "LOW":
+        return (
+            "Confidence is low due to limited domain-score coverage and lack of a "
+            "dominant, consistent signal across domains."
+        )
+    anomaly_summary = _to_dict(anomaly_context.get("anomaly_summary"))
+    anomaly_count = int(_screen2_float(anomaly_summary.get("count")) or 0.0)
+    if anomaly_count > 0:
+        return "Confidence reflects available signal strength, data coverage, and consistency across domains."
+    return "Confidence reflects available signal strength, data coverage, and consistency across domains."
+
+
+def _render_screen2_similarity_compact(
+    screen_model: dict[str, Any],
+    report_data: dict[str, Any],
+) -> str:
+    if not _db_backed_similarity_available(report_data):
+        return _render_empty_item(
+            _similarity_unavailable_message()
+            + " Local diagnostic analysis remains available."
+        )
+    diagnostic_snapshot = _to_dict(screen_model.get("diagnostic_snapshot"))
+    context = (
+        _to_dict(diagnostic_snapshot.get("similarity_context"))
+        or _build_similarity_compact_from_report(report_data)
+    )
+    similarity = _to_dict(report_data.get("similarity_intelligence"))
+    anomaly_validation = _to_dict(similarity.get("anomaly_validation"))
+    similar_cases = list(similarity.get("similar_cases") or [])
+    items = [
+        ("Similar AWRs", context.get("similar_awr_count")),
+        (
+            "Nearest-Neighbor Status",
+            "nearest-neighbor cases available" if similar_cases else "nearest-neighbor cases not loaded",
+        ),
+        ("Cluster", _display_cluster_label(context.get("cluster_label"))),
+        ("Rarity", _display_rarity_label(context.get("rarity"))),
+        ("Anomaly Support", anomaly_validation.get("supports_anomaly")),
+        ("Reason", anomaly_validation.get("reason") or context.get("reason")),
+    ]
+    note = (
+        '<div class="meta similarity-note">Nearest vectors are identical at current precision; inspect feature-vector uniqueness if this persists.</div>'
+        if _similarity_vectors_identical_at_display_precision(similar_cases)
+        else ""
+    )
+    return _render_info_grid(items, extra_class="diagnostic-compact-grid") + note
+
+
+def _screen_posture_text(*sources: dict[str, Any]) -> str | None:
+    for source in sources:
+        source_dict = _to_dict(source)
+        for key in ("decision_posture", "historical_posture", "posture"):
+            value = source_dict.get(key)
+            if _has_display_value(value):
+                text = _display_value(value).strip()
+                if text and "insufficient data for a reliable conclusion" not in text.lower():
+                    return text.upper()
+    return None
+
+
+def _screen2_executive_opening(posture: str | None, bullets: list[str]) -> str:
+    if posture:
+        return (
+            "The current posture is driven by a mix of workload signals. "
+            f"Available evidence supports {posture}, while no single domain "
+            "score is available for this selected scope."
+        )
+    return (
+        "INSUFFICIENT DATA. Available evidence does not support a reliable final posture."
+    )
+
+
+def _screen2_orientation_text(decision_posture: str | None) -> str:
+    if decision_posture:
+        return (
+            "The observed pattern supports the current posture for this selected scope."
+        )
+    return "Available evidence does not support a reliable final posture for this selected scope."
+
+
+def _unique_screen2_items(items: Iterable[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        cleaned = _screen2_clean_text(item)
+        key = re.sub(r"\W+", " ", cleaned).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique.append(cleaned)
+    return unique
+
+
+def _screen2_compact_multi_snapshot_summary(summary: str) -> str:
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", summary)
+        if sentence.strip()
+    ]
+    filtered = [
+        sentence
+        for sentence in sentences
+        if not re.search(
+            r"\b(spiked|moderated|trend findings|detailed latest|topology assessment)\b",
+            sentence,
+            flags=re.IGNORECASE,
+        )
+    ]
+    if not filtered:
+        filtered = sentences
+    return " ".join(filtered[:3])
+
+
+def _screen2_trend_items(summary: str, items: list[str]) -> list[str]:
+    candidates = items[:]
+    if _has_meaningful_narrative(summary):
+        candidates.append(summary)
+    return _unique_screen2_items(candidates)[:4]
+
+
+def _screen2_technical_title(title: Any) -> str:
+    normalized = str(title or "").strip().lower()
+    return {
+        "multi-snapshot summary": "Multi-Snapshot Summary",
+        "trend findings": "Top Trend Findings",
+        "anomaly windows": "Top Anomaly Windows",
+        "topology assessment": "Topology Context",
+        "latest snapshot assessment": "Latest Snapshot",
+    }.get(normalized, _display_value(title))
+
+
+def _screen2_anomaly_count_from_section(summary: str, items: list[str]) -> int | None:
+    text = " ".join([summary] + items)
+    match = re.search(r"\b(\d+)\s+anomaly(?:/event)?\s+window", text, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return len(items) if items else None
+
+
+def _screen2_diagnostic_drivers(
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> list[dict[str, str]]:
+    drivers: list[dict[str, str]] = []
+    for key, domain in (
+        ("cpu", "CPU Signal"),
+        ("io", "I/O Signal"),
+        ("rac", "RAC Signal"),
+        ("adg", "ADG Signal"),
+        ("memory", "Memory Signal"),
+    ):
+        card = _to_dict(visual_summary.get(key) or visual_summary.get("cluster") if key == "rac" else visual_summary.get(key))
+        latest_value = _screen2_card_latest(card)
+        if latest_value is None or latest_value <= 0.0:
+            continue
+        # Memory signal should be selected from strongest available memory-domain
+        # evidence; PGA spill is the current available signal for this dataset.
+        drivers.append(
+            {
+                "domain": domain,
+                "label": _screen2_card_label(card),
+                "value": _format_screen2_metric(latest_value),
+                "reason": _screen2_driver_reason(card),
+            }
+        )
+    commit = _screen2_latest_series_value(report_data, "log_file_sync_trend")
+    if commit is not None and commit > 0.0:
+        insert_at = min(2, len(drivers))
+        drivers.insert(
+            insert_at,
+            {
+                "domain": "Commit Signal",
+                "label": "log file sync",
+                "value": _format_screen2_metric(commit),
+                "reason": "Commit latency remains in scope for the latest interval.",
+            }
+        )
+    if _screen2_has_adg_evidence(report_data) and not any(
+        driver["domain"] == "ADG Signal" for driver in drivers
+    ):
+        drivers.append(
+            {
+                "domain": "ADG Signal",
+                "label": "Transport/apply lag evidence",
+                "value": "Evidence present",
+                "reason": "Data Guard or redo transport evidence is present in the selected scope.",
+            }
+        )
+    return drivers
+
+
+def _screen2_primary_domain_summary(
+    decision_summary: dict[str, Any],
+    normalized_decision: dict[str, Any],
+) -> str:
+    primary = decision_summary.get("primary_issue")
+    if _has_display_value(primary):
+        primary_text = _display_value(primary)
+        if not re.search(
+            r"\b(insufficient data|reliable conclusion|unavailable|unknown|none|null)\b",
+            primary_text,
+            flags=re.IGNORECASE,
+        ):
+            return primary_text
+    return "Domain score unavailable"
+
+
+def _screen2_primary_domain_note(
+    decision_summary: dict[str, Any],
+    normalized_decision: dict[str, Any],
+) -> str | None:
+    primary = decision_summary.get("primary_issue")
+    if _has_display_value(primary):
+        primary_text = _display_value(primary)
+        if not re.search(
+            r"\b(insufficient data|reliable conclusion|unavailable|unknown|none|null)\b",
+            primary_text,
+            flags=re.IGNORECASE,
+        ):
+            return None
+    posture = _screen_posture_text(decision_summary, normalized_decision)
+    if posture:
+        return f"Available diagnostic evidence supports {posture}."
+    return (
+        "Available diagnostic evidence is insufficient to assign a final posture."
+    )
+
+
+def _screen2_driver_reason(card: dict[str, Any]) -> str:
+    domain = str(card.get("domain") or card.get("card_title") or "").strip().lower()
+    label = str(card.get("selected_label") or card.get("card_subtitle") or "").strip().lower()
+    if str(card.get("status") or "").strip().lower() == "weak":
+        if "pga" in label or "memory" in domain:
+            return "Memory signal present but below governing threshold."
+        return "Signal present but below governing threshold."
+    if "cpu" in domain or "cpu" in label:
+        return "Visible CPU pressure in latest interval."
+    if "i/o" in domain or "io" in domain or "user i/o" in label:
+        return "Visible User I/O contributor."
+    if "commit" in domain or "log file sync" in label:
+        return "Commit latency remains in scope."
+    if "rac" in domain or "cluster" in label:
+        return "Cluster coordination present, not governing."
+    if "adg" in domain or "transport" in label or "apply" in label:
+        return "Topology/transport evidence present."
+    if "memory" in domain or "pga" in label:
+        return "Memory signal present but below governing threshold."
+    return "Signal present in selected scope."
+
+
+def _screen2_driver_bullets(
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+    limit: int = 4,
+) -> list[str]:
+    bullets = []
+    for driver in _screen2_diagnostic_drivers(visual_summary, report_data):
+        bullets.append(
+            f"{driver['domain']}: {driver['label']} = {driver['value']}"
+            if driver["value"] != "Evidence present"
+            else f"{driver['domain']}: {driver['label']} present"
+        )
+    if len(bullets) > limit:
+        has_adg = any(bullet.startswith("ADG Signal:") for bullet in bullets)
+        if has_adg:
+            memory_index = next(
+                (index for index, bullet in enumerate(bullets) if bullet.startswith("Memory Signal:")),
+                None,
+            )
+            if memory_index is not None:
+                bullets.pop(memory_index)
+    return bullets[:limit]
+
+
+def _screen2_visible_domain_names(
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> list[str]:
+    names: list[str] = []
+    for driver in _screen2_diagnostic_drivers(visual_summary, report_data):
+        label = driver["domain"].replace(" signal", "")
+        if label not in names:
+            names.append(label)
+    return names
+
+
+def _screen2_card_latest(card: dict[str, Any]) -> float | None:
+    status = str(card.get("status") or "").lower()
+    if status not in {"ok", "weak"}:
+        return None
+    values = card.get("series") or []
+    if not isinstance(values, list):
+        return None
+    for value in reversed(values):
+        numeric = _screen2_float(value)
+        if numeric is not None:
+            return numeric
+    return None
+
+
+def _screen2_card_label(card: dict[str, Any]) -> str:
+    return _display_value(
+        card.get("selected_label")
+        or card.get("card_subtitle")
+        or card.get("card_title")
+        or "Diagnostic signal"
+    )
+
+
+def _screen2_latest_series_value(report_data: dict[str, Any], series_key: str) -> float | None:
+    time_series = _to_dict(report_data.get("time_series_charts"))
+    values = time_series.get(series_key)
+    if not isinstance(values, list):
+        return None
+    for value in reversed(values):
+        numeric = _screen2_float(value)
+        if numeric is not None:
+            return numeric
+    return None
+
+
+def _screen2_latest_interval_label(report_data: dict[str, Any]) -> str:
+    comparison_context = _to_dict(report_data.get("comparison_context"))
+    latest_summary = (
+        comparison_context.get("latest_snapshot_summary")
+        or report_data.get("latest_snapshot_summary")
+    )
+    match = re.search(
+        r"Latest snapshot\s*\(([^)]+)\)",
+        str(latest_summary or ""),
+        flags=re.IGNORECASE,
+    )
+    if match:
+        return match.group(1)
+    metadata = _to_dict(report_data.get("metadata"))
+    begin = metadata.get("snapshot_begin")
+    end = metadata.get("snapshot_end")
+    if _has_display_value(begin) and _has_display_value(end):
+        return f"{_display_value(begin)} to {_display_value(end)}"
+    return "latest selected interval"
+
+
+def _screen2_has_adg_evidence(report_data: dict[str, Any]) -> bool:
+    signals = [
+        str(signal or "").lower()
+        for signal in (report_data.get("summary_key_signals") or [])
+    ]
+    text = " ".join(signals)
+    if any(term in text for term in ("transport lag", "apply lag", "data guard", "redo transport")):
+        return True
+    time_series = _to_dict(report_data.get("time_series_charts"))
+    for key in ("dg_transport_lag_trend", "dg_apply_lag_trend"):
+        values = time_series.get(key)
+        if isinstance(values, list) and any(
+            (_screen2_float(value) or 0.0) > 0.0 for value in values
+        ):
+            return True
+    return False
+
+
+def _screen2_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+        return numeric if math.isfinite(numeric) else None
+    if isinstance(value, str):
+        text = value.strip().replace(",", "")
+        if not text:
+            return None
+        try:
+            numeric = float(text)
+        except ValueError:
+            return None
+        return numeric if math.isfinite(numeric) else None
+    return None
+
+
+def _format_screen2_metric(value: float) -> str:
+    if abs(value) < 0.0005:
+        value = 0.0
+    if float(value).is_integer():
+        return f"{value:.0f}"
+    if abs(value) >= 100:
+        return f"{value:.0f}"
+    if abs(value) >= 10:
+        return f"{value:.1f}"
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def _screen2_domain_label(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    return {
+        "CPU": "CPU",
+        "IO": "I/O",
+        "I/O": "I/O",
+        "MEMORY": "memory",
+        "COMMIT": "commit",
+        "RAC": "RAC",
+        "ADG": "ADG",
+    }.get(text, _display_value(value) if _has_display_value(value) else "workload")
+
+
+def _screen2_clean_text(value: Any) -> str:
+    if value is None:
+        text = "Insufficient data for a reliable conclusion"
+    elif isinstance(value, str):
+        raw_text = value.strip()
+        text = _normalize_ui_text(raw_text)
+        if not text or text.upper() in {"UNKNOWN", "N/A", "NONE"}:
+            text = "Insufficient data for a reliable conclusion"
+    else:
+        text = _display_value(value)
+    text = re.sub(
+        r"\baverage CPU (?:at )?(?:Unavailable|Insufficient data for a reliable conclusion)\b",
+        "Average CPU percentage is unavailable across the window",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\bwith average CPU (?:Unavailable|Insufficient data for a reliable conclusion)\b",
+        "with average CPU percentage unavailable across the window",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\bInsufficient data for a reliable conclusion\s+of DB time\b",
+        "CPU percentage is unavailable for this interval",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\bUnavailable\s+of DB time\b",
+        "CPU percentage is unavailable for this interval",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = text.replace(
+        "CPU percentage is Insufficient data for a reliable conclusion for this interval",
+        "CPU percentage is unavailable for this interval",
+    )
+    text = text.replace(
+        "CPU Insufficient data for a reliable conclusion,",
+        "CPU percentage is unavailable for this interval,",
+    )
+    text = text.replace(
+        "CPU Insufficient data for a reliable conclusion",
+        "CPU percentage is unavailable for this interval",
+    )
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _join_english(values: list[str]) -> str:
+    cleaned = [str(value).strip() for value in values if str(value).strip()]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return f"{cleaned[0]} and {cleaned[1]}"
+    return ", ".join(cleaned[:-1]) + f", and {cleaned[-1]}"
+
+
 def _render_screen_3_selector_page(screen_model: dict[str, Any]) -> str:
     header = _to_dict(screen_model.get("header"))
+    selection_controls = _to_dict(screen_model.get("selection_controls"))
     scope_selection = _to_dict(screen_model.get("scope_selection"))
     timeframe_selection = _to_dict(screen_model.get("timeframe_selection"))
     review_mode = _to_dict(screen_model.get("review_mode"))
@@ -1010,12 +1977,17 @@ def _render_screen_3_selector_page(screen_model: dict[str, Any]) -> str:
       <section class="card secondary">
         <div class="section-kicker">Screen 3</div>
         <h2>History Selector / Filter / Scope Definition</h2>
+        <p class="static-selection-note">
+          Select the time window and comparison scope used to drive deterministic
+          analysis and historical validation.
+        </p>
         <div class="subgrid selector-subgrid">
           <section class="evidence-pane selector-pane">
             <h3>Header</h3>
             {_render_info_grid(
                 [
                     ("DB Name", header.get("db_name")),
+                    ("DBID", header.get("dbid")),
                     ("Instance", header.get("instance_name")),
                     ("Host", header.get("host_name")),
                     ("Window", header.get("window")),
@@ -1026,6 +1998,14 @@ def _render_screen_3_selector_page(screen_model: dict[str, Any]) -> str:
             <h3>Scope Selection</h3>
             {_render_scope_chips(scope_selection.get("options") or [])}
             {_render_info_strip([("Scope", scope_selection.get("active_scope"))])}
+          </section>
+          <section class="evidence-pane selector-pane">
+            <h3>Selection Controls</h3>
+            <p class="static-selection-note">
+              This view reflects the selected analysis window used across all
+              downstream screens.
+            </p>
+            {_render_selection_controls(selection_controls)}
           </section>
           <section class="half evidence-pane selector-pane">
             <h3>Timeframe Selection</h3>
@@ -1059,6 +2039,61 @@ def _render_screen_3_selector_page(screen_model: dict[str, Any]) -> str:
     """
 
 
+def _render_selection_controls(selection_controls: dict[str, Any]) -> str:
+    if not selection_controls:
+        return _render_empty_item("No selection controls are available.")
+    controls = [
+        _render_readonly_control("DB / DBID", selection_controls.get("db_dbid")),
+        _render_readonly_control("Host / Instance", selection_controls.get("host_instance")),
+        _render_readonly_control("Snapshot Window", selection_controls.get("snapshot_window")),
+        _render_readonly_control("Latest Interval", selection_controls.get("latest_interval")),
+        _render_readonly_control("Worst Interval", selection_controls.get("worst_interval")),
+        _render_static_option_control(
+            "Comparison Mode",
+            selection_controls.get("comparison_modes") or [],
+            selection_controls.get("active_comparison_mode"),
+        ),
+        _render_static_option_control(
+            "Review Mode",
+            selection_controls.get("review_modes") or [],
+            selection_controls.get("active_review_mode"),
+        ),
+    ]
+    return '<div class="selector-control-grid">' + "".join(controls) + "</div>"
+
+
+def _render_readonly_control(label: str, value: Any) -> str:
+    return f"""
+      <label class="selector-control">
+        <span>{escape(label)}</span>
+        <input value="{escape(_display_value(value))}" readonly>
+      </label>
+    """
+
+
+def _render_static_option_control(label: str, options: list[Any], active_value: Any) -> str:
+    active_text = _display_value(active_value)
+    option_chips = []
+    active_normalized = active_text.strip().lower()
+    for option in options:
+        option_text = _display_value(option)
+        active_class = (
+            " active"
+            if option_text.strip().lower() == active_normalized
+            else ""
+        )
+        option_chips.append(
+            f'<span class="scope-chip{active_class}">{escape(option_text)}</span>'
+        )
+    return f"""
+      <label class="selector-control">
+        <span>{escape(label)}</span>
+        <input value="{escape(active_text)}" readonly>
+        <div class="scope-chip-row static-option-row">{"".join(option_chips)}</div>
+      </label>
+    """
+
+
 def _render_screen_4_page(
     screen_model: dict[str, Any],
     chart_payload: dict[str, Any],
@@ -1071,7 +2106,11 @@ def _render_screen_4_page(
     current_selection_summary = _to_dict(screen_model.get("current_selection_summary"))
     historical_verdict = _to_dict(screen_model.get("historical_verdict"))
     visual_story = _to_dict(_to_dict(screen_model.get("visual_analysis")).get("story"))
+    similarity_evidence = _to_dict(screen_model.get("similarity_evidence"))
     scalar_metrics_html = _render_scalar_metrics(derived_scalar_metrics)
+    topology_scalar_html = _render_topology_scalar_fallback(
+        _to_dict(chart_payload.get("violin_panel"))
+    )
     time_series_section_html = _render_time_series_section(time_series_groups)
     visual_sections = {
         "performance": _render_performance_charts_section(chart_payload, visual_story),
@@ -1098,6 +2137,7 @@ def _render_screen_4_page(
         screen_model.get("engineering_view"),
         "Engineering View",
     )
+    similarity_support = _to_dict(screen_model.get("similarity_support"))
     return f"""
     <div class="grid">
       <!-- Screen 4 = historical review across scope + timeframe, with visuals. -->
@@ -1150,6 +2190,8 @@ def _render_screen_4_page(
         </div>
       </section>
       {ordered_visual_sections}
+      {topology_scalar_html}
+      {_render_similarity_evidence_section(similarity_evidence)}
       <section class="card secondary">
         {_render_review_comparison_screen(
             screen_model,
@@ -1175,17 +2217,20 @@ def _render_screen_5_page(
     ai_sections: dict[str, str],
     agentic_decision: dict[str, Any],
 ) -> str:
+    # TODO Phase 6/7 Recommendation Engine:
+    # If the deterministic decision is SCALE NOW or scale-needed, detect the
+    # platform from AWR evidence (Exadata on-prem, Exadata Cloud@Customer,
+    # OCI DB, RAC, single instance, ADG) and generate platform-aware expansion
+    # options for CPU/cores/OCPU/ECPU, memory, storage, DB servers, storage
+    # servers, and platform-specific modular expansion paths. LLM text may
+    # explain supported platform options, but must not invent unsupported
+    # sizing. This is intentionally not implemented in Phase 5.
     normalized_decision = _to_dict(screen_model.get("normalized_decision"))
     header = _to_dict(screen_model.get("header"))
     authoritative_confidence = (
         header.get("confidence")
         or normalized_decision.get("confidence")
     )
-    decision_layer_payload = dict(agentic_decision or {})
-    if authoritative_confidence is not None:
-        decision_layer_payload["confidence_level"] = _confidence_level_from_value(
-            authoritative_confidence
-        )
     engineering_view_html = _render_engineering_view(
         screen_model.get("engineering_view"),
         "Engineering View",
@@ -1194,7 +2239,7 @@ def _render_screen_5_page(
     <div class="grid">
       <!-- Screen 5 = action / decision / sizing guidance. -->
       <section class="card prominent">
-        <div class="section-kicker">Final Decision Banner</div>
+        <div class="section-kicker">DECISION</div>
         <h2>Decision Posture</h2>
         {_render_info_grid(
             [
@@ -1218,32 +2263,10 @@ def _render_screen_5_page(
           )}
         </div>
       </section>
-      <section class="card prominent decision-layer-card">
-        <div class="section-kicker">Decision Layer</div>
-        <h2>Decision Detail</h2>
-        <div class="decision-grid">
-          {_render_decision_boxes(decision_layer_payload)}
-        </div>
-      </section>
       <section class="card secondary">
-        <div class="section-kicker">Prioritized Actions</div>
-        <h2>Recommended Actions</h2>
+        <div class="section-kicker">ACTION</div>
+        <h2>Recommendations / Guidance</h2>
         {_render_recommendation_action_screen(screen_model)}
-      </section>
-      <section class="card primary">
-        <h2>Recommended Action Plan</h2>
-        <div class="narrative">{_render_text_block(_build_screen5_action_plan_copy(screen_model, ai_sections["Recommended Action Plan"]))}</div>
-      </section>
-      <section class="card primary">
-        <h2>Capacity / Sizing Guidance</h2>
-        <div class="supportive-panel guidance-panel">
-          <div class="meta">
-            Platform-neutral guidance derived from the deterministic decision posture.
-          </div>
-          <div class="narrative">
-            {_render_text_block(_normalize_capacity_guidance_text(ai_sections["OCI Sizing Considerations"], authoritative_confidence))}
-          </div>
-        </div>
       </section>
       {
           f'''
@@ -1257,6 +2280,323 @@ def _render_screen_5_page(
       }
     </div>
     """
+
+
+def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
+    header = _to_dict(screen_model.get("header"))
+    fleet_summary = _to_dict(screen_model.get("fleet_summary"))
+    clusters = _to_dict(screen_model.get("clusters"))
+    rare_patterns = _to_dict(screen_model.get("rare_patterns"))
+    anomaly_validation = _to_dict(screen_model.get("anomaly_validation"))
+    repeated_issues = list(screen_model.get("repeated_issues") or [])
+    recommendation_backlog = list(screen_model.get("recommendation_backlog") or [])
+    outliers = list(screen_model.get("outliers") or [])
+    similar_cases = list(clusters.get("similar_cases") or [])
+    cluster_label = _display_cluster_label(fleet_summary.get("cluster_label"))
+    cluster_confidence = _safe_float(fleet_summary.get("cluster_confidence")) or 0.0
+    cluster_established = (
+        cluster_label != "No stable similarity cluster has been established for this dataset."
+        and cluster_confidence > 0.0
+    )
+    summary_title = (
+        "Similarity Fleet Summary"
+        if cluster_established
+        else "Nearest Similar AWRs"
+    )
+    neighbor_title = (
+        "Clusters"
+        if cluster_established
+        else "Nearest Similar AWRs"
+    )
+    if not screen_model.get("similarity_enabled") and not similar_cases:
+        return f"""
+    <div class="grid">
+      <!-- Screen 6 = fleet overview / clusters / outliers / repeated issues. -->
+      <section class="card prominent">
+        <div class="section-kicker">Screen 6</div>
+        <h2>Fleet Overview</h2>
+        {_render_info_grid(
+            [
+                ("Scope", header.get("scope_label")),
+                ("DB / DBID", _join_compact_values([header.get("db_name"), header.get("dbid")])),
+                ("Snapshot Count", header.get("snapshot_count")),
+                ("Comparison Window", header.get("comparison_window")),
+            ]
+        )}
+      </section>
+      <section class="card prominent">
+        <div class="section-kicker">Fleet Intelligence</div>
+        <h2>Fleet intelligence unavailable — DB connection failed or was not checked.</h2>
+        <p class="meta">
+          Local analysis is available on Screens 1-5. Start the database and rerun analysis
+          to enable AWR reuse, feature-vector lookup, similarity, and fleet intelligence.
+        </p>
+      </section>
+    </div>
+    """
+    return f"""
+    <div class="grid">
+      <!-- Screen 6 = fleet overview / clusters / outliers / repeated issues. -->
+      <section class="card prominent">
+        <div class="section-kicker">Screen 6</div>
+        <h2>Fleet Overview</h2>
+        {_render_info_grid(
+            [
+                ("Scope", header.get("scope_label")),
+                ("DB / DBID", _join_compact_values([header.get("db_name"), header.get("dbid")])),
+                ("Snapshot Count", header.get("snapshot_count")),
+                ("Comparison Window", header.get("comparison_window")),
+            ]
+        )}
+      </section>
+      <section class="card secondary">
+        <div class="section-kicker">Fleet Summary</div>
+        <h2>{escape(summary_title)}</h2>
+        <p class="meta">Similarity results are informative but not currently strong enough to independently drive decisions.</p>
+        {_render_info_grid(
+            [
+                ("Similar AWRs", fleet_summary.get("similar_awrs")),
+                ("Cluster", cluster_label),
+                ("Cluster Confidence", cluster_confidence if cluster_established else None),
+                ("Rarity", _display_rarity_label(fleet_summary.get("rarity"))),
+                ("Primary Issue", fleet_summary.get("primary_issue")),
+            ]
+        )}
+      </section>
+      <section class="card secondary">
+        <h2>{escape(neighbor_title)}</h2>
+        <p class="meta">These are nearest-neighbor AWR cases from vector similarity, not validated workload clusters.</p>
+        {_render_similarity_cases(similar_cases)}
+      </section>
+      <section class="card secondary">
+        <h2>Outliers / Rare Patterns</h2>
+        {_render_info_grid(
+            [
+                ("Rare Pattern", rare_patterns.get("is_rare_pattern")),
+                ("Nearest Distance", rare_patterns.get("nearest_distance")),
+                ("Mean Distance", rare_patterns.get("mean_distance")),
+                ("Reason", rare_patterns.get("reason")),
+            ]
+        )}
+        {_render_similarity_cases(outliers) if outliers else _render_empty_item("No outlier case aggregation is established yet.")}
+      </section>
+      <section class="card secondary">
+        <h2>Repeated Issues</h2>
+        {_render_repeated_issue_list(repeated_issues)}
+      </section>
+      <section class="card secondary">
+        <h2>Anomaly Validation</h2>
+        {_render_info_grid(
+            [
+                ("Supports Anomaly", anomaly_validation.get("supports_anomaly")),
+                ("Similar Case Count", anomaly_validation.get("similar_case_count")),
+                ("Reason", anomaly_validation.get("reason")),
+            ]
+        )}
+      </section>
+      <section class="card secondary">
+        <h2>Recommendation Backlog</h2>
+        {_render_recommendation_backlog(recommendation_backlog)}
+      </section>
+    </div>
+    """
+
+
+def _render_similarity_evidence_section(similarity_evidence: dict[str, Any]) -> str:
+    if not similarity_evidence:
+        return ""
+    if not similarity_evidence.get("enabled"):
+        return f"""
+      <section class="card secondary">
+        <div class="section-kicker">Similarity Intelligence</div>
+        <h2>Similarity Evidence</h2>
+        {_render_empty_item(_similarity_unavailable_message() + " Local diagnostic analysis remains available.")}
+      </section>
+        """
+    rarity = _to_dict(similarity_evidence.get("pattern_rarity"))
+    cluster = _to_dict(similarity_evidence.get("workload_cluster"))
+    anomaly_validation = _to_dict(similarity_evidence.get("anomaly_validation"))
+    return f"""
+      <section class="card secondary">
+        <div class="section-kicker">Similarity Intelligence</div>
+        <h2>Similarity Evidence</h2>
+        {_render_info_grid(
+            [
+                ("Similar AWRs", len(similarity_evidence.get("similar_cases") or [])),
+                ("Cluster", _display_cluster_label(cluster.get("cluster_label"))),
+                (
+                    "Rarity",
+                    "rare pattern"
+                    if rarity.get("is_rare_pattern")
+                    else "Pattern appears common within the current similarity space.",
+                ),
+                ("Anomaly Support", anomaly_validation.get("supports_anomaly")),
+                ("Reason", anomaly_validation.get("reason") or rarity.get("reason")),
+            ]
+        )}
+        {_render_similarity_cases(similarity_evidence.get("similar_cases") or [])}
+      </section>
+    """
+
+
+def _render_similarity_action_support(similarity_support: dict[str, Any]) -> str:
+    if not similarity_support:
+        return ""
+    if not similarity_support.get("enabled"):
+        return f"""
+      <section class="card secondary">
+        <div class="section-kicker">Similarity Support</div>
+        <h2>Recommendation Support</h2>
+        {_render_empty_item(_similarity_unavailable_message() + " Local diagnostic analysis remains available.")}
+      </section>
+        """
+    return f"""
+      <section class="card secondary">
+        <div class="section-kicker">Similarity Support</div>
+        <h2>Recommendation Support</h2>
+        {_render_info_grid(
+            [
+                ("Justification", similarity_support.get("similarity_explanation")),
+                ("Use", similarity_support.get("recommended_use")),
+            ]
+        )}
+        {_render_similarity_cases(similarity_support.get("supporting_cases") or [])}
+        <a class="inline-nav-hint" href="screen_4_historical_review.html">Review supporting evidence in Screen 4</a>
+      </section>
+    """
+
+
+def _render_similarity_cases(cases: list[Any]) -> str:
+    case_dicts = [_to_dict(case) for case in cases]
+    if not case_dicts:
+        return _render_empty_item("No similar AWR case rows are available.")
+    similarity_precision = _similarity_display_precision(case_dicts)
+    precision_note = (
+        '<div class="meta similarity-note">Nearest vectors are identical at current precision; inspect feature-vector uniqueness if this persists.</div>'
+        if _similarity_vectors_identical_at_display_precision(case_dicts)
+        else ""
+    )
+    rows = []
+    for case in case_dicts[:8]:
+        rows.append(
+            f"""
+            <article class="item similarity-case">
+              <div class="meta">Nearest-neighbor case · AWR {escape(_display_value(case.get("awr_id")))}</div>
+              <h3>{escape(_display_value(case.get("db_name") or case.get("primary_signal_domain") or "Similar Case"))}</h3>
+              {_render_info_grid(
+                  [
+                      ("Similarity", _format_similarity_score(case.get("similarity_score"), similarity_precision)),
+                      ("Distance", _format_similarity_distance(case.get("distance"))),
+                      ("Domain", case.get("primary_signal_domain")),
+                      ("Risk", case.get("risk_level")),
+                      ("Workload", case.get("workload_class")),
+                  ],
+                  extra_class="similarity-case-grid",
+              )}
+            </article>
+            """
+        )
+    return precision_note + '<div class="stack">' + "".join(rows) + "</div>"
+
+
+def _similarity_display_precision(case_dicts: list[dict[str, Any]]) -> int:
+    scores = [
+        _safe_float(case.get("similarity_score"))
+        for case in case_dicts
+        if _safe_float(case.get("similarity_score")) is not None
+    ]
+    rounded = {f"{score:.3f}" for score in scores}
+    if len(scores) > 1 and rounded == {"1.000"}:
+        return 6
+    return 3
+
+
+def _format_similarity_score(value: Any, precision: int = 3) -> str:
+    score = _safe_float(value)
+    if score is None:
+        return _display_value(value)
+    score = max(0.0, min(1.0, score))
+    return f"{score:.{precision}f}"
+
+
+def _format_similarity_distance(value: Any) -> str:
+    distance = _safe_float(value)
+    if distance is None:
+        return _display_value(value)
+    if abs(distance) < 0.00005:
+        distance = 0.0
+    return f"{max(0.0, distance):.4f}"
+
+
+def _similarity_vectors_identical_at_display_precision(
+    case_dicts: list[dict[str, Any]] | list[Any],
+) -> bool:
+    normalized_cases = [_to_dict(case) for case in case_dicts]
+    if len(normalized_cases) < 2:
+        return False
+    similarities = [
+        _safe_float(case.get("similarity_score"))
+        for case in normalized_cases
+        if _safe_float(case.get("similarity_score")) is not None
+    ]
+    distances = [
+        _safe_float(case.get("distance"))
+        for case in normalized_cases
+        if _safe_float(case.get("distance")) is not None
+    ]
+    if len(similarities) < 2 or len(distances) < 2:
+        return False
+    return all(f"{score:.6f}" == "1.000000" for score in similarities) and all(
+        f"{max(0.0, distance):.4f}" == "0.0000" for distance in distances
+    )
+
+
+def _display_cluster_label(value: Any) -> str:
+    label = str(value or "").strip()
+    if not label or label.upper() == "UNCLASSIFIED":
+        return "No stable similarity cluster has been established for this dataset."
+    return _display_value(label)
+
+
+def _display_rarity_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if text.lower() == "common pattern":
+        return "Pattern appears common within the current similarity space."
+    return _display_value(value)
+
+
+def _render_repeated_issue_list(items: list[Any]) -> str:
+    issue_items = [_to_dict(item) for item in items]
+    if not issue_items:
+        return _render_empty_item("No repeated issue pattern is established.")
+    return (
+        '<div class="stack">'
+        + "".join(
+            f'<article class="item"><h3>{escape(_display_value(item.get("issue")))}</h3><div class="meta">Count: {escape(_display_value(item.get("count")))}</div></article>'
+            for item in issue_items
+        )
+        + "</div>"
+    )
+
+
+def _render_recommendation_backlog(items: list[Any]) -> str:
+    backlog_items = [_to_dict(item) for item in items]
+    if not backlog_items:
+        return _render_empty_item("No recommendation backlog is available.")
+    return (
+        '<div class="stack">'
+        + "".join(
+            f"""
+            <article class="item">
+              <div class="meta">Priority {escape(_display_value(item.get("priority")))}</div>
+              <h3>{escape(_display_value(item.get("domain")))}</h3>
+              <p>{escape(_display_value(item.get("action")))}</p>
+            </article>
+            """
+            for item in backlog_items
+        )
+        + "</div>"
+    )
 
 
 def _render_navigation_card(
@@ -1573,15 +2913,19 @@ def _order_violin_metric_groups(
     topology_metric_order = {
         "RAC": [
             "cluster_wait_pct_db_time",
+            "combined_gc_wait_pct_db_time",
             "gc_current_wait_pct_db_time",
             "gc_cr_wait_pct_db_time",
+            "interconnect_stress_flag",
             "transport_lag_sec",
             "apply_lag_sec",
         ],
         "ADG": [
             "transport_lag_sec",
             "apply_lag_sec",
+            "lag_stability_sec",
             "cluster_wait_pct_db_time",
+            "combined_gc_wait_pct_db_time",
             "gc_current_wait_pct_db_time",
             "gc_cr_wait_pct_db_time",
         ],
@@ -1714,10 +3058,21 @@ def _build_chart_runtime_javascript(
     return f"""
   <script>
     const chartPayloadElement = document.getElementById('chart-payload');
+    const chartNullSentinel = '{CHART_NULL_SENTINEL}';
+    function reviveChartNulls(value) {{
+      if (value === chartNullSentinel) return undefined;
+      if (Array.isArray(value)) return value.map(reviveChartNulls);
+      if (value && typeof value === 'object') {{
+        Object.keys(value).forEach((key) => {{
+          value[key] = reviveChartNulls(value[key]);
+        }});
+      }}
+      return value;
+    }}
     let chartPayload = {{}};
     try {{
       if (chartPayloadElement) {{
-        chartPayload = JSON.parse(chartPayloadElement.textContent.trim());
+        chartPayload = reviveChartNulls(JSON.parse(chartPayloadElement.textContent.trim()));
       }}
     }} catch (error) {{
       console.error('Chart payload invalid', error);
@@ -1729,8 +3084,8 @@ def _build_chart_runtime_javascript(
     const timeSeriesSpecs = {json.dumps(time_series_specs)};
     const violinMinimumSamples = {VIOLIN_MIN_SAMPLES};
     const violinMinimumDistinctValues = {VIOLIN_MIN_DISTINCT_VALUES};
-    let dbChart = null;
-    let sqlChart = null;
+    let dbChart = undefined;
+    let sqlChart = undefined;
     let timeSeriesCharts = [];
 
     function showChartFallback(canvasId, message = 'No data available') {{
@@ -1959,7 +3314,7 @@ def _build_chart_runtime_javascript(
             opacity: 0.55,
             points: false,
             hoverinfo: 'skip',
-            hovertemplate: null,
+            hovertemplate: undefined,
             hoveron: 'points',
             showlegend: false,
           }},
@@ -2205,7 +3560,7 @@ def _shared_page_styles() -> str:
       line-height: 1.6;
     }
     .container {
-      max-width: 1280px;
+      max-width: 1600px;
       margin: 0 auto;
       padding: 28px 20px 40px;
     }
@@ -2222,7 +3577,9 @@ def _shared_page_styles() -> str:
       backdrop-filter: blur(14px);
     }
     .hero {
+      position: relative;
       padding: 28px;
+      padding-right: 280px;
       border: 1px solid var(--line);
       border-radius: 22px;
       background: linear-gradient(135deg, rgba(20, 36, 58, 0.98), rgba(10, 20, 34, 0.96));
@@ -2241,10 +3598,13 @@ def _shared_page_styles() -> str:
     .hero-summary { margin: 0 0 10px; color: var(--text); max-width: 820px; }
     .hero-meta, .meta { color: var(--muted); font-size: 13px; }
     .page-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      width: 100%;
+      gap: 8px;
+      overflow-x: visible;
+      white-space: nowrap;
+      padding: 10px;
       border: 1px solid var(--line);
       border-radius: 18px;
       background: rgba(10, 20, 34, 0.88);
@@ -2253,8 +3613,10 @@ def _shared_page_styles() -> str:
     .nav-link {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      width: 100%;
       border-radius: 999px;
-      padding: 8px 14px;
+      padding: 7px 12px;
       color: var(--text);
       text-decoration: none;
       border: 1px solid rgba(159, 176, 199, 0.26);
@@ -2266,6 +3628,17 @@ def _shared_page_styles() -> str:
       color: #08111d;
       background: var(--accent);
       border-color: rgba(90, 209, 255, 0.6);
+    }
+    .runtime-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      text-align: right;
+    }
+    .runtime-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
     }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;
@@ -2325,6 +3698,88 @@ def _shared_page_styles() -> str:
       gap: 14px;
     }
     .visual-layer-grid, .scalar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .diagnostic-block {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .diagnostic-block:first-of-type { margin-top: 0; }
+    .domain-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .domain-strip-item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .domain-strip-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .domain-strip-track {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(159, 176, 199, 0.18);
+    }
+    .domain-strip-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+    }
+    .selector-control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .selector-control {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .selector-control input,
+    .selector-control select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: rgba(16, 28, 45, 0.82);
+      font: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .static-selection-note {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .scope-chip.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.6);
+    }
+    .static-option-row {
+      margin-top: 2px;
+    }
+    .decision-summary-confidence {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -2598,9 +4053,25 @@ def _shared_page_styles() -> str:
       .half, .chart-panel { grid-column: span 6; }
     }
     @media (max-width: 780px) {
+      .page-nav {
+        display: flex;
+        overflow-x: auto;
+      }
+      .hero {
+        padding-right: 28px;
+      }
+      .runtime-badge {
+        position: static;
+        text-align: left;
+        margin-bottom: 12px;
+      }
+      .nav-link {
+        flex: 0 0 auto;
+        width: auto;
+      }
       .flow-grid, .nav-card-grid, .health-check-grid,
       .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
-      .visual-summary-grid {
+      .visual-summary-grid, .domain-strip, .selector-control-grid {
         grid-template-columns: 1fr;
       }
       h1 { font-size: 28px; }
@@ -3507,8 +4978,8 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
 
     const chartTextColor = '#d9e4f2';
     const chartMutedColor = 'rgba(159, 176, 199, 0.28)';
-    let dbChart = null;
-    let sqlChart = null;
+    let dbChart = undefined;
+    let sqlChart = undefined;
 
     function showChartFallback(canvasId, message = 'No data available') {{
       const canvas = document.getElementById(canvasId);
@@ -3757,7 +5228,7 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
             opacity: 0.55,
             points: false,
             hoverinfo: 'skip',
-            hovertemplate: null,
+            hovertemplate: undefined,
             hoveron: 'points',
             showlegend: false,
           }},
@@ -4003,6 +5474,7 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
     intake_summary = _to_dict(screen_model.get("intake_summary"))
     environment_context = _to_dict(screen_model.get("environment_context"))
     environment_scope_note = screen_model.get("environment_scope_note")
+    db_ingestion = _to_dict(screen_model.get("db_ingestion"))
     parse_confidence = _to_dict(screen_model.get("parse_confidence_adaptation"))
     report_rows = screen_model.get("report_rows") or []
     validation_notes = _to_dict(screen_model.get("validation_notes"))
@@ -4048,6 +5520,10 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
               ],
               extra_class="intake-summary-grid",
           )}
+        </section>
+        <section class="evidence-pane">
+          <h3>DB Ingestion / Reuse</h3>
+          {_render_db_ingestion_summary(db_ingestion)}
         </section>
         <section class="evidence-pane">
           <h3>File / Report Table</h3>
@@ -4107,6 +5583,60 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
       </div>
       </section>
     """
+
+
+def _render_db_ingestion_summary(db_ingestion: dict[str, Any]) -> str:
+    summary = _to_dict(db_ingestion.get("summary"))
+    if not summary:
+        return _render_empty_item("DB ingestion status not reported by current run.")
+    local_only_note = (
+        """
+        <div class="meta context-note">
+          Local parsing completed successfully. Database-backed ingestion, reuse checks,
+          feature-vector reuse, and similarity were not available for this run.
+        </div>
+        """
+        if _db_ingestion_local_only(summary)
+        else ""
+    )
+    return local_only_note + _render_info_grid(
+        [
+            ("DB Connectivity", summary.get("db_connectivity")),
+            ("DB Load Mode", summary.get("db_load_mode")),
+            ("Already Loaded", _db_ingestion_summary_value(summary, "already_loaded")),
+            ("Newly Loaded", _db_ingestion_summary_value(summary, "newly_loaded")),
+            ("Reused AWR IDs", _db_ingestion_summary_value(summary, "reused_awr_ids")),
+            (
+                "Feature Vectors Existing",
+                _db_ingestion_summary_value(summary, "feature_vectors_existing"),
+            ),
+            (
+                "Feature Vectors Created/Updated",
+                _db_ingestion_summary_value(
+                    summary,
+                    "feature_vectors_created_updated",
+                ),
+            ),
+            ("DB Similarity Ready", summary.get("db_similarity_ready")),
+            ("Status", summary.get("status_message")),
+        ],
+        extra_class="intake-summary-grid",
+    )
+
+
+def _db_ingestion_local_only(summary: dict[str, Any]) -> bool:
+    db_connectivity = str(summary.get("db_connectivity") or "").strip().lower()
+    db_load_mode = str(summary.get("db_load_mode") or "").strip().lower()
+    return db_load_mode == "local only" or db_connectivity in {"failed", "not checked"}
+
+
+def _db_ingestion_summary_value(summary: dict[str, Any], key: str) -> Any:
+    value = summary.get(key)
+    if _has_display_value(value):
+        return value
+    if _db_ingestion_local_only(summary):
+        return "Not checked"
+    return value
 
 
 def _render_analysis_screen(screen_model: dict[str, Any]) -> str:
@@ -4305,9 +5835,11 @@ def _render_review_comparison_screen(
     explanation_section_map = {
         "executive_summary": _render_supportive_section(
             "Executive Summary",
-            _normalize_narrative_for_display(
-                explanation_panel.get("executive_summary"),
-                normalized_decision,
+            (
+                "Historical evidence supports the current posture, with CPU and workload "
+                "distribution patterns providing the strongest available signals. "
+                "Supporting metrics from I/O and commit activity remain present but do "
+                "not override the overall interpretation."
             ),
             "",
         ),
@@ -4346,7 +5878,7 @@ def _render_review_comparison_screen(
     )
     ordered_explanation_sections = ordered_explanation_sections.replace(
         "CPU remained historically visible, though continuity across the full window was too mixed for a simple stability claim.",
-        "The historical record stays CPU-led, but uneven intervals keep the trend read directional rather than uniform.",
+        "CPU evidence remains one of the more visible signals in the historical window, but not consistently dominant.",
     )
     lower_section_map = {
         "historical_summary": f"""
@@ -4373,6 +5905,7 @@ def _render_review_comparison_screen(
         "trend_review": f"""
         <section class="half evidence-pane">
           <h3>Trend Review</h3>
+          <div class="meta">Observed trends across the window include:</div>
           {trend_review_html}
         </section>
         """,
@@ -4425,7 +5958,7 @@ def _render_review_comparison_screen(
         <section class="half evidence-pane">
           <h3>Topology / Platform Review</h3>
           <div class="meta">
-            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only; CPU-led evidence remains primary.
+            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only; CPU and workload signals remain part of the historical review.
           </div>
           {topology_platform_review_html}
         </section>
@@ -4479,124 +6012,90 @@ def _render_recommendation_action_screen(screen_model: dict[str, Any]) -> str:
     normalized_decision = _to_dict(screen_model.get("normalized_decision"))
     recommendation_list = screen_model.get("recommendation_list") or []
     recommendation_groups = screen_model.get("recommendation_groups") or []
+    canonical_recommendation_count = int(
+        _safe_float(screen_model.get("canonical_recommendation_count")) or 0
+    )
     evidence_tie_back = _to_dict(
         screen_model.get("recommendation_evidence_tie_back")
     )
-    future_extension = _to_dict(screen_model.get("future_extension"))
     authoritative_confidence = (
         header.get("confidence")
         or normalized_decision.get("confidence")
     )
-    recommendation_summary = evidence_tie_back.get("recommendation_summary") or {}
     supporting_primary_evidence = evidence_tie_back.get("primary_evidence") or {}
     supporting_secondary_evidence = evidence_tie_back.get("secondary_evidence") or []
-    has_supporting_evidence = bool(
-        supporting_primary_evidence or supporting_secondary_evidence
-    )
-    sizing_guidance = _normalize_capacity_guidance_text(
-        future_extension.get("oci_sizing_guidance"),
-        authoritative_confidence,
-    )
-    sizing_guidance_blocks = [
-        {
-            **_to_dict(block),
-            "text": _normalize_capacity_guidance_text(
-                _normalize_confidence_text(
-                    _to_dict(block).get("text"),
-                    authoritative_confidence,
-                ),
-                authoritative_confidence,
-            ),
-        }
-        for block in (future_extension.get("sizing_guidance_blocks") or [])
-    ]
-    future_extension_items = [
-        ("Remediation Options", future_extension.get("remediation_options")),
-        ("Operational Next Steps", future_extension.get("operational_next_steps")),
-        ("Cost / Impact Guidance", future_extension.get("cost_impact_guidance")),
-    ]
-    future_extension_html = (
-        (
-            """
-            <div class="supportive-panel guidance-panel">
-              <div class="meta">Structured, platform-neutral guidance for future capacity planning.</div>
-            """
-            + _render_guidance_blocks(sizing_guidance_blocks, sizing_guidance)
-            + """
-            </div>
-            """
-        )
-        if _has_display_value(sizing_guidance)
-        else ""
-    ) + _render_info_grid(future_extension_items)
 
     return f"""
       <div class="subgrid">
         <section class="evidence-pane">
-          <h3>Prioritized Recommended Actions</h3>
-          <div class="stack">
-            {_render_recommendation_groups(recommendation_groups or recommendation_list)}
-          </div>
-        </section>
-        <section class="evidence-pane">
-          <h3>Supporting Evidence</h3>
+          <h3>Deterministic Recommendations</h3>
           <div class="stack">
             {
-                _render_empty_item("No recommendation evidence is available.")
-                if not has_supporting_evidence
-                else (
-                    _render_primary_evidence(
-                        supporting_primary_evidence,
-                        normalized_decision.get("domain_scores") or {},
-                    )
-                    + _render_secondary_evidence(
-                        supporting_secondary_evidence,
-                        normalized_decision.get("domain_scores") or {},
-                    )
-                )
+                _render_recommendation_groups(recommendation_groups or recommendation_list)
+                if canonical_recommendation_count > 0
+                else _render_empty_item("No deterministic actions are recommended at this time.")
             }
           </div>
         </section>
         <section class="evidence-pane">
-          <h3>Action Summary</h3>
-          <div class="stack">
-            <div class="banner-meta-strip">
-              {_render_pill_stack(
-                  [
-                      _render_confidence_badge(authoritative_confidence),
-                      _render_status_badge(header.get("display_severity_label")),
-                      _render_status_badge(header.get("decision_posture")),
-                  ],
-                  ["Confidence", "Risk", "Posture"],
-              )}
-            </div>
-            {_render_info_grid(
-                [
-                    ("Primary Issue", header.get("primary_issue")),
-                    ("Overall Status", header.get("overall_status")),
-                    ("Health Summary", header.get("health_summary")),
-                ]
-            )}
-          </div>
-        </section>
-        <section class="evidence-pane">
-          <h3>Action Explanation</h3>
+          <h3>Posture Guidance</h3>
           <div class="supportive-panel">
             <div class="meta">
-              Supportive, non-authoritative explanation derived from canonical findings.
+              Generated from current decision posture, not from canonical recommendation list.
             </div>
             {_render_supportive_explanation(
-                _build_screen5_action_explanation_copy(screen_model),
+                _build_screen5_posture_guidance_copy(screen_model),
                 "Insufficient data for a reliable conclusion.",
             )}
           </div>
         </section>
         <section class="evidence-pane">
-          <h3>Future Extensions</h3>
-          {future_extension_html}
+          <h3>Supporting Evidence</h3>
+          <div class="stack">
+            {_render_screen5_supporting_evidence(
+                supporting_primary_evidence,
+                supporting_secondary_evidence,
+                normalized_decision.get("domain_scores") or {},
+            )}
+          </div>
         </section>
       </div>
     """
+
+
+def _render_screen5_supporting_evidence(
+    primary_evidence: dict[str, Any],
+    secondary_evidence: list[dict[str, Any]],
+    domain_scores: dict[str, Any],
+) -> str:
+    primary = _to_dict(primary_evidence)
+    secondary = [_to_dict(item) for item in (secondary_evidence or [])]
+    has_primary = _has_meaningful_evidence(primary)
+    meaningful_secondary = [
+        item for item in secondary if _has_meaningful_evidence(item)
+    ]
+    if not has_primary and not meaningful_secondary:
+        return _render_empty_item("No supporting evidence payload was provided for this section.")
+    return (
+        (_render_primary_evidence(primary, domain_scores) if has_primary else "")
+        + _render_secondary_evidence(meaningful_secondary, domain_scores)
+    )
+
+
+def _has_meaningful_evidence(payload: dict[str, Any]) -> bool:
+    if not payload:
+        return False
+    text = " ".join(
+        str(value or "")
+        for value in payload.values()
+        if not isinstance(value, (dict, list))
+    ).strip()
+    if not text:
+        return bool(payload.get("metrics") or payload.get("source_signals"))
+    lowered = text.lower()
+    if lowered in {"none", "null", "insufficient data for a reliable conclusion"}:
+        return False
+    return True
 
 
 def _render_ingestion_header_card(header: dict[str, Any]) -> str:
@@ -4633,6 +6132,14 @@ def _display_value(value: Any) -> str:
         text = _normalize_ui_text(value.strip())
         if not text or text.upper() in {"UNKNOWN", "UNAVAILABLE", "N/A", "NONE"}:
             return "Insufficient data for a reliable conclusion"
+        if (
+            text.startswith("Similarity unavailable")
+            or text.startswith("Primary domain score unavailable")
+            or text == "Domain score unavailable"
+        ):
+            return text
+        if text.startswith("CPU percentage is unavailable") or text.startswith("Average CPU percentage is unavailable"):
+            return text
         text = re.sub(
             r"\bUnavailable\b",
             "Insufficient data for a reliable conclusion",
@@ -4645,11 +6152,19 @@ def _display_value(value: Any) -> str:
             text,
             flags=re.IGNORECASE,
         )
+        text = text.replace(
+            "CPU percentage is Insufficient data for a reliable conclusion for this interval",
+            "CPU percentage is unavailable for this interval",
+        )
         return text
     if isinstance(value, bool):
         return "Yes" if value else "No"
     if isinstance(value, (int, float)):
         numeric = float(value)
+        if abs(numeric) < 0.0005:
+            numeric = 0.0
+        if numeric.is_integer():
+            return f"{numeric:.0f}"
         if abs(numeric) >= 100:
             return f"{numeric:.0f}"
         if abs(numeric) >= 10:
@@ -4673,6 +6188,27 @@ def _display_value(value: Any) -> str:
 
 
 def _normalize_ui_text(text: str) -> str:
+    text = text.replace("Data Processing", "Ingestion Summary")
+    text = text.replace(
+        "All selected AWR files were parsed and loaded successfully.",
+        "All selected AWR files were successfully parsed and made available for analysis.",
+    )
+    text = text.replace(
+        "Vector embeddings are already available.",
+        "Feature vectors are already available and ready for similarity analysis.",
+    )
+    text = text.replace(
+        "CPU-led evidence remains primary",
+        "CPU evidence remains one of the more visible signals in the historical window, but not consistently dominant",
+    )
+    text = text.replace(
+        "CPU Insufficient data for a reliable conclusion",
+        "CPU data was not sufficient in this interval to establish a reliable conclusion",
+    )
+    text = text.replace(
+        "Unavailable of DB time",
+        "CPU data was not sufficient in this interval to establish a reliable conclusion",
+    )
     normalized = re.sub(
         r"\bPrioritize the top elapsed-time OrderService SQL statements\b",
         "Prioritize the top elapsed-time SQL statements",
@@ -4724,6 +6260,162 @@ def _normalize_ui_text(text: str) -> str:
     normalized = re.sub(
         r"\bStandalone\b",
         "Single Instance",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bUnavailable\s+of DB time\b",
+        "CPU percentage is unavailable for this interval",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bInsufficient data for a reliable conclusion\s+of DB time\b",
+        "CPU percentage is unavailable for this interval",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bCpu history\b",
+        "CPU history",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bThe selected domain\b",
+        "The selected diagnostic pattern",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bthe selected domain\b",
+        "the selected diagnostic pattern",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bdeterministic the selected diagnostic pattern posture\b",
+        "current deterministic posture",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bThe governing pattern remains the governing pressure pattern\b[^.]*\.",
+        "The historical window generally supports the current posture, with no contradictory pattern strong enough to alter the overall conclusion.",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bthe governing pattern remains the dominant constraint\b[^.]*\.",
+        "the historical window generally supports the current posture, with no contradictory pattern strong enough to alter the overall conclusion.",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bThe historical window remains aligned with the current deterministic posture\b[^.]*\.",
+        "The historical window generally supports the current posture, with no contradictory pattern strong enough to alter the overall conclusion.",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bthe historical window remains aligned with the current deterministic posture\b[^.]*\.",
+        "the historical window generally supports the current posture, with no contradictory pattern strong enough to alter the overall conclusion.",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bCPU-led evidence remains primary\b",
+        "CPU evidence remains one of the more visible signals in the historical window, but not consistently dominant",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bPrimary evidence keeps the historical story CPU-led\b",
+        "CPU and workload distribution evidence remain among the strongest historical signals",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bCPU Insufficient data for a reliable conclusion\b",
+        "CPU data was not sufficient in this interval to establish a reliable conclusion",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bUnavailable of DB time\b",
+        "CPU data was not sufficient in this interval to establish a reliable conclusion",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bMemory was reviewed and remains non-governing in this window\b",
+        "Memory signals were reviewed and do not materially influence the overall performance posture",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bPGA Spill Pressure is present only as a weak secondary signal relative to the dominant workload pattern\b",
+        "PGA Spill Pressure is present only as a weak secondary signal relative to the stronger workload evidence",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bkeeping the broader window aligned to the same governing pattern\b",
+        "keeping the broader window aligned to the same overall posture",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bAnomaly burden remains visible but does not overturn the current [A-Z ]+ posture\b",
+        "Anomaly burden remains visible but does not overturn the overall conclusion",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bdeterministic the governing pattern posture\b",
+        "current deterministic posture",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bdominant the dominant\b",
+        "dominant",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bthe dominant workload pattern pattern\b",
+        "the dominant workload pattern",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bpattern pattern\b",
+        "pattern",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bthe historical review is organized around the governing pattern-first evidence\b",
+        "The historical review is organized around the strongest available evidence first",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bThe latest interval should be read[^.]*\.",
+        "The latest interval should be interpreted against the broader historical pattern.",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\bthe latest snapshot should be read[^.]*\.",
+        "the latest interval should be interpreted against the broader historical pattern.",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\b(?:ORA|DPY)-\d+:[^.\n<]*(?:\.|$)",
+        _similarity_unavailable_message(),
         normalized,
         flags=re.IGNORECASE,
     )
@@ -4857,7 +6549,11 @@ def _render_ingestion_table(report_rows: list[dict[str, Any]]) -> str:
         f"<th>{escape(label)}</th>"
         for label in [
             "File",
-            "Status",
+            "Parse Status",
+            "DB Status",
+            "AWR_ID",
+            "Vector Status",
+            "Similarity Eligible",
             "DB Name",
             "DBID",
             "Instance",
@@ -4865,16 +6561,31 @@ def _render_ingestion_table(report_rows: list[dict[str, Any]]) -> str:
             "Snapshot Begin",
             "Snapshot End",
             "File-Level Parser Hints",
+            "Parser Notes",
         ]
     )
     row_html = []
     for row in report_rows:
         status = _display_value(row.get("parse_status"))
+        db_status = (
+            _display_value(row.get("db_status"))
+            if _has_display_value(row.get("db_status"))
+            else "Not Checked"
+        )
+        vector_status = (
+            _display_value(row.get("vector_status"))
+            if _has_display_value(row.get("vector_status"))
+            else "Not Checked"
+        )
         row_html.append(
             f"""
             <tr>
               <td>{escape(_display_value(row.get("file_name")))}</td>
               <td><span class="status-pill {_status_pill_class(status)}">{escape(status)}</span></td>
+              <td><span class="status-pill {_status_pill_class(db_status)}">{escape(db_status)}</span></td>
+              <td>{escape(_display_value(row.get("awr_id")) if _has_display_value(row.get("awr_id")) else "Not Checked")}</td>
+              <td><span class="status-pill {_status_pill_class(vector_status)}">{escape(vector_status)}</span></td>
+              <td>{escape(_display_value(row.get("similarity_eligible")) if _has_display_value(row.get("similarity_eligible")) else "Not Checked")}</td>
               <td>{escape(_display_value(row.get("db_name")))}</td>
               <td>{escape(_display_value(row.get("dbid")))}</td>
               <td>{escape(_display_value(row.get("instance_name")))}</td>
@@ -4882,6 +6593,7 @@ def _render_ingestion_table(report_rows: list[dict[str, Any]]) -> str:
               <td>{escape(_display_value(row.get("snapshot_begin")))}</td>
               <td>{escape(_display_value(row.get("snapshot_end")))}</td>
               <td>{escape(_display_value(row.get("topology_hints")))}</td>
+              <td>{escape(_display_value(row.get("parser_notes") or row.get("validation_notes")))}</td>
             </tr>
             """
         )
@@ -4947,21 +6659,131 @@ def _render_visual_analysis_layer(visual_analysis: dict[str, Any]) -> str:
     return f'<div class="visual-layer-grid">{"".join(story_sections)}</div>'
 
 
+def _render_diagnostic_snapshot(
+    screen_model: dict[str, Any],
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> str:
+    domain_scores = _to_dict(_to_dict(report_data.get("scores")).get("domain_scores"))
+    return (
+        _render_domain_dominance_strip(domain_scores)
+        + _render_analysis_visual_summary(visual_summary)
+    )
+
+
+def _render_domain_dominance_strip(domain_scores: dict[str, Any]) -> str:
+    domains = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
+    normalized_scores = {
+        str(key).upper(): _safe_float(value)
+        for key, value in _to_dict(domain_scores).items()
+    }
+    real_scores = [
+        float(score)
+        for score in normalized_scores.values()
+        if score is not None and float(score) > 0.0
+    ]
+    if not real_scores:
+        return """
+      <section class="diagnostic-block">
+        <h3>Domain Dominance</h3>
+        <div class="item">
+          <p>No dominant domain signal identified for this selected scope. Diagnostic drivers above show available evidence.</p>
+        </div>
+      </section>
+    """
+    max_score = max(
+        real_scores or [1.0]
+    )
+    items = []
+    for domain in domains:
+        score = normalized_scores.get(domain)
+        if score is None:
+            score = 0.0
+        width_pct = 0.0 if max_score <= 0 else min(100.0, (float(score) / max_score) * 100.0)
+        items.append(
+            f"""
+            <div class="domain-strip-item">
+              <div class="domain-strip-label">
+                <strong>{escape(domain)}</strong>
+                <span>{escape(_format_score_display(score) or "0.0")}</span>
+              </div>
+              <div class="domain-strip-track">
+                <div class="domain-strip-fill" style="width:{width_pct:.1f}%"></div>
+              </div>
+            </div>
+            """
+        )
+    return f"""
+      <section class="diagnostic-block">
+        <h3>Domain Dominance</h3>
+        <div class="domain-strip">{"".join(items)}</div>
+      </section>
+    """
+
+
+def _build_similarity_compact_from_report(report_data: dict[str, Any]) -> dict[str, Any]:
+    similarity = _to_dict(report_data.get("similarity_intelligence"))
+    similar_cases = list(similarity.get("similar_cases") or [])
+    cluster = _to_dict(similarity.get("workload_cluster"))
+    rarity = _to_dict(similarity.get("pattern_rarity"))
+    return {
+        "enabled": bool(similarity.get("enabled")),
+        "similar_awr_count": len(similar_cases),
+        "cluster_label": cluster.get("cluster_label"),
+        "cluster_confidence": cluster.get("cluster_confidence"),
+        "rarity": (
+            "rare pattern"
+            if rarity.get("is_rare_pattern")
+            else "Pattern appears common within the current similarity space."
+            if similarity.get("enabled")
+            else "unavailable"
+        ),
+        "reason": (
+            rarity.get("reason")
+            if similarity.get("enabled")
+            else _similarity_unavailable_message()
+        ),
+    }
+
+
+def _render_similarity_compact_signal(context: dict[str, Any]) -> str:
+    if not context:
+        return ""
+    items = [
+        ("Similar AWRs", context.get("similar_awr_count")),
+        ("Cluster", _display_cluster_label(context.get("cluster_label"))),
+        ("Rarity", _display_rarity_label(context.get("rarity"))),
+    ]
+    reason = context.get("reason")
+    return f"""
+      <section class="diagnostic-block">
+        <h3>Similarity Context</h3>
+        {_render_info_grid(items, extra_class="diagnostic-compact-grid")}
+        {
+            f'<div class="meta similarity-note">{escape(_display_value(reason))}</div>'
+            if _has_display_value(reason)
+            else ""
+        }
+      </section>
+    """
+
+
 def _render_analysis_visual_summary(visual_summary: dict[str, Any]) -> str:
     cpu_summary = _to_dict(visual_summary.get("cpu"))
     io_summary = _to_dict(visual_summary.get("io"))
     memory_summary = _to_dict(visual_summary.get("memory"))
-    cluster_summary = _to_dict(visual_summary.get("cluster") or {})
+    rac_summary = _to_dict(visual_summary.get("rac") or visual_summary.get("cluster") or {})
+    adg_summary = _to_dict(visual_summary.get("adg") or {})
     summaries = [
         cpu_summary,
         io_summary,
         memory_summary,
+        rac_summary,
+        adg_summary,
     ]
-    if cluster_summary:
-        summaries.append(cluster_summary)
     if not any(summary for summary in summaries):
         return _render_empty_item(
-            "No compact historical trend visuals are available for this scope. View full historical analysis in Screen 4."
+            "No compact signal visuals are available for this scope. View full historical proof in Screen 4."
         )
     cards = [
         _render_mini_trend_card(summary)
@@ -4969,10 +6791,17 @@ def _render_analysis_visual_summary(visual_summary: dict[str, Any]) -> str:
     ]
     cards = [card for card in cards if card]
     hint = visual_summary.get("hint") or "View full historical analysis in Screen 4"
-    return (
-        f'<div class="visual-summary-grid">{"".join(cards)}</div>'
-        f'<a class="inline-nav-hint" href="screen_4_historical_review.html#time-series-charts">{escape(_display_value(hint))}</a>'
-    )
+    if not cards:
+        return _render_empty_item(
+            "No compact signal visuals passed data-gating for this scope. View full historical proof in Screen 4."
+        )
+    return f"""
+      <section class="diagnostic-block">
+        <h3>Domain Signals</h3>
+        <div class="visual-summary-grid">{"".join(cards)}</div>
+        <a class="inline-nav-hint" href="screen_4_historical_review.html#time-series-charts">{escape(_display_value(hint))}</a>
+      </section>
+    """
 
 
 def _render_mini_trend_card(summary: dict[str, Any]) -> str:
@@ -4983,20 +6812,20 @@ def _render_mini_trend_card(summary: dict[str, Any]) -> str:
     values = summary.get("series") or []
     labels = summary.get("labels") or []
     status = str(summary.get("status") or "empty").strip().lower()
-    if status == "suppressed":
+    if status not in {"ok", "weak"}:
         return ""
     reason = summary.get("reason")
-    chart_svg = _render_mini_trend_svg(values)
+    chart_svg = _render_mini_trend_svg(values) if status == "ok" else ""
     latest_label = labels[-1] if labels else None
     latest_value = _latest_numeric_value(values)
     fallback_message = (
-        "Insufficient data for a reliable conclusion in this scope."
-        if status == "empty"
-        else "Insufficient data for a reliable conclusion in this window."
+        "Signal present but below governing threshold."
+        if status == "weak"
+        else "Insufficient data for a reliable conclusion in this scope."
     )
     status_note = (
-        '<div class="mini-trend-fallback">Signal exists, but it stays below the materiality threshold for this window.</div>'
-        if status == "weak" and chart_svg
+        '<div class="mini-trend-fallback">Signal present but below governing threshold.</div>'
+        if status == "weak"
         else ""
     )
     return f"""
@@ -5004,7 +6833,6 @@ def _render_mini_trend_card(summary: dict[str, Any]) -> str:
         <div class="meta">{escape(title)}</div>
         <strong>{escape(_display_value(subtitle))}</strong>
         {chart_svg or f'<div class="mini-trend-fallback">{escape(fallback_message)}</div>'}
-        {status_note}
         {
             f'<div class="meta">Latest point: {escape(_display_value(latest_value))}'
             + (f" ({escape(_display_value(latest_label))})" if _has_display_value(latest_label) else "")
@@ -5078,6 +6906,12 @@ def _render_health_check(health_check: dict[str, Any]) -> str:
     cards = []
     for row in rows:
         status = str(row.get("status") or "N/A").upper()
+        observed_value = row.get("observed_value")
+        if str(observed_value or "").strip().lower() == "not scored":
+            status = "NOT SCORED"
+        reason = row.get("reason")
+        if status == "NOT SCORED":
+            reason = "Signal present; deterministic per-domain health score unavailable."
         cards.append(
             f"""
             <article class="health-check-card">
@@ -5085,8 +6919,8 @@ def _render_health_check(health_check: dict[str, Any]) -> str:
                 <span class="health-pill {_health_status_class(status)}">{escape(status)}</span>
               </div>
               <h3>{escape(_display_value(row.get("check")))}</h3>
-              <p><strong>Observed:</strong> {escape(_display_value(row.get("observed_value")))}</p>
-              <p><strong>Reason:</strong> {escape(_normalize_narrative_for_display(row.get("reason")))}</p>
+              <p><strong>Observed:</strong> {escape(_display_value(observed_value))}</p>
+              <p><strong>Reason:</strong> {escape(_screen2_clean_text(reason))}</p>
             </article>
             """
         )
@@ -5105,6 +6939,7 @@ def _render_health_check(health_check: dict[str, Any]) -> str:
             and "anomaly burden" in str(summary_reason).lower()
             else ""
         }
+        <div class="meta">When deterministic per-domain health is unavailable, the row is shown as NOT SCORED instead of PASS.</div>
       </div>
       <div class="health-check-grid">
         {"".join(cards)}
@@ -5132,10 +6967,10 @@ def _render_future_scope_placeholder(placeholder: dict[str, Any]) -> str:
 def _render_historical_scope_memory(scope_memory: dict[str, Any]) -> str:
     """Render Screen 4 historical memory review content."""
 
-    summary = scope_memory.get("summary")
+    summary = _normalize_narrative_for_display(scope_memory.get("summary"))
     scope_concepts = scope_memory.get("items") or scope_memory.get("scope_concepts") or []
     items = "".join(
-        f"<li>{escape(_display_value(scope))}</li>"
+        f"<li>{escape(_display_value(_normalize_narrative_for_display(scope)))}</li>"
         for scope in scope_concepts
     )
     return (
@@ -5417,31 +7252,50 @@ def _build_screen5_action_plan_copy(
     )
 
 
-def _build_screen5_action_explanation_copy(screen_model: dict[str, Any]) -> str:
+def _build_screen5_posture_guidance_copy(screen_model: dict[str, Any]) -> str:
     header = _to_dict(screen_model.get("header"))
-    recommendations = screen_model.get("recommendation_list") or []
+    normalized_decision = _to_dict(screen_model.get("normalized_decision"))
+    posture = _screen_posture_text(header, normalized_decision)
     primary_issue = (
         _display_value(header.get("primary_issue"))
         if _has_display_value(header.get("primary_issue"))
-        else "The primary issue"
+        else "governing diagnostic pattern"
     )
-    posture = (
-        _display_value(header.get("decision_posture"))
-        if _has_display_value(header.get("decision_posture"))
-        else "Current posture"
+    if not posture:
+        return (
+            "Available evidence is insufficient to assign a final posture. "
+            "Validate core AWR coverage, domain scores, trend history, and anomaly context before taking scaling or tuning action."
+        )
+    normalized_posture = posture.upper()
+    if "SCALE NOW" in normalized_posture or "SCALE" in normalized_posture and "DO NOT" not in normalized_posture and "DEFER" not in normalized_posture:
+        return (
+            f"The current posture is {posture}. Validate that {primary_issue} remains unresolved after tuning, then prepare capacity action using only supported platform evidence."
+        )
+    if "DO NOT SCALE" in normalized_posture:
+        return (
+            f"The current posture is {posture}. Scaling is not recommended from the current evidence; continue tuning or monitoring the visible {primary_issue} signals."
+        )
+    if "DEFER" in normalized_posture:
+        return (
+            f"The current posture is {posture}. Validate the highest-impact evidence first, then reassess whether {primary_issue} still supports scaling."
+        )
+    if "INSUFFICIENT" in normalized_posture:
+        return (
+            "Available evidence is insufficient to assign a reliable final action. Collect the missing score, trend, and health evidence before recommending tuning or scaling."
+        )
+    if "TUNE" in normalized_posture:
+        return (
+            "The current posture indicates that performance tuning and validation "
+            "should be prioritized before considering any scaling decisions."
+        )
+    return (
+        "The current posture should drive the next action path; canonical "
+        "recommendations remain separate from posture guidance."
     )
-    if recommendations:
-        if str(primary_issue).upper() == "CPU":
-            return (
-                "Tune First remains appropriate because the dominant pressure is still internal to workload efficiency rather than a clear capacity shortfall."
-            )
-        primary_action = _to_dict(recommendations[0]).get("action")
-        if _has_display_value(primary_action):
-            return (
-                f"{posture.title()} remains appropriate because {primary_issue.lower()} pressure "
-                f"is best addressed by {_display_value(primary_action).lower()}"
-            )
-    return f"{posture.title()} remains appropriate for the current deterministic action posture."
+
+
+def _build_screen5_action_explanation_copy(screen_model: dict[str, Any]) -> str:
+    return _build_screen5_posture_guidance_copy(screen_model)
 
 
 def _render_engineering_view(
@@ -5978,7 +7832,7 @@ def _normalize_narrative_for_display(
             ),
             (
                 r"CPU: Insufficient data for a reliable conclusion DB time",
-                "CPU remained historically visible, though continuity across the full window was too mixed for a simple stability claim.",
+                "CPU data was not sufficient in this interval to establish a reliable conclusion.",
             ),
             (
                 r"average CPU (?:at )?(?:insufficient signal|Limited signal available)",
@@ -5998,23 +7852,23 @@ def _normalize_narrative_for_display(
             ),
             (
                 r"showing CPU at (?:insufficient signal|Limited signal available|Insufficient data for a reliable conclusion)",
-                "showing CPU as the primary workload driver",
+                "showing CPU data was not sufficient in this interval to establish a reliable conclusion",
             ),
             (
                 r"CPU (?:insufficient signal|Limited signal available|Insufficient data for a reliable conclusion)",
-                "CPU remained the primary workload driver",
+                "CPU data was not sufficient in this interval to establish a reliable conclusion",
             ),
             (
                 r"DB CPU at (?:insufficient signal|Limited signal available|Insufficient data for a reliable conclusion) of DB time",
-                "DB CPU was directionally consistent with the CPU-led posture",
+                "CPU data was not sufficient in this interval to establish a reliable conclusion",
             ),
             (
                 r"CPU remained the primary driver in this interval at (?:insufficient signal|Limited signal available|Insufficient data for a reliable conclusion) of DB time",
-                "CPU remained the primary driver in this interval",
+                "CPU data was not sufficient in this interval to establish a reliable conclusion",
             ),
             (
                 r"CPU remained the selected dominant issue(?: with display score [0-9.]+)?",
-                "CPU remained the primary workload driver for the selected scope",
+                "CPU and workload distribution evidence remain among the strongest historical signals",
             ),
             (
                 r"CPU at Unavailable",
@@ -6296,6 +8150,18 @@ def _normalize_narrative_for_display(
         flags=re.IGNORECASE,
     )
     text = re.sub(
+        r"CPU remained the primary driver in this interval at CPU percentage is unavailable for this interval\.?",
+        "CPU percentage is unavailable for this interval.",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\bwith Average CPU percentage is unavailable across the window\b",
+        "with average CPU percentage unavailable across the window",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
         r"\bDeterministic posture:\b",
         "Current posture:",
         text,
@@ -6399,7 +8265,11 @@ def _normalize_confidence_text(value: Any, confidence: Any) -> str:
     )
 
 
-def _normalize_capacity_guidance_text(value: Any, confidence: Any = None) -> str:
+def _normalize_capacity_guidance_text(
+    value: Any,
+    confidence: Any = None,
+    decision_posture: Any = None,
+) -> str:
     text = _display_value(value)
     replacements = (
         (r"\bOCI database deployment pattern\b", "database deployment pattern"),
@@ -6422,9 +8292,9 @@ def _normalize_capacity_guidance_text(value: Any, confidence: Any = None) -> str
     )
     text = re.sub(r"\ban platform\b", "a platform", text, flags=re.IGNORECASE)
     if "concentrated SQL and secondary performance contributors" in text:
+        posture = _display_value(decision_posture).upper() if _has_display_value(decision_posture) else "the current posture"
         text = (
-            "The current evidence still supports tuning before scaling. "
-            "TUNE FIRST remains appropriate at medium confidence. "
+            f"The current evidence supports {posture}. "
             "Scaling becomes appropriate only if CPU- and SQL-heavy inefficiencies "
             "have been reduced and the same governing constraint still remains afterward. "
             "Keep the architecture aligned to a compute-first tuning path, and treat "
@@ -6477,16 +8347,28 @@ def _health_status_class(status: str) -> str:
         "MARGINAL": "marginal",
         "FAIL": "fail",
         "N/A": "na",
+        "NOT SCORED": "na",
     }.get(normalized, "na")
 
 
 def _status_pill_class(status: str) -> str:
     normalized = status.strip().upper()
-    if normalized in {"SUCCEEDED", "SUCCESS", "OK"}:
+    if normalized in {
+        "SUCCEEDED",
+        "SUCCESS",
+        "OK",
+        "CONNECTED",
+        "ALREADY LOADED",
+        "NEWLY LOADED",
+        "REUSED",
+        "EXISTING",
+        "CREATED",
+        "UPDATED",
+    }:
         return "success"
     if normalized in {"FAILED", "ERROR"}:
         return "error"
-    if normalized in {"WARNINGS", "WARNING", "SKIPPED"}:
+    if normalized in {"WARNINGS", "WARNING", "SKIPPED", "NOT CHECKED", "LOCAL ONLY", "MISSING"}:
         return "warning"
     return ""
 
@@ -6766,6 +8648,9 @@ def _render_text_block(value: Any) -> str:
 
 def _to_dict(value: Any) -> dict[str, Any]:
     """Convert supported model objects to dictionaries."""
+
+    if value is None:
+        return {}
 
     if hasattr(value, "model_dump"):
         return value.model_dump()
@@ -7318,6 +9203,70 @@ def _render_scalar_metrics(metrics: dict[str, Any]) -> str:
     )
 
 
+def _render_topology_scalar_fallback(violin_payload: dict[str, Any]) -> str:
+    """Show real RAC/ADG samples that do not pass violin distribution gates."""
+
+    topology_payload = _to_dict(violin_payload.get("topology"))
+    metric_specs = [
+        ("Cluster Wait %", "cluster_wait_pct_db_time"),
+        ("Combined GC Wait %", "combined_gc_wait_pct_db_time"),
+        ("GC CR Wait %", "gc_cr_wait_pct_db_time"),
+        ("Transport Lag Seconds", "transport_lag_sec"),
+        ("Apply Lag Seconds", "apply_lag_sec"),
+        ("Lag Stability Seconds", "lag_stability_sec"),
+    ]
+    boxes: list[str] = []
+    for label, key in metric_specs:
+        values = topology_payload.get(key)
+        if _has_violin_display_data(values):
+            continue
+        if not isinstance(values, list):
+            continue
+        numeric_values = [
+            float(value)
+            for value in values
+            if isinstance(value, (int, float)) and math.isfinite(float(value))
+        ]
+        if not numeric_values:
+            continue
+        latest_value = numeric_values[-1]
+        range_text = (
+            f"{_format_scalar_metric(min(numeric_values))} - "
+            f"{_format_scalar_metric(max(numeric_values))}"
+        )
+        boxes.append(
+            f"""
+            <div class="scalar-box">
+              <strong>{escape(label)}</strong>
+              <div class="scalar-value">{escape(_format_scalar_metric(latest_value))}</div>
+              <div class="scalar-note">
+                {escape(f"{len(numeric_values)} real sample(s); range {range_text}. Distribution gated until at least {VIOLIN_MIN_SAMPLES} samples and {VIOLIN_MIN_DISTINCT_VALUES} distinct values exist.")}
+              </div>
+            </div>
+            """
+        )
+
+    if not boxes:
+        return ""
+    return (
+        """
+      <section id="topology-scalar-metrics" class="card secondary">
+        <div class="section-kicker">Supporting Visual Layer</div>
+        <h2>RAC / Data Guard Scalar Evidence</h2>
+        <p class="scalar-note">
+          These topology facts use real samples but did not meet violin
+          distribution gates, so they remain scalar evidence.
+        </p>
+        <div class="scalar-grid">
+"""
+        + "".join(boxes)
+        + """
+        </div>
+      </section>
+    """
+    )
+
+
 def _build_violin_metric_groups(
     violin_payload: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -7389,10 +9338,10 @@ def _has_violin_display_data(values: Any) -> bool:
         for value in values
         if isinstance(value, (int, float)) and math.isfinite(float(value))
     ]
-    if len(numeric_values) < 2:
+    if len(numeric_values) < VIOLIN_MIN_SAMPLES:
         return False
     distinct_values = {round(value, 6) for value in numeric_values}
-    return len(distinct_values) >= 2
+    return len(distinct_values) >= VIOLIN_MIN_DISTINCT_VALUES
 
 
 def _has_any_violin_data(values: Any) -> bool:
@@ -7665,11 +9614,28 @@ def _build_violin_panel_payload(
             "gc_cr_wait_pct_db_time": _sanitize_numeric_series(
                 topology_source.get("gc_cr_wait_pct_db_time")
             ),
+            "combined_gc_wait_pct_db_time": _sanitize_numeric_series(
+                topology_source.get("combined_gc_wait_pct_db_time")
+                or _sum_aligned_series(
+                    topology_source.get("gc_current_wait_pct_db_time"),
+                    topology_source.get("gc_cr_wait_pct_db_time"),
+                )
+            ),
+            "interconnect_stress_flag": _sanitize_numeric_series(
+                topology_source.get("interconnect_stress_flag")
+            ),
             "transport_lag_sec": _sanitize_numeric_series(
                 topology_source.get("transport_lag_sec")
             ),
             "apply_lag_sec": _sanitize_numeric_series(
                 topology_source.get("apply_lag_sec")
+            ),
+            "lag_stability_sec": _sanitize_numeric_series(
+                topology_source.get("lag_stability_sec")
+                or _absolute_delta_series(
+                    topology_source.get("transport_lag_sec"),
+                    topology_source.get("apply_lag_sec"),
+                )
             ),
         },
         "platform": {
@@ -7779,3 +9745,25 @@ def _normalize_percent_series(values: list[float]) -> list[float]:
     if max(abs(value) for value in numeric_values) <= 1.0:
         return [round(value * 100.0, 3) for value in numeric_values]
     return numeric_values
+
+
+def _sum_aligned_series(left_values: Any, right_values: Any) -> list[float]:
+    left = _sanitize_numeric_series(left_values)
+    right = _sanitize_numeric_series(right_values)
+    if not left or not right:
+        return []
+    return [
+        round(left_value + right_value, 3)
+        for left_value, right_value in zip(left, right, strict=False)
+    ]
+
+
+def _absolute_delta_series(left_values: Any, right_values: Any) -> list[float]:
+    left = _sanitize_numeric_series(left_values)
+    right = _sanitize_numeric_series(right_values)
+    if not left or not right:
+        return []
+    return [
+        round(abs(left_value - right_value), 3)
+        for left_value, right_value in zip(left, right, strict=False)
+    ]

@@ -30,7 +30,7 @@ def find_similar_awrs_exact(
     sql = """
         SELECT
             awr_id,
-            VECTOR_DISTANCE(FEATURE_VECTOR, :query_vector, COSINE) AS distance
+            VECTOR_DISTANCE(FEATURE_VECTOR, TO_VECTOR(:query_vector), COSINE) AS distance
         FROM AWR_FEATURE_VECTOR
         ORDER BY distance
         FETCH FIRST :top_k ROWS ONLY
@@ -39,7 +39,7 @@ def find_similar_awrs_exact(
     return execute_query(
         connection,
         sql,
-        query_vector=query_vector,
+        query_vector=_vector_literal(query_vector),
         top_k=top_k,
     )
 
@@ -56,7 +56,7 @@ def find_similar_awrs_approx(
     sql = """
         SELECT
             awr_id,
-            VECTOR_DISTANCE(FEATURE_VECTOR, :query_vector, COSINE) AS distance
+            VECTOR_DISTANCE(FEATURE_VECTOR, TO_VECTOR(:query_vector), COSINE) AS distance
         FROM AWR_FEATURE_VECTOR
         ORDER BY distance
         FETCH APPROXIMATE FIRST :top_k ROWS ONLY
@@ -65,6 +65,13 @@ def find_similar_awrs_approx(
     return execute_query(
         connection,
         sql,
-        query_vector=query_vector,
+        query_vector=_vector_literal(query_vector),
         top_k=top_k,
     )
+
+
+def _vector_literal(query_vector: list[float]) -> str:
+    numeric_values: list[str] = []
+    for value in query_vector:
+        numeric_values.append(str(float(value)))
+    return "[" + ",".join(numeric_values) + "]"

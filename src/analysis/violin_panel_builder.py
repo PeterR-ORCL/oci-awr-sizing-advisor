@@ -43,8 +43,11 @@ EMPTY_VIOLIN_PANEL = {
         "cluster_wait_pct_db_time": [],
         "gc_current_wait_pct_db_time": [],
         "gc_cr_wait_pct_db_time": [],
+        "combined_gc_wait_pct_db_time": [],
+        "interconnect_stress_flag": [],
         "transport_lag_sec": [],
         "apply_lag_sec": [],
+        "lag_stability_sec": [],
     },
     "platform": {
         "cell_single_block_read_pct_db_time": [],
@@ -157,6 +160,14 @@ def build_violin_panel_data(
                 [_extract_group_gc_cr_wait_pct(group) for group in snapshot_groups],
                 allow_sparse=True,
             ),
+            "combined_gc_wait_pct_db_time": _finalize_snapshot_series(
+                [_extract_group_combined_gc_wait_pct(group) for group in snapshot_groups],
+                allow_sparse=True,
+            ),
+            "interconnect_stress_flag": _finalize_snapshot_series(
+                [_extract_group_interconnect_stress_flag(group) for group in snapshot_groups],
+                allow_sparse=True,
+            ),
             "transport_lag_sec": _finalize_snapshot_series(
                 [
                     _extract_group_topology_max(group, "transport_lag_sec")
@@ -169,6 +180,10 @@ def build_violin_panel_data(
                     _extract_group_topology_max(group, "apply_lag_sec")
                     for group in snapshot_groups
                 ],
+                allow_sparse=True,
+            ),
+            "lag_stability_sec": _finalize_snapshot_series(
+                [_extract_group_lag_stability_sec(group) for group in snapshot_groups],
                 allow_sparse=True,
             ),
         },
@@ -752,6 +767,39 @@ def _extract_group_gc_cr_wait_pct(
     return _extract_group_wait_event_pct(snapshot_group, ("gc cr",))
 
 
+def _extract_group_combined_gc_wait_pct(
+    snapshot_group: list[ParseResult],
+) -> float | None:
+    current_wait = _extract_group_gc_current_wait_pct(snapshot_group)
+    cr_wait = _extract_group_gc_cr_wait_pct(snapshot_group)
+    if current_wait is None and cr_wait is None:
+        return None
+    return (current_wait or 0.0) + (cr_wait or 0.0)
+
+
+def _extract_group_interconnect_stress_flag(
+    snapshot_group: list[ParseResult],
+) -> float | None:
+    values = [
+        _extract_snapshot_topology_bool(snapshot, "interconnect_stress_flag")
+        for snapshot in snapshot_group
+    ]
+    numeric_values = [value for value in values if value is not None]
+    if not numeric_values:
+        return None
+    return max(numeric_values)
+
+
+def _extract_group_lag_stability_sec(
+    snapshot_group: list[ParseResult],
+) -> float | None:
+    transport_lag = _extract_group_topology_max(snapshot_group, "transport_lag_sec")
+    apply_lag = _extract_group_topology_max(snapshot_group, "apply_lag_sec")
+    if transport_lag is None or apply_lag is None:
+        return None
+    return abs(transport_lag - apply_lag)
+
+
 def _extract_group_average_topology_pct(
     snapshot_group: list[ParseResult],
     key: str,
@@ -803,6 +851,17 @@ def _extract_snapshot_topology_float(
             return numeric_value * 100.0
         return numeric_value
     return None
+
+
+def _extract_snapshot_topology_bool(
+    snapshot: ParseResult,
+    key: str,
+) -> float | None:
+    topology_signals = getattr(snapshot, "topology_signals", None) or {}
+    value = topology_signals.get(key)
+    if value is None:
+        return None
+    return 1.0 if bool(value) else 0.0
 
 
 def _build_per_instance_rac_panel(
