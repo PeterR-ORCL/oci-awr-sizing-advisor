@@ -134,10 +134,23 @@
       background: linear-gradient(135deg, rgba(24, 42, 66, 0.98), rgba(14, 27, 46, 0.98));
       border-color: rgba(90, 209, 255, 0.38);
     }
-    .card.secondary { background: rgba(12, 22, 36, 0.88); }
+    .card.secondary {
+      background: rgba(12, 22, 36, 0.88);
+      padding: 16px;
+    }
     .card.prominent {
       background: linear-gradient(135deg, rgba(20, 36, 58, 0.96), rgba(13, 24, 40, 0.96));
       border-color: rgba(90, 209, 255, 0.34);
+    }
+    .card.compact-card {
+      padding: 16px 18px;
+    }
+    .compact-card h2 {
+      margin-bottom: 8px;
+    }
+    .compact-card p {
+      margin-top: 0;
+      margin-bottom: 8px;
     }
     .section-kicker {
       color: var(--accent);
@@ -255,11 +268,120 @@
       margin-top: 14px;
       flex-wrap: wrap;
     }
+    .decision-summary-confidence .confidence-note {
+      margin: 0;
+      line-height: 1.3;
+    }
+    .diagnostic-compact-card {
+      padding: 16px;
+    }
+    .diagnostic-snapshot-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .diagnostic-snapshot-grid .info-box {
+      padding: 12px;
+    }
+    .diagnostic-confidence-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .confidence-cell {
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 8px;
+    }
+    .diagnostic-confidence-strip .confidence-note {
+      margin: 0;
+      line-height: 1.3;
+      align-self: center;
+    }
+    .diagnostic-drivers-card {
+      padding: 16px;
+    }
+    .diagnostic-driver-stack {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .diagnostic-driver-row {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: auto;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .diagnostic-driver-row .severity,
+    .diagnostic-driver-row .status-pill {
+      display: none;
+    }
+    .diagnostic-driver-row h3 {
+      margin: 0 0 4px;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .diagnostic-driver-row p {
+      margin: 0;
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .diagnostic-driver-evidence {
+      margin: 6px 0 0;
+      font-size: 12px;
+      line-height: 1.35;
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 14px;
       background: rgba(16, 28, 45, 0.72);
+    }
+    .screen4-summary-card {
+      padding: 16px;
+    }
+    .screen4-compact-pane {
+      padding: 14px;
+    }
+    .screen4-compact-info-grid {
+      gap: 10px;
+    }
+    .screen4-compact-info-grid .info-box,
+    .screen4-verdict-grid .info-box,
+    .screen4-topology-grid .info-box {
+      padding: 11px 12px;
+      border-radius: 12px;
+    }
+    .screen4-verdict-pane > .meta,
+    .screen4-topology-pane > .meta {
+      margin: -2px 0 12px;
+    }
+    .screen4-verdict-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen4-memory-block {
+      padding: 14px;
+    }
+    .screen4-memory-block p {
+      margin: 8px 0 0;
+    }
+    .screen4-topology-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen4-interpretation-block {
+      padding: 14px;
+    }
+    .screen4-interpretation-block .narrative {
+      margin-top: 8px;
     }
     .supportive-panel {
       border: 1px dashed rgba(159, 176, 199, 0.28);
@@ -288,7 +410,7 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .severity.critical, .decision-banner.scale-now, .health-pill.fail {
+    .severity.critical, .severity.error, .decision-banner.scale-now, .health-pill.fail {
       color: #fff4f4;
       background: rgba(255, 107, 107, 0.24);
       border: 1px solid rgba(255, 107, 107, 0.36);
@@ -298,7 +420,7 @@
       background: rgba(255, 107, 107, 0.16);
       border: 1px solid rgba(255, 107, 107, 0.30);
     }
-    .severity.medium, .health-pill.marginal, .decision-banner.defer {
+    .severity.medium, .severity.warning, .health-pill.marginal, .decision-banner.defer {
       color: #fff8ed;
       background: rgba(246, 184, 76, 0.24);
       border: 1px solid rgba(246, 184, 76, 0.36);
@@ -307,6 +429,21 @@
       color: #eff7ff;
       background: rgba(127, 179, 213, 0.16);
       border: 1px solid rgba(127, 179, 213, 0.36);
+    }
+    .severity.success {
+      color: #effbef;
+      background: rgba(102, 187, 106, 0.16);
+      border: 1px solid rgba(102, 187, 106, 0.34);
+    }
+    .severity.accent {
+      color: #eef9ff;
+      background: rgba(90, 209, 255, 0.14);
+      border: 1px solid rgba(90, 209, 255, 0.34);
+    }
+    .severity.neutral {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
     }
     .health-pill.na {
       color: #eef3f8;
@@ -327,6 +464,22 @@
       background: rgba(255, 107, 107, 0.16);
       border: 1px solid rgba(255, 107, 107, 0.34);
       color: #fff4f4;
+    }
+    .status-pill.accent {
+      color: #eef9ff;
+      background: rgba(90, 209, 255, 0.14);
+      border: 1px solid rgba(90, 209, 255, 0.34);
+    }
+    .status-pill.low {
+      color: #eef7ff;
+      background: rgba(127, 179, 213, 0.18);
+      border: 1px solid rgba(127, 179, 213, 0.34);
+    }
+    .status-pill.neutral,
+    .status-pill.na {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
     }
     .scope-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .scope-chip {
@@ -355,20 +508,62 @@
       border: 1px solid rgba(255, 255, 255, 0.16);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
-    .confidence-pill.high {
-      background: rgba(255, 107, 107, 0.24);
-      border-color: rgba(255, 107, 107, 0.38);
-      color: #fff4f4;
+    .confidence-pill.low,
+    .status-pill.confidence-low,
+    .mini-pill.confidence-low {
+      background: rgba(127, 179, 213, 0.24);
+      border: 1px solid rgba(127, 179, 213, 0.48);
+      color: #eef7ff;
     }
-    .confidence-pill.medium {
-      background: rgba(246, 184, 76, 0.24);
-      border-color: rgba(246, 184, 76, 0.38);
+    .confidence-pill.medium,
+    .status-pill.confidence-medium,
+    .mini-pill.confidence-medium {
+      background: rgba(246, 184, 76, 0.22);
+      border: 1px solid rgba(246, 184, 76, 0.42);
       color: #fff8ed;
     }
-    .confidence-pill.low {
-      background: rgba(127, 179, 213, 0.20);
-      border-color: rgba(127, 179, 213, 0.36);
-      color: #eef7ff;
+    .confidence-pill.high,
+    .status-pill.confidence-high,
+    .mini-pill.confidence-high {
+      background: rgba(102, 187, 106, 0.20);
+      border: 1px solid rgba(102, 187, 106, 0.42);
+      color: #effbef;
+    }
+    .mini-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.3;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .mini-pill.success {
+      color: #effbef;
+      background: rgba(102, 187, 106, 0.16);
+      border: 1px solid rgba(102, 187, 106, 0.34);
+    }
+    .mini-pill.warning {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.16);
+      border: 1px solid rgba(246, 184, 76, 0.34);
+    }
+    .mini-pill.error {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.16);
+      border: 1px solid rgba(255, 107, 107, 0.34);
+    }
+    .mini-pill.neutral {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
+    }
+    .nav-card-note {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.35;
     }
     .pill-stack {
       display: grid;
@@ -454,6 +649,269 @@
       display: grid;
       gap: 12px;
     }
+    .action-page-card {
+      padding: 18px;
+    }
+    .action-page-layout {
+      display: grid;
+      gap: 14px;
+    }
+    .action-conclusion-card {
+      grid-column: auto;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+    .action-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .action-summary-pane {
+      grid-column: auto;
+      padding: 14px;
+    }
+    .action-conclusion-block {
+      border: 1px solid rgba(90, 209, 255, 0.28);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .action-conclusion-block h4 {
+      margin: 12px 0 6px;
+      font-size: 18px;
+    }
+    .action-conclusion-block p {
+      margin: 0;
+      color: var(--text);
+    }
+    .action-conclusion-block ul {
+      margin-top: 10px;
+    }
+    .status-insight-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .status-insight {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      grid-template-areas:
+        "pill note"
+        "label note";
+      column-gap: 12px;
+      row-gap: 6px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid rgba(159, 176, 199, 0.18);
+      border-radius: 12px;
+      background: rgba(16, 28, 45, 0.56);
+    }
+    .status-insight-pill {
+      grid-area: pill;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .status-insight-label {
+      grid-area: label;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+    .status-insight-note {
+      grid-area: note;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      align-self: center;
+    }
+    .status-insight-pill--success {
+      background: rgba(102, 187, 106, 0.20);
+      border-color: rgba(102, 187, 106, 0.42);
+      color: #effbef;
+    }
+    .status-insight-pill--warning {
+      background: rgba(246, 184, 76, 0.22);
+      border-color: rgba(246, 184, 76, 0.42);
+      color: #fff8ed;
+    }
+    .status-insight-pill--error {
+      background: rgba(255, 107, 107, 0.20);
+      border-color: rgba(255, 107, 107, 0.42);
+      color: #fff4f4;
+    }
+    .status-insight-pill--low,
+    .status-insight-pill--confidence-low {
+      background: rgba(127, 179, 213, 0.24);
+      border-color: rgba(127, 179, 213, 0.48);
+      color: #eef7ff;
+    }
+    .status-insight-pill--confidence-medium {
+      background: rgba(246, 184, 76, 0.22);
+      border-color: rgba(246, 184, 76, 0.42);
+      color: #fff8ed;
+    }
+    .status-insight-pill--confidence-high {
+      background: rgba(102, 187, 106, 0.20);
+      border-color: rgba(102, 187, 106, 0.42);
+      color: #effbef;
+    }
+    .status-insight-pill--accent {
+      background: rgba(90, 209, 255, 0.16);
+      border-color: rgba(90, 209, 255, 0.40);
+      color: #eef9ff;
+    }
+    .status-insight-pill--neutral {
+      background: rgba(159, 176, 199, 0.14);
+      border-color: rgba(159, 176, 199, 0.34);
+      color: #eef3f8;
+    }
+    .compact-supportive-panel {
+      padding: 12px;
+    }
+    .compact-supportive-panel ul {
+      margin-bottom: 0;
+    }
+    .compact-evidence-stack {
+      gap: 8px;
+    }
+    .compact-evidence-stack .item {
+      padding: 10px;
+      border-radius: 12px;
+    }
+    .validation-plan-groups,
+    .evidence-checklist {
+      display: grid;
+      gap: 10px;
+    }
+    .validation-plan-group {
+      padding-top: 8px;
+      border-top: 1px solid rgba(159, 176, 199, 0.16);
+    }
+    .validation-plan-group:first-child {
+      padding-top: 0;
+      border-top: none;
+    }
+    .validation-plan-group strong,
+    .evidence-checklist-item h3 {
+      display: block;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .validation-plan-group ul,
+    .compact-list {
+      margin-top: 4px;
+    }
+    .compact-inline-list {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .evidence-checklist-item.warning-note {
+      border-color: rgba(246, 184, 76, 0.32);
+      background: rgba(66, 48, 24, 0.36);
+    }
+    .action-final-statement {
+      border: 1px solid rgba(90, 209, 255, 0.26);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: var(--text);
+      background: rgba(90, 209, 255, 0.08);
+      font-weight: 700;
+    }
+    .fleet-preview-note {
+      max-width: 980px;
+      margin-top: -4px;
+    }
+    .fleet-compact-card {
+      padding: 16px;
+    }
+    .fleet-summary-strip {
+      display: flex;
+      align-items: stretch;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .fleet-summary-fact {
+      min-width: 150px;
+      flex: 1 1 150px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .fleet-summary-fact span {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .fleet-summary-fact strong {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .fleet-detail-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .fleet-detail-row {
+      display: block;
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.54);
+    }
+    .fleet-detail-row.reason-row {
+      grid-column: 1 / -1;
+    }
+    .fleet-detail-row strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .fleet-detail-row span {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .similarity-case-grid {
+      gap: 8px;
+    }
+    .similarity-case-grid .info-box {
+      padding: 9px 10px;
+    }
+    .scalar-context-note {
+      margin-top: -2px;
+      margin-bottom: 12px;
+    }
     .narrative > p, .narrative > ol, .narrative > ul, .narrative > div { margin-top: 0; margin-bottom: 12px; }
     .data-table-wrap {
       overflow-x: auto;
@@ -521,6 +979,308 @@
     }
     .health-check-summary { margin-bottom: 12px; }
     .health-check-card p { margin: 0; }
+    .pipeline-card {
+      overflow: hidden;
+    }
+
+    .pipeline-intro {
+      max-width: 980px;
+      margin-bottom: 14px;
+    }
+
+    .pipeline-mode-badge {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      margin: 14px 0 18px;
+      flex-wrap: wrap;
+    }
+
+    .pipeline-mode-badge .status-pill,
+    .pipeline-mode-badge .meta {
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .pipeline-mode-badge .meta {
+      display: inline-flex;
+      align-items: center;
+      opacity: 0.85;
+    }
+
+    .pipeline-flow {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .pipeline-node {
+      position: relative;
+      min-height: 104px;
+      padding: 14px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(159, 176, 199, 0.24);
+      background:
+        linear-gradient(180deg, rgba(20, 36, 58, 0.88), rgba(13, 24, 40, 0.9));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 22px rgba(0, 0, 0, 0.18);
+      transition:
+        transform 0.18s ease,
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease;
+    }
+
+    .pipeline-node:hover {
+      transform: translateY(-3px);
+      border-color: rgba(90, 209, 255, 0.62);
+      background:
+        linear-gradient(180deg, rgba(24, 44, 70, 0.96), rgba(13, 24, 40, 0.96));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 14px 28px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(90, 209, 255, 0.08);
+    }
+
+    .pipeline-node span {
+      display: block;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .pipeline-node small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .pipeline-node.source-node {
+      border-color: rgba(102, 187, 106, 0.42);
+      background:
+        linear-gradient(180deg, rgba(27, 59, 44, 0.72), rgba(13, 24, 40, 0.92));
+    }
+
+    .pipeline-node.core-node {
+      border-color: rgba(255, 107, 107, 0.55);
+      background:
+        linear-gradient(180deg, rgba(70, 34, 42, 0.56), rgba(13, 24, 40, 0.92));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 22px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(255, 107, 107, 0.15);
+    }
+
+    .pipeline-node.memory-node {
+      border-color: rgba(90, 209, 255, 0.52);
+      background:
+        linear-gradient(180deg, rgba(28, 67, 84, 0.62), rgba(13, 24, 40, 0.92));
+    }
+
+    .future-input-layout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .future-input-card {
+      padding: 14px 16px;
+    }
+
+    .future-input-panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+
+    .future-input-panel h3 {
+      margin-bottom: 10px;
+    }
+
+    .source-option-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .source-option {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      background: rgba(20, 36, 58, 0.84);
+      border: 1px solid rgba(159, 176, 199, 0.24);
+    }
+
+    .source-option.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.62);
+    }
+
+    .future-input-field {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid rgba(90, 209, 255, 0.28);
+      border-radius: 10px;
+      padding: 9px 11px;
+      color: var(--text);
+      background: rgba(11, 21, 35, 0.74);
+      font: inherit;
+    }
+
+    .input-note {
+      margin-top: 8px;
+    }
+
+    .future-note {
+      margin-top: 10px;
+      padding: 12px;
+    }
+
+    .future-note strong {
+      color: var(--accent);
+    }
+
+    .future-note p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .agent-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+
+    .agent-card strong {
+      display: block;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .agent-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .truth-boundary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .truth-boundary-pane {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+
+    .truth-boundary-pane h3 {
+      margin-bottom: 10px;
+    }
+
+    .deterministic-pane {
+      border-color: rgba(102, 187, 106, 0.34);
+      background:
+        linear-gradient(180deg, rgba(24, 54, 40, 0.58), rgba(13, 24, 40, 0.92));
+    }
+
+    .ai-pane {
+      border-color: rgba(246, 184, 76, 0.34);
+      background:
+        linear-gradient(180deg, rgba(66, 48, 24, 0.54), rgba(13, 24, 40, 0.92));
+    }
+
+    .truth-boundary-pane ul {
+      margin-top: 14px;
+    }
+
+    .memory-capability-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .memory-capability {
+      border: 1px solid rgba(90, 209, 255, 0.22);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(90, 209, 255, 0.07);
+    }
+
+    .memory-capability strong {
+      display: block;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .memory-capability span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .agent-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 900px) {
+      .pipeline-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .pipeline-node {
+        min-height: auto;
+      }
+
+      .future-input-layout,
+      .truth-boundary-grid,
+      .memory-capability-grid,
+      .action-summary-grid,
+      .status-insight-row,
+      .fleet-detail-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .agent-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .footer { margin-top: 18px; color: var(--muted); font-size: 12px; text-align: right; }
     ul, ol { margin: 10px 0 0 18px; padding: 0; }
     li { margin: 4px 0; }
@@ -546,7 +1306,11 @@
       }
       .flow-grid, .nav-card-grid, .health-check-grid,
       .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
-      .visual-summary-grid, .domain-strip, .selector-control-grid {
+      .visual-summary-grid, .domain-strip, .selector-control-grid,
+      .diagnostic-snapshot-grid,
+      .diagnostic-driver-stack,
+      .screen4-verdict-grid,
+      .screen4-topology-grid {
         grid-template-columns: 1fr;
       }
       h1 { font-size: 28px; }
@@ -572,7 +1336,7 @@
           Deterministic Oracle AWR intelligence delivering consistent diagnosis,
           historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: May 1, 2026, 10:07 AM</div>
+        <div class="hero-meta">Generated: May 4, 2026, 11:51 AM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link active" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
@@ -581,23 +1345,18 @@
     
     <div class="grid">
       <!-- Screen 2 = diagnosis only. Ingestion stays on Screen 1; historical proof stays on Screen 4; action stays on Screen 5. -->
-      <section class="card prominent">
+      <section class="card prominent diagnostic-compact-card">
         <div class="section-kicker">DECISION</div>
         <h2>Diagnostic Snapshot</h2>
-        <div class="info-grid">
+        <div class="info-grid diagnostic-snapshot-grid">
             <div class="info-box">
               <strong>Overall Status</strong>
-              <div>WARNING</div>
+              <div>OK</div>
             </div>
             
             <div class="info-box">
               <strong>Risk</strong>
-              <div>WARNING</div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Primary Issue / Domain</strong>
-              <div>Domain score unavailable</div>
+              <div>OK</div>
             </div>
             
             <div class="info-box">
@@ -606,22 +1365,27 @@
             </div>
             
             <div class="info-box">
-              <strong>Historical Posture</strong>
-              <div>TUNE FIRST</div>
+              <strong>Primary Issue / Domain</strong>
+              <div>No dominant scored domain selected</div>
             </div>
             
             <div class="info-box">
               <strong>Health Summary</strong>
-              <div>FAIL</div>
+              <div>OK</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Historical Posture</strong>
+              <div>TUNE FIRST</div>
             </div>
             </div>
-        <div class="meta decision-summary-note">Available diagnostic evidence supports TUNE FIRST.</div>
-        <div class="decision-summary-confidence">
-          <span class="pill-cell">
+        <div class="meta decision-summary-note">Signals exist, but no single domain has crossed the deterministic dominance threshold.</div>
+        <div class="decision-summary-confidence diagnostic-confidence-strip">
+          <span class="pill-cell confidence-cell">
             <span class="confidence-pill low">LOW</span>
-            <span class="pill-label-row pill-caption">Confidence</span>
+            <span class="pill-label-row pill-caption">CONFIDENCE</span>
           </span>
-          <span class="meta">based on signal strength and data coverage</span>
+          <span class="meta confidence-note">Signal strength and data coverage are limited.</span>
         </div>
       </section>
       <section class="card secondary">
@@ -629,44 +1393,56 @@
         <h2>Why This Posture</h2>
         <div class="narrative"><p>The current posture is driven by a mix of workload signals. Available evidence supports TUNE FIRST, while no single domain score is available for this selected scope.</p></div><ul><li>CPU Signal: DB CPU % DB Time = 30.4</li><li>I/O Signal: User I/O Pressure = 13.0</li><li>Commit Signal: log file sync = 8.4</li><li>RAC Signal: Cluster Wait % = 2.16</li><li>ADG Signal: Transport/apply lag evidence present</li></ul>
       </section>
-      <section class="card secondary">
+      <section class="card secondary diagnostic-drivers-card">
         <div class="section-kicker">EVIDENCE</div>
         <h2>Current Diagnostic Drivers</h2>
-        <div class="stack">
-            <article class="item">
-              <h3>CPU Signal</h3>
-              <p>DB CPU % DB Time = 30.4</p>
-              <div class="meta">Visible CPU pressure in latest interval.</div>
+        <div class="diagnostic-driver-stack">
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>CPU Signal</h3>
+                <p>DB CPU % DB Time = 30.4</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">Latest interval shows visible CPU pressure.</div>
             </article>
             
-            <article class="item">
-              <h3>I/O Signal</h3>
-              <p>User I/O Pressure = 13.0</p>
-              <div class="meta">Visible User I/O contributor.</div>
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>I/O Signal</h3>
+                <p>User I/O Pressure = 13.0</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">Contributes to visible user I/O.</div>
             </article>
             
-            <article class="item">
-              <h3>Commit Signal</h3>
-              <p>log file sync = 8.4</p>
-              <div class="meta">Commit latency remains in scope for the latest interval.</div>
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>Commit Signal</h3>
+                <p>log file sync = 8.4</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">Commit latency remains in scope for the latest interval.</div>
             </article>
             
-            <article class="item">
-              <h3>RAC Signal</h3>
-              <p>Cluster Wait % = 2.16</p>
-              <div class="meta">Cluster coordination present, not governing.</div>
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>RAC Signal</h3>
+                <p>Cluster Wait % = 2.16</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">Cluster coordination is present but not governing.</div>
             </article>
             
-            <article class="item">
-              <h3>Memory Signal</h3>
-              <p>PGA Spill Pressure = 0.03</p>
-              <div class="meta">Memory signal present but below governing threshold.</div>
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>Memory Signal</h3>
+                <p>PGA Spill Pressure = 0.03</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">Memory signal detected but below governing threshold.</div>
             </article>
             
-            <article class="item">
-              <h3>ADG Signal</h3>
-              <p>Transport/apply lag evidence</p>
-              <div class="meta">Data Guard or redo transport evidence is present in the selected scope.</div>
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>ADG Signal</h3>
+                <p>Transport/apply lag evidence</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">Evidence of Data Guard or redo transport exists in the selected scope.</div>
             </article>
             </div>
       </section>
@@ -743,19 +1519,19 @@
         <h2>Health / Data Completeness</h2>
         <div class="health-check-grid">
         <article class="health-check-card">
-          <div class="meta"><span class="health-pill fail">FAIL</span></div>
-          <h3>Overall Health</h3>
+          <div class="meta"><span class="health-pill marginal">MARGINAL</span></div>
+          <h3>Supporting Health Context</h3>
           <p>Data completeness and signal strength are sufficient for analysis, but not strong enough to establish a dominant governing domain.</p>
         </article>
         
         <article class="health-check-card">
-          <div class="meta"><span class="health-pill fail">FAIL</span></div>
+          <div class="meta"><span class="health-pill fail">ATTENTION</span></div>
           <h3>Trend stability</h3>
           <p>7 trend finding(s)</p>
         </article>
             
         <article class="health-check-card">
-          <div class="meta"><span class="health-pill fail">FAIL</span></div>
+          <div class="meta"><span class="health-pill fail">ATTENTION</span></div>
           <h3>Anomaly burden</h3>
           <p>15 anomaly window(s)</p>
         </article>
@@ -811,7 +1587,7 @@
       <section class="card secondary">
         <div class="section-kicker">CONCLUSION</div>
         <h2>Diagnostic Conclusion</h2>
-        <div class="decision-summary-confidence"><span class="confidence-pill low">LOW</span><span class="meta">Confidence is low due to limited domain-score coverage and lack of a dominant, consistent signal across domains.</span></div><div class="narrative"><p>The selected scope is most consistent with the current TUNE FIRST decision posture. Available evidence points to CPU, I/O, and Commit behavior; memory remains present as a below-threshold signal, with RAC and ADG acting as topology context rather than as a standalone capacity trigger.</p></div><p>The observed pattern supports the current posture for this selected scope.</p>
+        <div class="decision-summary-confidence"><span class="confidence-pill low">LOW</span><span class="meta">Confidence is low from the authoritative Phase 4I output.</span></div><div class="narrative"><p>The selected scope is most consistent with the current TUNE FIRST decision posture. Available evidence points to CPU, I/O, and Commit behavior; memory remains present as a below-threshold signal, with RAC and ADG acting as topology context rather than as a standalone capacity trigger.</p></div><p>The observed pattern supports the current posture for this selected scope.</p>
       </section>
       <section class="card secondary">
         <div class="section-kicker">SIMILARITY</div>
@@ -851,7 +1627,7 @@
     </div>
     
 
-    <div class="footer">Generated at May 1, 2026, 10:07 AM</div>
+    <div class="footer">Generated at May 4, 2026, 11:51 AM</div>
   </div>
 
 

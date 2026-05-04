@@ -22,3 +22,4 @@ validation_*.json
 scoring_diagnostics_*.json
 scoring_diagnostics_*.md
 .vscode/launch.json
+__pycache__/

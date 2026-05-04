@@ -374,103 +374,6 @@ def build_recommendation_screen_model(
                 "source_signals": recommendation_dict.get("source_signals") or {},
             }
         )
-    if len(recommendation_cards) < 3:
-        recommendation_summary = _as_dict(grouped_findings.get("recommendation_summary"))
-        for item in recommendation_summary.get("items") or []:
-            item_dict = _as_dict(item)
-            action = _clean_context_value(item_dict.get("action"))
-            if not action:
-                continue
-            if any(
-                str(card.get("action") or "").strip().lower() == action.lower()
-                for card in recommendation_cards
-            ):
-                continue
-            recommendation_cards.append(
-                {
-                    "priority": normalized_decision.get("recommendation_priority"),
-                    "issue": _recommendation_issue_label(
-                        action,
-                        normalized_decision.get("primary_issue"),
-                    ),
-                    "action": action,
-                    "impact": None,
-                    "confidence": normalized_decision.get("confidence"),
-                    "rationale": item_dict.get("rationale") or recommendation_summary.get("summary"),
-                    "category": item_dict.get("title") or "deterministic",
-                    "category_label": _recommendation_category_label(
-                        item_dict.get("title") or "deterministic",
-                        action,
-                    ),
-                    "source_signals": item_dict.get("source_signals") or {},
-                }
-            )
-    if len(recommendation_cards) < 4:
-        for recommendation in compatibility.get("recommendations") or []:
-            recommendation_dict = _as_dict(recommendation)
-            action = _clean_context_value(recommendation_dict.get("recommendation"))
-            issue = _clean_context_value(recommendation_dict.get("issue_type"))
-            if not action or not issue:
-                continue
-            if any(
-                str(card.get("action") or "").strip().lower() == action.lower()
-                for card in recommendation_cards
-            ):
-                continue
-            recommendation_cards.append(
-                {
-                    "priority": _normalize_display_priority(
-                        recommendation_dict.get("severity"),
-                        normalized_decision,
-                    ),
-                    "issue": issue.replace("_", " "),
-                    "action": action,
-                    "impact": None,
-                    "confidence": normalized_decision.get("confidence"),
-                    "rationale": recommendation_dict.get("rationale"),
-                    "category": "supplemental",
-                    "category_label": _recommendation_category_label(
-                        "supplemental",
-                        action,
-                    ),
-                    "source_signals": recommendation_dict.get("evidence") or {},
-                }
-            )
-    if len(recommendation_cards) < 4:
-        agentic_decision = (
-            compatibility.get("agentic_decision")
-            if isinstance(compatibility.get("agentic_decision"), dict)
-            else report_data.get("agentic_decision")
-        )
-        agentic_decision = _as_dict(agentic_decision)
-        for action in agentic_decision.get("execution_plan") or []:
-            action_text = _clean_context_value(action)
-            if not action_text:
-                continue
-            if any(
-                str(card.get("action") or "").strip().lower() == action_text.lower()
-                for card in recommendation_cards
-            ):
-                continue
-            recommendation_cards.append(
-                {
-                    "priority": normalized_decision.get("recommendation_priority"),
-                    "issue": _recommendation_issue_label(
-                        action_text,
-                        normalized_decision.get("primary_issue"),
-                    ),
-                    "action": action_text,
-                    "impact": None,
-                    "confidence": normalized_decision.get("confidence"),
-                    "rationale": "Execution-plan guidance derived from the deterministic decision layer.",
-                    "category": "execution-plan",
-                    "category_label": _recommendation_category_label(
-                        "execution-plan",
-                        action_text,
-                    ),
-                    "source_signals": {},
-                }
-            )
     recommendation_cards.sort(
         key=lambda item: _priority_sort_key(item.get("priority")),
         reverse=True,
@@ -506,8 +409,20 @@ def build_recommendation_screen_model(
             ),
         },
         "canonical_recommendation_count": len(recommendations),
+        "canonical_empty_message": (
+            "No canonical recommendation objects were generated for this run."
+        ),
         "recommendation_list": recommendation_cards,
         "recommendation_groups": recommendation_groups,
+        "posture_guidance": _build_posture_guidance_items(
+            normalized_decision=normalized_decision,
+            compatibility=compatibility,
+            report_data=report_data,
+        ),
+        "validation_focus_areas": _build_validation_focus_areas(
+            compatibility=compatibility,
+            report_data=report_data,
+        ),
         "recommendation_evidence_tie_back": {
             "recommendation_summary": grouped_findings.get("recommendation_summary")
             or {},
@@ -1136,6 +1051,23 @@ def _build_analysis_information(
         metadata.get("db_name") or analysis_context.get("source_database"),
         metadata.get("dbid"),
     )
+    selected_scope_topology = _derive_display_topology(
+        analysis_context,
+        feature_values,
+        instance_count,
+        report_data=report_data,
+        selected_scope_only=True,
+    )
+    historical_topology = (
+        _clean_context_value(analysis_context.get("topology_detected"))
+        or _derive_display_topology(
+            analysis_context,
+            feature_values,
+            instance_count,
+            report_data=report_data,
+            selected_scope_only=False,
+        )
+    )
     return {
         "hostname": _derive_display_hostname(
             metadata,
@@ -1170,13 +1102,9 @@ def _build_analysis_information(
             )
             or "Not Established"
         ),
-        "topology_detected": _derive_display_topology(
-            analysis_context,
-            feature_values,
-            instance_count,
-            report_data=report_data,
-            selected_scope_only=True,
-        ),
+        "topology_detected": selected_scope_topology,
+        "selected_scope_topology": selected_scope_topology,
+        "historical_contextual_topology": historical_topology,
         "snapshot_start": analysis_context.get("analysis_start")
         or metadata.get("snapshot_begin"),
         "snapshot_end": analysis_context.get("analysis_end")
@@ -3316,6 +3244,132 @@ def _build_sizing_guidance_blocks(
     )
 
 
+def _build_posture_guidance_items(
+    *,
+    normalized_decision: dict[str, Any],
+    compatibility: dict[str, Any],
+    report_data: dict[str, Any],
+) -> list[str]:
+    guidance: list[str] = []
+    posture = str(normalized_decision.get("decision_posture") or "").upper()
+    primary_issue = str(normalized_decision.get("primary_issue") or "").upper()
+    issues = [
+        _as_dict(issue)
+        for issue in (
+            compatibility.get("issues")
+            or report_data.get("issues")
+            or []
+        )
+    ]
+    issue_types = {
+        str(issue.get("issue_type") or "").strip().lower()
+        for issue in issues
+    }
+
+    if "CPU" in primary_issue or "TUNE" in posture:
+        guidance.append("Validate CPU signal coverage and completeness.")
+    if "sql_concentration" in issue_types or "TUNE" in posture:
+        guidance.append("Review SQL and access-path efficiency where applicable.")
+    if "io_pressure" in issue_types:
+        io_events = _issue_event_names(issues, "io_pressure")
+        event_suffix = f" ({', '.join(io_events[:2])})" if io_events else ""
+        guidance.append(f"Investigate User I/O contributors{event_suffix}.")
+    if "commit_pressure" in issue_types:
+        commit_events = _issue_event_names(issues, "commit_pressure")
+        event_suffix = f" ({', '.join(commit_events[:2])})" if commit_events else ""
+        guidance.append(f"Validate commit latency behavior{event_suffix}.")
+    if "cluster_contention" in issue_types or _has_topology_text(report_data, "rac"):
+        guidance.append("Evaluate RAC coordination separately from CPU pressure.")
+    if "dg_replication_state" in issue_types or _has_topology_text(report_data, "data guard"):
+        guidance.append("Review Data Guard replication context if present.")
+    if "TUNE" in posture:
+        guidance.append("Do not scale until tuning validation is complete.")
+
+    return list(dict.fromkeys(guidance))
+
+
+def _build_validation_focus_areas(
+    *,
+    compatibility: dict[str, Any],
+    report_data: dict[str, Any],
+) -> list[dict[str, Any]]:
+    issues = [
+        _as_dict(issue)
+        for issue in (
+            compatibility.get("issues")
+            or report_data.get("issues")
+            or []
+        )
+    ]
+    top_wait_events = []
+    for issue in issues:
+        evidence = _as_dict(issue.get("evidence"))
+        event_name = _clean_context_value(evidence.get("event_name"))
+        wait_class = _clean_context_value(evidence.get("wait_class"))
+        pct_db_time = evidence.get("pct_db_time")
+        if event_name:
+            suffix = (
+                f" ({wait_class}, {_format_numeric_for_text(pct_db_time)}% DB time)"
+                if wait_class and _safe_float(pct_db_time) is not None
+                else f" ({wait_class})" if wait_class else ""
+            )
+            top_wait_events.append(event_name + suffix)
+
+    anomaly_items = []
+    for window in report_data.get("anomaly_windows") or []:
+        window_dict = _as_dict(window)
+        metric = _clean_context_value(window_dict.get("metric"))
+        reason = _clean_context_value(window_dict.get("reason"))
+        if metric:
+            anomaly_items.append(f"{metric}: {reason}" if reason else metric)
+
+    derived_metrics = _as_dict(report_data.get("derived_pressure_metrics"))
+    missing_metrics = [
+        str(line).strip()
+        for line in derived_metrics.get("debug_summary") or []
+        if str(line).strip().lower().startswith(("missing source stats", "skipped "))
+    ]
+
+    focus_areas = [
+        {
+            "title": "Top Wait Events",
+            "items": list(dict.fromkeys(top_wait_events)),
+        },
+        {
+            "title": "Anomaly Signals",
+            "items": list(dict.fromkeys(anomaly_items))[:8],
+        },
+        {
+            "title": "Missing Metrics",
+            "items": list(dict.fromkeys(missing_metrics)),
+        },
+    ]
+    return [area for area in focus_areas if area["items"]]
+
+
+def _issue_event_names(issues: list[dict[str, Any]], issue_type: str) -> list[str]:
+    event_names = []
+    for issue in issues:
+        if str(issue.get("issue_type") or "").strip().lower() != issue_type:
+            continue
+        event_name = _clean_context_value(_as_dict(issue.get("evidence")).get("event_name"))
+        if event_name:
+            event_names.append(event_name)
+    return list(dict.fromkeys(event_names))
+
+
+def _has_topology_text(report_data: dict[str, Any], token: str) -> bool:
+    analysis_context = _as_dict(report_data.get("analysis_context"))
+    return token in str(analysis_context.get("topology_detected") or "").lower()
+
+
+def _format_numeric_for_text(value: Any) -> str:
+    numeric = _safe_float(value)
+    if numeric is None:
+        return ""
+    return f"{numeric:.1f}".rstrip("0").rstrip(".")
+
+
 def _build_historical_drift_summary(
     comparison_context: dict[str, Any],
     normalized_decision: dict[str, Any],
@@ -3807,21 +3861,21 @@ def _build_analysis_health_check(
     rows = _align_health_rows_with_signal_data(rows, report_data)
     summary_status = "PASS"
     if any(row["status"] == "FAIL" for row in rows):
-        summary_status = "FAIL"
+        summary_status = "MARGINAL"
     elif any(row["status"] == "MARGINAL" for row in rows):
         summary_status = "MARGINAL"
     elif all(row["status"] == "N/A" for row in rows):
         summary_status = "N/A"
     fail_checks = [str(row.get("check") or "") for row in rows if row.get("status") == "FAIL"]
     summary_reason = None
-    if summary_status == "FAIL" and fail_checks:
+    if summary_status == "MARGINAL" and fail_checks:
         if set(fail_checks) == {"Anomaly burden"}:
             summary_reason = (
-                "Overall FAIL is driven by anomaly burden across the selected window, "
+                "Supporting attention is driven by anomaly burden across the selected window, "
                 "while domain pressure remains mixed rather than uniformly critical."
             )
         else:
-            summary_reason = "Overall FAIL reflects the highest-severity deterministic checks on this page."
+            summary_reason = "Supporting attention reflects the highest-severity deterministic checks on this page."
     return {
         "summary_status": summary_status,
         "summary_reason": summary_reason,
@@ -3929,7 +3983,6 @@ def _build_normalized_display_decision(
     health_check = health_check or {}
     decision = _as_dict(canonical_payload.get("decision"))
     scores = _as_dict(canonical_payload.get("scores"))
-    anomalies = _as_dict(canonical_payload.get("anomalies"))
     grouped_findings = _as_dict(canonical_payload.get("grouped_deterministic_findings"))
     decision_evidence = _as_dict(decision.get("evidence"))
     feature_values = _flatten_domain_feature_values(
@@ -3937,7 +3990,7 @@ def _build_normalized_display_decision(
     )
     decision_posture = _as_dict(report_data.get("decision_posture"))
     raw_domain_scores = _as_dict(scores.get("domain_scores"))
-    primary_issue = decision.get("primary_issue")
+    primary_issue = decision.get("primary_domain") or decision.get("primary_issue")
     normalized_domain_scores = _normalize_domain_scores(
         raw_domain_scores,
         primary_issue=primary_issue,
@@ -3945,35 +3998,30 @@ def _build_normalized_display_decision(
         feature_values=feature_values,
         primary_evidence=_as_dict(grouped_findings.get("primary_evidence")),
     )
-    overall_status = str(decision.get("overall_status") or "OK").upper()
-    anomaly_count = int(anomalies.get("count") or 0)
+    overall_status = str(
+        decision.get("risk_level") or decision.get("overall_status") or "OK"
+    ).upper()
     health_summary = str(health_check.get("summary_status") or "N/A").upper()
-    if overall_status == "OK" and (
-        anomaly_count >= 2 or health_summary in {"FAIL", "MARGINAL"}
-    ):
-        overall_status = "WARNING"
     severity_score = _safe_float(decision.get("severity_score")) or 0.0
-    if overall_status == "CRITICAL" and severity_score < 0.85:
-        severity_score = 0.85
-    elif overall_status == "WARNING" and severity_score < 0.4:
-        severity_score = 0.4
     primary_issue_display_score = normalized_domain_scores.get(str(primary_issue or ""))
     return {
         "primary_issue": primary_issue,
-        "secondary_issues": list(decision.get("secondary_issues") or []),
+        "secondary_issues": list(
+            decision.get("secondary_domains") or decision.get("secondary_issues") or []
+        ),
         "overall_status": overall_status,
         "severity_score": severity_score,
-        "display_severity_label": _display_severity_label(overall_status, severity_score),
+        "display_severity_label": overall_status,
         "decision_posture": decision_posture.get("posture"),
         "confidence": decision.get("confidence"),
-        "health_summary": health_summary,
+        "health_summary": overall_status,
         "historical_posture": decision_posture.get("posture"),
         "domain_scores": normalized_domain_scores,
         "primary_issue_display_score": primary_issue_display_score,
         "recommendation_priority": _display_priority_from_decision(
             overall_status,
             severity_score,
-            health_summary,
+            overall_status,
         ),
     }
 
@@ -4326,14 +4374,9 @@ def _display_priority_from_decision(
     health_summary: str,
 ) -> str:
     normalized_status = str(overall_status or "OK").upper()
-    normalized_health = str(health_summary or "N/A").upper()
     if normalized_status == "CRITICAL" or severity_score >= 0.85:
         return "CRITICAL"
-    if (
-        normalized_status == "WARNING"
-        or severity_score >= 0.55
-        or normalized_health in {"FAIL", "MARGINAL"}
-    ):
+    if normalized_status == "WARNING" or severity_score >= 0.55:
         return "HIGH"
     if severity_score >= 0.4:
         return "MEDIUM"

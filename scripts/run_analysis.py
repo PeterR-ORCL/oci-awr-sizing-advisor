@@ -37,6 +37,7 @@ from src.ingest.awr_adb_loader import (
     process_awr_batch,
     upsert_feature_vector,
 )
+from src.memory import memory_agent
 from src.parser.awr_parser import parse_awr_file
 from src.reporting.html_dashboard import generate_html_dashboard
 
@@ -4963,6 +4964,23 @@ if __name__ == "__main__":
             "snapshot_end": result.run_metadata.end_snapshot_time,
         },
     )
+    memory_run_history_id = None
+    try:
+        memory_run_history_id = memory_agent.persist_analysis(
+            phase4i_output=analysis_output,
+            source_context={
+                "analysis_run_id": analysis_awr_id,
+                "source_files": awr_files,
+                "latest_context": latest_context,
+                "decision_posture": decision_posture,
+                "analysis_timestamp": analysis_output["metadata"].get(
+                    "generated_at"
+                ),
+            },
+            parser_output=snapshot_results,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Memory persistence failed: {type(exc).__name__}: {exc}")
     dashboard_metadata = {
         **analysis_output["metadata"],
         "file_name": latest_context["file_name"],
@@ -5252,3 +5270,6 @@ if __name__ == "__main__":
     print(llm_explanation_text)
     print("\nHTML Dashboard:")
     print(f"  {dashboard_file}")
+    if memory_run_history_id is not None:
+        print("\nMemory Persistence:")
+        print(f"  run_history_id: {memory_run_history_id}")

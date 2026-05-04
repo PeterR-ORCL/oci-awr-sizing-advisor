@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from datetime import datetime
 from html import escape
@@ -21,6 +22,11 @@ AI_SECTION_ORDER = [
 ]
 
 CHART_NULL_SENTINEL = "__AWR_CHART_MISSING__"
+_VOCALIZATION_CACHE: dict[tuple[str, str], str] = {}
+
+
+class _TrustedHtml(str):
+    """Small marker for dashboard HTML assembled from escaped values."""
 
 
 def generate_html_dashboard(
@@ -566,6 +572,7 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
                 screen_models.get("screen_5_recommendation_action") or {},
                 ai_sections=ai_sections,
                 agentic_decision=report_data.get("agentic_decision") or {},
+                report_data=report_data,
             ),
             generated_at=generated_at,
         ),
@@ -847,13 +854,14 @@ def _render_home_page(
     llm_enabled = bool(llm_explanation.get("enabled"))
     llm_provider = llm_explanation.get("provider")
     llm_model = llm_explanation.get("model")
+    llm_model_alias = _model_alias_from_runtime(report_data, llm_explanation)
     llm_info_items = [
         ("Explanation Mode", "Enabled" if llm_enabled else "Disabled"),
         ("Provider", llm_provider or "LLM provider not available"),
         (
             "Model",
-            _short_model_name(llm_provider, llm_model)
-            if _has_display_value(llm_model)
+            _render_model_display_name(llm_model, alias=llm_model_alias)
+            if _has_display_value(llm_model) or _has_display_value(llm_model_alias)
             else "Model not identified in current runtime",
         ),
         (
@@ -879,14 +887,18 @@ def _render_home_page(
             "Screen 2 - Analysis",
             "screen_2_analysis.html",
             [
-                ("Primary Issue", decision.get("primary_issue")),
+                ("Primary Issue", decision.get("primary_domain") or decision.get("primary_issue")),
                 (
                     "Overall Status",
-                    normalized_decision.get("overall_status") or decision.get("overall_status"),
+                    normalized_decision.get("overall_status")
+                    or decision.get("risk_level")
+                    or decision.get("overall_status"),
                 ),
                 (
                     "Confidence",
-                    normalized_decision.get("confidence") or decision.get("confidence"),
+                    _confidence_level_from_value(
+                        normalized_decision.get("confidence") or decision.get("confidence")
+                    ),
                 ),
             ],
         ),
@@ -934,7 +946,7 @@ def _render_home_page(
     return f"""
     <div class="grid">
       <!-- index.html is the explanation and navigation layer. -->
-      <section class="card primary">
+      <section class="card primary compact-card">
         <div class="section-kicker">Platform Identity</div>
         <h2>Platform Overview</h2>
         <p>
@@ -944,83 +956,9 @@ def _render_home_page(
         </p>
       </section>
 
-      <section class="card secondary">
-        <div class="section-kicker">What the Platform Does</div>
-        <h2>From AWR Reports to Actionable Intelligence</h2>
-        <div class="stack">
-          {_render_bullet_item("Transforms Oracle AWR reports into structured, actionable intelligence.")}
-          {_render_bullet_item("Bridges performance diagnostics with infrastructure decision-making.")}
-          {_render_bullet_item("Supports workload understanding across snapshots and time windows.")}
-          {_render_bullet_item("Understands single instance, RAC, Exadata, and Data Guard contexts.")}
-          {_render_bullet_item("Produces deterministic scoring, analysis, recommendations, and decision support.")}
-        </div>
-      </section>
+      {_render_home_system_ux_sections()}
 
-      <section class="card secondary">
-        <div class="section-kicker">How the Platform Works</div>
-        <h2>Operational Flow</h2>
-        <div class="flow-grid">
-          {_render_flow_step(
-              "AWR Reports",
-              "Oracle workload snapshots enter the platform as raw diagnostic inputs.",
-          )}
-          {_render_flow_step(
-              "Ingestion",
-              "The parser adapts to report variability and captures structured metadata, waits, and SQL evidence.",
-          )}
-          {_render_flow_step(
-              "Data Platform",
-              "Normalized features, trend context, and topology signals become reusable runtime state.",
-          )}
-          {_render_flow_step(
-              "Intelligence Layer",
-              "Deterministic findings are grouped into evidence, trend, and anomaly context.",
-          )}
-          {_render_flow_step(
-              "Decision Engine",
-              "Scoring and competition produce the authoritative primary issue and status.",
-          )}
-          {_render_flow_step(
-              "Dashboard / Output",
-              "The product presents diagnosis, historical review, action guidance, and fleet context through the multi-screen model.",
-          )}
-        </div>
-      </section>
-
-      <section class="card secondary">
-        <div class="section-kicker">From Insights to Decisions</div>
-        <h2>Deterministic Evidence Before Narrative</h2>
-        <div class="flow-grid">
-          {_render_flow_step(
-              "Analytical Input",
-              "Scores, trends, anomalies, and grouped findings establish the deterministic baseline.",
-          )}
-          {_render_flow_step(
-              "Risk Signals",
-              "The system surfaces performance drivers, topology effects, and data-quality context.",
-          )}
-          {_render_flow_step(
-              "Decision Layer",
-              "The primary issue and severity are selected from score-based competition, not narrative.",
-          )}
-          {_render_flow_step(
-              "Recommendations / Action",
-              "Actions remain tied back to canonical findings and supporting evidence.",
-          )}
-        </div>
-      </section>
-
-      <section class="card secondary">
-        <div class="section-kicker">Evolution / Bottom Line</div>
-        <h2>Structured Intelligence for Immediate and Future Decisions</h2>
-        <div class="stack">
-          {_render_bullet_item("From manual AWR analysis to structured performance intelligence.")}
-          {_render_bullet_item("From isolated insights to deterministic diagnosis and decision support.")}
-          {_render_bullet_item("From tuning guidance alone to future-facing sizing and scaling posture.")}
-        </div>
-      </section>
-
-      <section class="card secondary">
+      <section class="card secondary compact-card">
         <div class="section-kicker">AI Explanation Layer</div>
         <h2>LLM / Explanation Provider</h2>
         <p class="chart-support-note">
@@ -1038,6 +976,215 @@ def _render_home_page(
         </div>
       </section>
     </div>
+    """
+
+
+def _render_home_system_ux_sections() -> str:
+    """Render static Screen 0 system explanation sections."""
+
+    return """
+      <section class="card prominent pipeline-card">
+        <div class="section-kicker">System Flow</div>
+        <h2>AWR Intelligence Pipeline</h2>
+        <p class="meta pipeline-intro">
+          Current mode: local AWR staging from <strong>data/input</strong>. The pipeline converts raw AWR files into deterministic diagnosis, recommendations, dashboard evidence, and persistent memory.
+        </p>
+
+        <div class="pipeline-mode-badge">
+          <span class="status-pill success">Current Mode: Local</span>
+          <span class="meta">Default source: data/input</span>
+        </div>
+
+        <div class="pipeline-flow" aria-label="AWR intelligence pipeline">
+          <div class="pipeline-node source-node">
+            <span>data/input</span>
+            <small>Default local AWR staging directory</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Loader Agent</span>
+            <small>Normalizes and prepares inputs</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Parser Agent</span>
+            <small>Extracts metrics and unknowns</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Feature Model</span>
+            <small>Builds structured signals</small>
+          </div>
+
+          <div class="pipeline-node core-node">
+            <span>Scoring Engine</span>
+            <small>Deterministic domain scoring</small>
+          </div>
+
+          <div class="pipeline-node core-node">
+            <span>Decision Engine</span>
+            <small>Posture and primary driver</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Recommendations</span>
+            <small>Deterministic action guidance</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Dashboard</span>
+            <small>Evidence and visual workflow</small>
+          </div>
+
+          <div class="pipeline-node memory-node">
+            <span>Memory Layer</span>
+            <small>Runs, actions, outcomes, feedback</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="card secondary future-input-card">
+        <div class="section-kicker">Future Input Configuration</div>
+        <h2>AWR Source Configuration</h2>
+        <p class="meta">
+          Current ingestion uses the local <strong>data/input</strong> staging directory. Future capability will allow users to choose where AWR files are staged before ingestion.
+        </p>
+
+        <div class="future-input-layout">
+          <div class="future-input-panel">
+            <h3>Source Type</h3>
+            <div class="source-option-row" aria-label="Future source type options">
+              <span class="source-option active">Local Path</span>
+              <span class="source-option">Object Storage</span>
+            </div>
+          </div>
+
+          <div class="future-input-panel">
+            <h3>File Path / Location</h3>
+            <input class="future-input-field" type="text" value="data/input" readonly aria-label="Future AWR input location">
+            <div class="meta input-note">
+              Future examples: /data/awr/ or object://bucket/path
+            </div>
+          </div>
+
+          <div class="future-input-panel">
+            <h3>Object Storage Positioning</h3>
+            <p>
+              Object storage is planned as a centralized staging source for AWR replay, audit, and historical analysis.
+            </p>
+          </div>
+        </div>
+
+        <div class="supportive-panel future-note">
+          <strong>Phase-safe note</strong>
+          <p>
+            This control is informational only in the current dashboard. It does not change ingestion behavior or backend configuration.
+          </p>
+        </div>
+      </section>
+
+      <section class="card secondary agent-architecture-card">
+        <div class="section-kicker">Agent Boundary</div>
+        <h2>Deterministic Agent Architecture</h2>
+
+        <div class="agent-grid">
+          <article class="agent-card">
+            <strong>Loader Agent</strong>
+            <p>Ingests and normalizes AWR inputs from the current staging source.</p>
+          </article>
+
+          <article class="agent-card">
+            <strong>Parser Agent</strong>
+            <p>Extracts structured signals and captures unknown parser patterns.</p>
+          </article>
+
+          <article class="agent-card">
+            <strong>Analysis Engine</strong>
+            <p>Applies deterministic scoring, decision logic, and evidence selection.</p>
+          </article>
+
+          <article class="agent-card">
+            <strong>Narrative Layer</strong>
+            <p>Explains deterministic findings without decision authority.</p>
+          </article>
+
+          <article class="agent-card">
+            <strong>Memory Layer</strong>
+            <p>Persists runs, recommendations, actions, outcomes, and feedback.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card secondary boundary-card">
+        <div class="section-kicker">Truth Boundary</div>
+        <h2>Deterministic Truth vs AI Explanation</h2>
+
+        <div class="truth-boundary-grid">
+          <div class="truth-boundary-pane deterministic-pane">
+            <h3>Deterministic Engine</h3>
+            <span class="status-pill success">Source of Truth</span>
+            <ul>
+              <li>Scoring</li>
+              <li>Decision posture</li>
+              <li>Primary and secondary domains</li>
+              <li>Recommendation objects</li>
+              <li>Evidence selection</li>
+            </ul>
+          </div>
+
+          <div class="truth-boundary-pane ai-pane">
+            <h3>AI Narrative Layer</h3>
+            <span class="status-pill warning">Explanation Only</span>
+            <ul>
+              <li>No scoring authority</li>
+              <li>No decision authority</li>
+              <li>No parser mutation</li>
+              <li>No recommendation invention</li>
+              <li>Uses deterministic evidence only</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="card secondary memory-explainer-card">
+        <div class="section-kicker">Phase 6</div>
+        <h2>Memory Layer</h2>
+        <p class="meta">
+          Phase 6 captures what happened, what was recommended, what action was taken, and what changed afterward. It does not change scoring or decision logic.
+        </p>
+
+        <div class="memory-capability-grid">
+          <div class="memory-capability">
+            <strong>Run Tracking</strong>
+            <span>Stores each analysis run and Phase 4I output.</span>
+          </div>
+
+          <div class="memory-capability">
+            <strong>Recommendation Tracking</strong>
+            <span>Persists deterministic recommendation history.</span>
+          </div>
+
+          <div class="memory-capability">
+            <strong>Action Tracking</strong>
+            <span>Records human or operational follow-up actions.</span>
+          </div>
+
+          <div class="memory-capability">
+            <strong>Outcome Tracking</strong>
+            <span>Compares before and after AWR runs.</span>
+          </div>
+
+          <div class="memory-capability">
+            <strong>Feedback Capture</strong>
+            <span>Stores user/operator feedback for review.</span>
+          </div>
+
+          <div class="memory-capability">
+            <strong>Parser Unknowns</strong>
+            <span>Captures unmapped parser signals for approval workflow.</span>
+          </div>
+        </div>
+      </section>
     """
 
 
@@ -1079,34 +1226,66 @@ def _render_screen_2_page(
     primary_issue = _screen2_primary_domain_summary(
         decision_summary,
         normalized_decision,
+        visual_summary,
+        report_data,
     )
     primary_issue_note = _screen2_primary_domain_note(
         decision_summary,
         normalized_decision,
+        visual_summary,
+        report_data,
+    )
+    confidence_note = _vocalize_text(
+        _screen2_confidence_display_note(authoritative_confidence),
+        _vocalization_context(
+            report_data,
+            screen_model,
+            required_terms=["signal", "coverage"],
+            protected_values=[_confidence_level_from_value(authoritative_confidence)],
+        ),
+    )
+    if primary_issue_note:
+        primary_issue_note = _vocalize_text(
+            primary_issue_note,
+            _vocalization_context(
+                report_data,
+                screen_model,
+                required_terms=["signals", "domain", "threshold"],
+                protected_values=[decision_posture],
+            ),
+        )
+    diagnostic_note_context = _vocalization_context(
+        report_data,
+        screen_model,
+        protected_values=[
+            decision_posture,
+            _confidence_level_from_value(authoritative_confidence),
+        ],
     )
     return f"""
     <div class="grid">
       <!-- Screen 2 = diagnosis only. Ingestion stays on Screen 1; historical proof stays on Screen 4; action stays on Screen 5. -->
-      <section class="card prominent">
+      <section class="card prominent diagnostic-compact-card">
         <div class="section-kicker">DECISION</div>
         <h2>Diagnostic Snapshot</h2>
         {_render_info_grid(
             [
                 ("Overall Status", decision_summary.get("overall_status")),
                 ("Risk", decision_summary.get("display_severity_label")),
-                ("Primary Issue / Domain", primary_issue),
                 ("Decision Posture", decision_summary.get("decision_posture")),
-                ("Historical Posture", decision_summary.get("historical_posture")),
+                ("Primary Issue / Domain", primary_issue),
                 ("Health Summary", decision_summary.get("health_summary")),
-            ]
+                ("Historical Posture", decision_summary.get("historical_posture")),
+            ],
+            extra_class="diagnostic-snapshot-grid",
         )}
         {f'<div class="meta decision-summary-note">{escape(primary_issue_note)}</div>' if primary_issue_note else ""}
-        <div class="decision-summary-confidence">
-          <span class="pill-cell">
+        <div class="decision-summary-confidence diagnostic-confidence-strip">
+          <span class="pill-cell confidence-cell">
             {_render_confidence_badge(authoritative_confidence)}
-            <span class="pill-label-row pill-caption">Confidence</span>
+            <span class="pill-label-row pill-caption">CONFIDENCE</span>
           </span>
-          <span class="meta">based on signal strength and data coverage</span>
+          <span class="meta confidence-note">{escape(confidence_note)}</span>
         </div>
       </section>
       <section class="card secondary">
@@ -1114,10 +1293,10 @@ def _render_screen_2_page(
         <h2>Why This Posture</h2>
         {_render_screen2_executive_summary(screen_model, visual_summary, report_data)}
       </section>
-      <section class="card secondary">
+      <section class="card secondary diagnostic-drivers-card">
         <div class="section-kicker">EVIDENCE</div>
         <h2>Current Diagnostic Drivers</h2>
-        {_render_current_diagnostic_drivers(visual_summary, report_data)}
+        {_render_current_diagnostic_drivers(visual_summary, report_data, diagnostic_note_context)}
       </section>
       <section class="card secondary">
         <div class="section-kicker">SIGNAL VIEW</div>
@@ -1192,6 +1371,7 @@ def _render_screen2_executive_summary(
 def _render_current_diagnostic_drivers(
     visual_summary: dict[str, Any],
     report_data: dict[str, Any],
+    vocalization_context: dict[str, Any] | None = None,
 ) -> str:
     drivers = _screen2_diagnostic_drivers(visual_summary, report_data)
     if not drivers:
@@ -1203,16 +1383,43 @@ def _render_current_diagnostic_drivers(
             if driver["value"] == "Evidence present"
             else f"{driver['label']} = {driver['value']}"
         )
+        reason_context = dict(vocalization_context or {})
+        reason_context["required_terms"] = _screen2_driver_required_terms(driver)
+        reason = _vocalize_text(driver["reason"], reason_context)
         cards.append(
             f"""
-            <article class="item">
-              <h3>{escape(driver["domain"])}</h3>
-              <p>{escape(value_line)}</p>
-              <div class="meta">{escape(driver["reason"])}</div>
+            <article class="diagnostic-driver-row">
+              <div class="diagnostic-driver-main">
+                <h3>{escape(driver["domain"])}</h3>
+                <p>{escape(value_line)}</p>
+              </div>
+              <div class="meta diagnostic-driver-evidence">{escape(reason)}</div>
             </article>
             """
         )
-    return '<div class="stack">' + "".join(cards) + "</div>"
+    return '<div class="diagnostic-driver-stack">' + "".join(cards) + "</div>"
+
+
+def _screen2_driver_required_terms(driver: dict[str, Any]) -> list[str]:
+    text = " ".join(
+        str(driver.get(key) or "")
+        for key in ("domain", "label", "reason")
+    ).lower()
+    terms = []
+    for term in (
+        "cpu",
+        "user i/o",
+        "commit",
+        "rac",
+        "memory",
+        "data guard",
+        "redo",
+        "signal",
+        "scope",
+    ):
+        if term in text:
+            terms.append(term)
+    return terms
 
 
 def _render_latest_snapshot_assessment(
@@ -1411,21 +1618,13 @@ def _render_screen2_confidence_risk(
 ) -> str:
     anomaly_summary = _to_dict(anomaly_context.get("anomaly_summary"))
     trend_summary = _to_dict(trend_context.get("trend_summary"))
-    confidence_level = _confidence_level_from_value(confidence)
     notes = [
         f"Confidence: {_confidence_summary_text(confidence)}.",
+        "Confidence is displayed from the authoritative Phase 4I output.",
     ]
-    if confidence_level == "LOW":
-        notes.append(
-            "Low confidence reflects unavailable domain scores or per-domain health scores, not a lack of diagnostic evidence."
-        )
-    else:
-        notes.append(
-            "Confidence reflects deterministic signal strength, trend coverage, and available per-domain health context."
-        )
     health_status = str(health_check.get("summary_status") or "").upper()
     if health_status:
-        notes.append(f"Overall health status: {health_status}.")
+        notes.append(f"Supporting health context: {health_status}.")
     anomaly_count = int(_screen2_float(anomaly_summary.get("count")) or 0.0)
     if anomaly_count > 0:
         notes.append("Anomaly burden contributes to the risk posture.")
@@ -1445,6 +1644,8 @@ def _render_screen2_health_summary(health_check: dict[str, Any]) -> str:
     if not rows:
         return _render_empty_item("No deterministic health-check rows are available.")
     summary_status = str(health_check.get("summary_status") or "N/A").upper()
+    display_summary_status = _display_supporting_health_status(summary_status)
+    display_summary_status = _display_supporting_health_status(summary_status)
     summary_reason = _screen2_clean_text(health_check.get("summary_reason"))
     domain_names = {"CPU", "I/O", "MEMORY", "COMMIT", "RAC", "ADG"}
     domain_rows = [row for row in rows if str(row.get("check") or "").upper() in domain_names]
@@ -1462,18 +1663,20 @@ def _render_screen2_health_summary(health_check: dict[str, Any]) -> str:
     cards = [
         f"""
         <article class="health-check-card">
-          <div class="meta"><span class="health-pill {_health_status_class(summary_status)}">{escape(summary_status)}</span></div>
-          <h3>Overall Health</h3>
+          <div class="meta"><span class="health-pill {_health_status_class(summary_status)}">{escape(display_summary_status)}</span></div>
+          <h3>Supporting Health Context</h3>
           <p>Data completeness and signal strength are sufficient for analysis, but not strong enough to establish a dominant governing domain.</p>
         </article>
         """
     ]
     for row in focus_rows:
         status = str(row.get("status") or "N/A").upper()
+        display_status = _display_supporting_health_status(status)
+        display_status = _display_supporting_health_status(status)
         cards.append(
             f"""
         <article class="health-check-card">
-          <div class="meta"><span class="health-pill {_health_status_class(status)}">{escape(status)}</span></div>
+          <div class="meta"><span class="health-pill {_health_status_class(status)}">{escape(display_status)}</span></div>
           <h3>{escape(_display_value(row.get("check")))}</h3>
           <p>{escape(_screen2_clean_text(row.get("observed_value")))}</p>
         </article>
@@ -1501,16 +1704,7 @@ def _screen2_confidence_reason(
     explanation_panel: dict[str, Any],
 ) -> str:
     level = _confidence_level_from_value(confidence)
-    if level == "LOW":
-        return (
-            "Confidence is low due to limited domain-score coverage and lack of a "
-            "dominant, consistent signal across domains."
-        )
-    anomaly_summary = _to_dict(anomaly_context.get("anomaly_summary"))
-    anomaly_count = int(_screen2_float(anomaly_summary.get("count")) or 0.0)
-    if anomaly_count > 0:
-        return "Confidence reflects available signal strength, data coverage, and consistency across domains."
-    return "Confidence reflects available signal strength, data coverage, and consistency across domains."
+    return f"Confidence is {level.lower()} from the authoritative Phase 4I output."
 
 
 def _render_screen2_similarity_compact(
@@ -1695,6 +1889,8 @@ def _screen2_diagnostic_drivers(
 def _screen2_primary_domain_summary(
     decision_summary: dict[str, Any],
     normalized_decision: dict[str, Any],
+    visual_summary: dict[str, Any] | None = None,
+    report_data: dict[str, Any] | None = None,
 ) -> str:
     primary = decision_summary.get("primary_issue")
     if _has_display_value(primary):
@@ -1705,12 +1901,22 @@ def _screen2_primary_domain_summary(
             flags=re.IGNORECASE,
         ):
             return primary_text
-    return "Domain score unavailable"
+    domain_scores = _to_dict(normalized_decision.get("domain_scores"))
+    has_scored_signal = any(
+        (_safe_float(score) or 0.0) > 0.0 for score in domain_scores.values()
+    )
+    if has_scored_signal:
+        return "No dominant scored domain selected"
+    if _screen2_has_visible_signals(visual_summary or {}, report_data or {}):
+        return "No dominant scored domain selected"
+    return "Insufficient data for a reliable conclusion"
 
 
 def _screen2_primary_domain_note(
     decision_summary: dict[str, Any],
     normalized_decision: dict[str, Any],
+    visual_summary: dict[str, Any] | None = None,
+    report_data: dict[str, Any] | None = None,
 ) -> str | None:
     primary = decision_summary.get("primary_issue")
     if _has_display_value(primary):
@@ -1721,11 +1927,26 @@ def _screen2_primary_domain_note(
             flags=re.IGNORECASE,
         ):
             return None
+    if _screen2_has_visible_signals(visual_summary or {}, report_data or {}):
+        return (
+            "Signals exist, but no single domain crossed the deterministic "
+            "dominance threshold."
+        )
     posture = _screen_posture_text(decision_summary, normalized_decision)
     if posture:
         return f"Available diagnostic evidence supports {posture}."
     return (
         "Available diagnostic evidence is insufficient to assign a final posture."
+    )
+
+
+def _screen2_has_visible_signals(
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+) -> bool:
+    return bool(
+        _screen2_diagnostic_drivers(visual_summary, report_data)
+        or _screen2_has_adg_evidence(report_data)
     )
 
 
@@ -2141,15 +2362,15 @@ def _render_screen_4_page(
     return f"""
     <div class="grid">
       <!-- Screen 4 = historical review across scope + timeframe, with visuals. -->
-      <section class="card secondary">
+      <section class="card secondary screen4-summary-card">
         <div class="section-kicker">Screen 4</div>
         <h2>Historical Review / Comparison</h2>
         <div class="meta">
-          Historical / Supporting Context (Not Selected-Scope Truth)
+          Historical evidence supports interpretation but does not override the selected-scope diagnostic truth.
         </div>
         <div class="subgrid">
-          <section class="half evidence-pane">
-            <h3>Header</h3>
+          <section class="half evidence-pane screen4-compact-pane">
+            <h3>Historical Scope</h3>
             {_render_info_grid(
                 [
                     ("Scope", header.get("scope_label")),
@@ -2162,29 +2383,43 @@ def _render_screen_4_page(
                             header.get("comparison_window"),
                         ),
                     ),
-                ]
+                ],
+                extra_class="screen4-compact-info-grid",
             )}
           </section>
-          <section class="half evidence-pane">
+          <section class="half evidence-pane screen4-compact-pane">
             <h3>Current Selection Summary</h3>
             {_render_info_grid(
                 [
                     ("Current Window", current_selection_summary.get("current_window")),
                     ("Comparison Mode", current_selection_summary.get("comparison_mode")),
-                    ("Latest vs Prior", current_selection_summary.get("latest_vs_prior")),
-                ]
+                    (
+                        "Latest vs Prior",
+                        _screen4_compact_selection_text(
+                            current_selection_summary.get("latest_vs_prior")
+                        ),
+                    ),
+                ],
+                extra_class="screen4-compact-info-grid",
             )}
           </section>
-          <section class="evidence-pane">
+          <section class="evidence-pane screen4-verdict-pane">
             <h3>Historical Verdict</h3>
+            <div class="meta">
+              Historical / Supporting Context only; this does not override Screen 2 selected-scope diagnosis.
+            </div>
             {_render_info_grid(
                 [
-                    ("Dominant Pattern", historical_verdict.get("dominant_pattern")),
                     ("Risk", historical_verdict.get("display_severity_label")),
                     ("Historical Stability", historical_verdict.get("historical_stability")),
                     ("Anomaly Burden", historical_verdict.get("anomaly_burden")),
                     ("Historical Posture", historical_verdict.get("historical_posture")),
-                ]
+                    (
+                        "Similarity Context",
+                        _screen4_similarity_context_label(similarity_evidence),
+                    ),
+                ],
+                extra_class="screen4-verdict-grid",
             )}
           </section>
         </div>
@@ -2212,10 +2447,35 @@ def _render_screen_4_page(
     """
 
 
+def _screen4_compact_selection_text(value: Any) -> Any:
+    if not _has_display_value(value):
+        return value
+    text = _display_value(value)
+    text = text.replace(
+        "The latest interval differs from the worst interval and should be interpreted in broader historical context.",
+        "Latest differs from worst interval; interpret in broader historical context.",
+    )
+    return text
+
+
+def _screen4_similarity_context_label(similarity_evidence: dict[str, Any]) -> str | None:
+    if not similarity_evidence:
+        return None
+    if not similarity_evidence.get("enabled"):
+        return "Similarity evidence unavailable"
+    similar_count = len(similarity_evidence.get("similar_cases") or [])
+    cluster = _to_dict(similarity_evidence.get("workload_cluster"))
+    cluster_label = _display_cluster_summary_label(cluster.get("cluster_label"))
+    if similar_count:
+        return f"{similar_count} nearest-neighbor case(s); {cluster_label}"
+    return cluster_label
+
+
 def _render_screen_5_page(
     screen_model: dict[str, Any],
     ai_sections: dict[str, str],
     agentic_decision: dict[str, Any],
+    report_data: dict[str, Any] | None = None,
 ) -> str:
     # TODO Phase 6/7 Recommendation Engine:
     # If the deterministic decision is SCALE NOW or scale-needed, detect the
@@ -2225,12 +2485,6 @@ def _render_screen_5_page(
     # servers, and platform-specific modular expansion paths. LLM text may
     # explain supported platform options, but must not invent unsupported
     # sizing. This is intentionally not implemented in Phase 5.
-    normalized_decision = _to_dict(screen_model.get("normalized_decision"))
-    header = _to_dict(screen_model.get("header"))
-    authoritative_confidence = (
-        header.get("confidence")
-        or normalized_decision.get("confidence")
-    )
     engineering_view_html = _render_engineering_view(
         screen_model.get("engineering_view"),
         "Engineering View",
@@ -2238,35 +2492,8 @@ def _render_screen_5_page(
     return f"""
     <div class="grid">
       <!-- Screen 5 = action / decision / sizing guidance. -->
-      <section class="card prominent">
-        <div class="section-kicker">DECISION</div>
-        <h2>Decision Posture</h2>
-        {_render_info_grid(
-            [
-                ("Decision Posture", normalized_decision.get("decision_posture")),
-                ("Risk", normalized_decision.get("display_severity_label")),
-                ("Primary Driver", normalized_decision.get("primary_issue")),
-                (
-                    "Secondary Driver",
-                    list(normalized_decision.get("secondary_issues") or [None])[0],
-                ),
-            ]
-        )}
-        <div class="banner-meta-strip">
-          {_render_pill_stack(
-              [
-                  _render_confidence_badge(authoritative_confidence),
-                  _render_status_badge(normalized_decision.get("display_severity_label")),
-                  _render_status_badge(normalized_decision.get("decision_posture")),
-              ],
-              ["Confidence", "Risk", "Posture"],
-          )}
-        </div>
-      </section>
-      <section class="card secondary">
-        <div class="section-kicker">ACTION</div>
-        <h2>Recommendations / Guidance</h2>
-        {_render_recommendation_action_screen(screen_model)}
+      <section class="card prominent action-page-card">
+        {_render_recommendation_action_screen(screen_model, report_data or {})}
       </section>
       {
           f'''
@@ -2303,11 +2530,6 @@ def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
         if cluster_established
         else "Nearest Similar AWRs"
     )
-    neighbor_title = (
-        "Clusters"
-        if cluster_established
-        else "Nearest Similar AWRs"
-    )
     if not screen_model.get("similarity_enabled") and not similar_cases:
         return f"""
     <div class="grid">
@@ -2339,7 +2561,10 @@ def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
       <!-- Screen 6 = fleet overview / clusters / outliers / repeated issues. -->
       <section class="card prominent">
         <div class="section-kicker">Screen 6</div>
-        <h2>Fleet Overview</h2>
+        <h2>Fleet Intelligence Preview</h2>
+        <p class="meta fleet-preview-note">
+          Nearest-neighbor similarity is informative only; validated fleet patterns require more distinct historical cases.
+        </p>
         {_render_info_grid(
             [
                 ("Scope", header.get("scope_label")),
@@ -2349,54 +2574,40 @@ def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
             ]
         )}
       </section>
-      <section class="card secondary">
+      <section class="card secondary fleet-compact-card">
         <div class="section-kicker">Fleet Summary</div>
         <h2>{escape(summary_title)}</h2>
-        <p class="meta">Similarity results are informative but not currently strong enough to independently drive decisions.</p>
-        {_render_info_grid(
+        <p class="meta">Similarity is informative only and does not override deterministic diagnosis.</p>
+        {_render_fleet_summary_strip(
             [
                 ("Similar AWRs", fleet_summary.get("similar_awrs")),
-                ("Cluster", cluster_label),
-                ("Cluster Confidence", cluster_confidence if cluster_established else None),
-                ("Rarity", _display_rarity_label(fleet_summary.get("rarity"))),
-                ("Primary Issue", fleet_summary.get("primary_issue")),
+                ("Cluster", _display_cluster_summary_label(fleet_summary.get("cluster_label"))),
+                ("Rarity", _display_rarity_summary_label(fleet_summary.get("rarity"))),
+                ("Repeated Issues", _repeated_issue_compact_label(repeated_issues)),
+                ("Backlog", _recommendation_backlog_compact_label(recommendation_backlog)),
             ]
         )}
       </section>
       <section class="card secondary">
-        <h2>{escape(neighbor_title)}</h2>
+        <h2>Nearest Similar AWRs</h2>
         <p class="meta">These are nearest-neighbor AWR cases from vector similarity, not validated workload clusters.</p>
         {_render_similarity_cases(similar_cases)}
       </section>
-      <section class="card secondary">
-        <h2>Outliers / Rare Patterns</h2>
-        {_render_info_grid(
+      <section class="card secondary fleet-compact-card">
+        <h2>Fleet Signal Details</h2>
+        {_render_fleet_detail_list(
             [
                 ("Rare Pattern", rare_patterns.get("is_rare_pattern")),
                 ("Nearest Distance", rare_patterns.get("nearest_distance")),
                 ("Mean Distance", rare_patterns.get("mean_distance")),
-                ("Reason", rare_patterns.get("reason")),
+                ("Anomaly Support", anomaly_validation.get("supports_anomaly")),
+                ("Similar Case Count", anomaly_validation.get("similar_case_count")),
+                ("Cluster Confidence", cluster_confidence if cluster_established else None),
+                ("Recommendation Backlog", _recommendation_backlog_compact_label(recommendation_backlog)),
+                ("Reason", anomaly_validation.get("reason") or rare_patterns.get("reason")),
             ]
         )}
         {_render_similarity_cases(outliers) if outliers else _render_empty_item("No outlier case aggregation is established yet.")}
-      </section>
-      <section class="card secondary">
-        <h2>Repeated Issues</h2>
-        {_render_repeated_issue_list(repeated_issues)}
-      </section>
-      <section class="card secondary">
-        <h2>Anomaly Validation</h2>
-        {_render_info_grid(
-            [
-                ("Supports Anomaly", anomaly_validation.get("supports_anomaly")),
-                ("Similar Case Count", anomaly_validation.get("similar_case_count")),
-                ("Reason", anomaly_validation.get("reason")),
-            ]
-        )}
-      </section>
-      <section class="card secondary">
-        <h2>Recommendation Backlog</h2>
-        {_render_recommendation_backlog(recommendation_backlog)}
       </section>
     </div>
     """
@@ -2472,7 +2683,7 @@ def _render_similarity_cases(cases: list[Any]) -> str:
         return _render_empty_item("No similar AWR case rows are available.")
     similarity_precision = _similarity_display_precision(case_dicts)
     precision_note = (
-        '<div class="meta similarity-note">Nearest vectors are identical at current precision; inspect feature-vector uniqueness if this persists.</div>'
+        '<div class="meta similarity-note">Identical or near-identical similarity values may indicate duplicate-like cases under the current vector precision. Treat this as nearest-neighbor context, not a validated fleet pattern.</div>'
         if _similarity_vectors_identical_at_display_precision(case_dicts)
         else ""
     )
@@ -2500,14 +2711,7 @@ def _render_similarity_cases(cases: list[Any]) -> str:
 
 
 def _similarity_display_precision(case_dicts: list[dict[str, Any]]) -> int:
-    scores = [
-        _safe_float(case.get("similarity_score"))
-        for case in case_dicts
-        if _safe_float(case.get("similarity_score")) is not None
-    ]
-    rounded = {f"{score:.3f}" for score in scores}
-    if len(scores) > 1 and rounded == {"1.000"}:
-        return 6
+    del case_dicts
     return 3
 
 
@@ -2558,11 +2762,72 @@ def _display_cluster_label(value: Any) -> str:
     return _display_value(label)
 
 
+def _display_cluster_summary_label(value: Any) -> str:
+    label = str(value or "").strip()
+    if not label or label.upper() == "UNCLASSIFIED":
+        return "No stable cluster"
+    return _display_value(label)
+
+
 def _display_rarity_label(value: Any) -> str:
     text = str(value or "").strip()
     if text.lower() == "common pattern":
         return "Pattern appears common within the current similarity space."
     return _display_value(value)
+
+
+def _display_rarity_summary_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if text.lower() == "common pattern":
+        return "Common in current similarity space"
+    return _display_value(value)
+
+
+def _render_fleet_summary_strip(items: list[tuple[str, Any]]) -> str:
+    facts = []
+    for label, value in items:
+        is_backlog_none = (
+            str(label).strip().lower() == "backlog"
+            and str(value).strip().lower() == "none"
+        )
+        value_text = "None" if is_backlog_none else _display_value(value)
+        if not _has_display_value(value) and not is_backlog_none:
+            continue
+        facts.append(
+            f"""
+            <div class="fleet-summary-fact">
+              <span>{escape(label)}</span>
+              <strong>{escape(value_text)}</strong>
+            </div>
+            """
+        )
+    if not facts:
+        return _render_empty_item("No fleet summary facts are available.")
+    return '<div class="fleet-summary-strip">' + "".join(facts) + "</div>"
+
+
+def _render_fleet_detail_list(items: list[tuple[str, Any]]) -> str:
+    rows = []
+    for label, value in items:
+        is_backlog_none = (
+            str(label).strip().lower() == "recommendation backlog"
+            and str(value).strip().lower() == "none"
+        )
+        if not _has_display_value(value) and not is_backlog_none:
+            continue
+        value_text = "None" if is_backlog_none else _display_value(value)
+        row_class = "fleet-detail-row reason-row" if str(label).strip().lower() == "reason" else "fleet-detail-row"
+        rows.append(
+            f"""
+            <div class="{escape(row_class)}">
+              <strong>{escape(label)}</strong>
+              <span>{escape(value_text)}</span>
+            </div>
+            """
+        )
+    if not rows:
+        return _render_empty_item("No fleet signal details are available.")
+    return '<div class="fleet-detail-list">' + "".join(rows) + "</div>"
 
 
 def _render_repeated_issue_list(items: list[Any]) -> str:
@@ -2577,6 +2842,24 @@ def _render_repeated_issue_list(items: list[Any]) -> str:
         )
         + "</div>"
     )
+
+
+def _repeated_issue_compact_label(items: list[Any]) -> str | None:
+    issue_items = [_to_dict(item) for item in items]
+    parts = []
+    for item in issue_items[:6]:
+        issue = _display_value(item.get("issue"))
+        count = _display_value(item.get("count"))
+        if issue and count:
+            parts.append(f"{issue} {count}")
+    return " · ".join(parts) if parts else None
+
+
+def _recommendation_backlog_compact_label(items: list[Any]) -> str:
+    backlog_items = [_to_dict(item) for item in items]
+    if not backlog_items:
+        return "None"
+    return f"{len(backlog_items)} backlog item(s)"
 
 
 def _render_recommendation_backlog(items: list[Any]) -> str:
@@ -2604,17 +2887,51 @@ def _render_navigation_card(
     href: str,
     previews: list[tuple[str, Any]],
 ) -> str:
+    present_previews = [
+        (label, value) for label, value in previews if _has_display_value(value)
+    ]
     preview_items = "".join(
-        f"<li><strong>{escape(label)}:</strong> {escape(_display_value(value))}</li>"
-        for label, value in previews
-        if _has_display_value(value)
+        _render_navigation_preview_item(label, value)
+        for label, value in present_previews
     )
+    helper_note = _navigation_card_helper_note(present_previews)
     return f"""
       <a class="nav-card" href="{escape(href)}">
         <h3>{escape(title)}</h3>
         {"<ul>" + preview_items + "</ul>" if preview_items else '<div class="meta">Open this screen</div>'}
+        {helper_note}
       </a>
     """
+
+
+def _render_navigation_preview_item(label: str, value: Any) -> str:
+    label_text = str(label)
+    value_text = _display_value(value)
+    if label_text.lower() == "overall status":
+        return (
+            f"<li><strong>{escape(label_text)}:</strong> "
+            f'<span class="mini-pill {_status_pill_class(value_text)}">{escape(value_text)}</span></li>'
+        )
+    if label_text.lower() == "confidence":
+        level = _confidence_level_from_value(value_text)
+        return (
+            f"<li><strong>{escape(label_text)}:</strong> "
+            f'<span class="mini-pill confidence-{escape(level.lower())}">{escape(level)}</span></li>'
+        )
+    return f"<li><strong>{escape(label_text)}:</strong> {escape(value_text)}</li>"
+
+
+def _navigation_card_helper_note(previews: list[tuple[str, Any]]) -> str:
+    values = {str(label).lower(): value for label, value in previews}
+    status = str(values.get("overall status") or "").strip().upper()
+    confidence = _confidence_level_from_value(values.get("confidence"))
+    if status == "OK" and confidence == "LOW":
+        return (
+            '<div class="meta nav-card-note">'
+            "OK reflects current deterministic risk; LOW reflects limited evidence coverage."
+            "</div>"
+        )
+    return ""
 
 
 def _render_bullet_item(text: str) -> str:
@@ -3659,10 +3976,23 @@ def _shared_page_styles() -> str:
       background: linear-gradient(135deg, rgba(24, 42, 66, 0.98), rgba(14, 27, 46, 0.98));
       border-color: rgba(90, 209, 255, 0.38);
     }
-    .card.secondary { background: rgba(12, 22, 36, 0.88); }
+    .card.secondary {
+      background: rgba(12, 22, 36, 0.88);
+      padding: 16px;
+    }
     .card.prominent {
       background: linear-gradient(135deg, rgba(20, 36, 58, 0.96), rgba(13, 24, 40, 0.96));
       border-color: rgba(90, 209, 255, 0.34);
+    }
+    .card.compact-card {
+      padding: 16px 18px;
+    }
+    .compact-card h2 {
+      margin-bottom: 8px;
+    }
+    .compact-card p {
+      margin-top: 0;
+      margin-bottom: 8px;
     }
     .section-kicker {
       color: var(--accent);
@@ -3780,11 +4110,120 @@ def _shared_page_styles() -> str:
       margin-top: 14px;
       flex-wrap: wrap;
     }
+    .decision-summary-confidence .confidence-note {
+      margin: 0;
+      line-height: 1.3;
+    }
+    .diagnostic-compact-card {
+      padding: 16px;
+    }
+    .diagnostic-snapshot-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .diagnostic-snapshot-grid .info-box {
+      padding: 12px;
+    }
+    .diagnostic-confidence-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .confidence-cell {
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 8px;
+    }
+    .diagnostic-confidence-strip .confidence-note {
+      margin: 0;
+      line-height: 1.3;
+      align-self: center;
+    }
+    .diagnostic-drivers-card {
+      padding: 16px;
+    }
+    .diagnostic-driver-stack {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .diagnostic-driver-row {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: auto;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .diagnostic-driver-row .severity,
+    .diagnostic-driver-row .status-pill {
+      display: none;
+    }
+    .diagnostic-driver-row h3 {
+      margin: 0 0 4px;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .diagnostic-driver-row p {
+      margin: 0;
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .diagnostic-driver-evidence {
+      margin: 6px 0 0;
+      font-size: 12px;
+      line-height: 1.35;
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 14px;
       background: rgba(16, 28, 45, 0.72);
+    }
+    .screen4-summary-card {
+      padding: 16px;
+    }
+    .screen4-compact-pane {
+      padding: 14px;
+    }
+    .screen4-compact-info-grid {
+      gap: 10px;
+    }
+    .screen4-compact-info-grid .info-box,
+    .screen4-verdict-grid .info-box,
+    .screen4-topology-grid .info-box {
+      padding: 11px 12px;
+      border-radius: 12px;
+    }
+    .screen4-verdict-pane > .meta,
+    .screen4-topology-pane > .meta {
+      margin: -2px 0 12px;
+    }
+    .screen4-verdict-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen4-memory-block {
+      padding: 14px;
+    }
+    .screen4-memory-block p {
+      margin: 8px 0 0;
+    }
+    .screen4-topology-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen4-interpretation-block {
+      padding: 14px;
+    }
+    .screen4-interpretation-block .narrative {
+      margin-top: 8px;
     }
     .supportive-panel {
       border: 1px dashed rgba(159, 176, 199, 0.28);
@@ -3813,7 +4252,7 @@ def _shared_page_styles() -> str:
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .severity.critical, .decision-banner.scale-now, .health-pill.fail {
+    .severity.critical, .severity.error, .decision-banner.scale-now, .health-pill.fail {
       color: #fff4f4;
       background: rgba(255, 107, 107, 0.24);
       border: 1px solid rgba(255, 107, 107, 0.36);
@@ -3823,7 +4262,7 @@ def _shared_page_styles() -> str:
       background: rgba(255, 107, 107, 0.16);
       border: 1px solid rgba(255, 107, 107, 0.30);
     }
-    .severity.medium, .health-pill.marginal, .decision-banner.defer {
+    .severity.medium, .severity.warning, .health-pill.marginal, .decision-banner.defer {
       color: #fff8ed;
       background: rgba(246, 184, 76, 0.24);
       border: 1px solid rgba(246, 184, 76, 0.36);
@@ -3832,6 +4271,21 @@ def _shared_page_styles() -> str:
       color: #eff7ff;
       background: rgba(127, 179, 213, 0.16);
       border: 1px solid rgba(127, 179, 213, 0.36);
+    }
+    .severity.success {
+      color: #effbef;
+      background: rgba(102, 187, 106, 0.16);
+      border: 1px solid rgba(102, 187, 106, 0.34);
+    }
+    .severity.accent {
+      color: #eef9ff;
+      background: rgba(90, 209, 255, 0.14);
+      border: 1px solid rgba(90, 209, 255, 0.34);
+    }
+    .severity.neutral {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
     }
     .health-pill.na {
       color: #eef3f8;
@@ -3852,6 +4306,22 @@ def _shared_page_styles() -> str:
       background: rgba(255, 107, 107, 0.16);
       border: 1px solid rgba(255, 107, 107, 0.34);
       color: #fff4f4;
+    }
+    .status-pill.accent {
+      color: #eef9ff;
+      background: rgba(90, 209, 255, 0.14);
+      border: 1px solid rgba(90, 209, 255, 0.34);
+    }
+    .status-pill.low {
+      color: #eef7ff;
+      background: rgba(127, 179, 213, 0.18);
+      border: 1px solid rgba(127, 179, 213, 0.34);
+    }
+    .status-pill.neutral,
+    .status-pill.na {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
     }
     .scope-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .scope-chip {
@@ -3880,20 +4350,62 @@ def _shared_page_styles() -> str:
       border: 1px solid rgba(255, 255, 255, 0.16);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
-    .confidence-pill.high {
-      background: rgba(255, 107, 107, 0.24);
-      border-color: rgba(255, 107, 107, 0.38);
-      color: #fff4f4;
+    .confidence-pill.low,
+    .status-pill.confidence-low,
+    .mini-pill.confidence-low {
+      background: rgba(127, 179, 213, 0.24);
+      border: 1px solid rgba(127, 179, 213, 0.48);
+      color: #eef7ff;
     }
-    .confidence-pill.medium {
-      background: rgba(246, 184, 76, 0.24);
-      border-color: rgba(246, 184, 76, 0.38);
+    .confidence-pill.medium,
+    .status-pill.confidence-medium,
+    .mini-pill.confidence-medium {
+      background: rgba(246, 184, 76, 0.22);
+      border: 1px solid rgba(246, 184, 76, 0.42);
       color: #fff8ed;
     }
-    .confidence-pill.low {
-      background: rgba(127, 179, 213, 0.20);
-      border-color: rgba(127, 179, 213, 0.36);
-      color: #eef7ff;
+    .confidence-pill.high,
+    .status-pill.confidence-high,
+    .mini-pill.confidence-high {
+      background: rgba(102, 187, 106, 0.20);
+      border: 1px solid rgba(102, 187, 106, 0.42);
+      color: #effbef;
+    }
+    .mini-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.3;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .mini-pill.success {
+      color: #effbef;
+      background: rgba(102, 187, 106, 0.16);
+      border: 1px solid rgba(102, 187, 106, 0.34);
+    }
+    .mini-pill.warning {
+      color: #fff8ed;
+      background: rgba(246, 184, 76, 0.16);
+      border: 1px solid rgba(246, 184, 76, 0.34);
+    }
+    .mini-pill.error {
+      color: #fff4f4;
+      background: rgba(255, 107, 107, 0.16);
+      border: 1px solid rgba(255, 107, 107, 0.34);
+    }
+    .mini-pill.neutral {
+      color: #eef3f8;
+      background: rgba(159, 176, 199, 0.14);
+      border: 1px solid rgba(159, 176, 199, 0.34);
+    }
+    .nav-card-note {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.35;
     }
     .pill-stack {
       display: grid;
@@ -3979,6 +4491,269 @@ def _shared_page_styles() -> str:
       display: grid;
       gap: 12px;
     }
+    .action-page-card {
+      padding: 18px;
+    }
+    .action-page-layout {
+      display: grid;
+      gap: 14px;
+    }
+    .action-conclusion-card {
+      grid-column: auto;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+    .action-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .action-summary-pane {
+      grid-column: auto;
+      padding: 14px;
+    }
+    .action-conclusion-block {
+      border: 1px solid rgba(90, 209, 255, 0.28);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .action-conclusion-block h4 {
+      margin: 12px 0 6px;
+      font-size: 18px;
+    }
+    .action-conclusion-block p {
+      margin: 0;
+      color: var(--text);
+    }
+    .action-conclusion-block ul {
+      margin-top: 10px;
+    }
+    .status-insight-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .status-insight {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      grid-template-areas:
+        "pill note"
+        "label note";
+      column-gap: 12px;
+      row-gap: 6px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid rgba(159, 176, 199, 0.18);
+      border-radius: 12px;
+      background: rgba(16, 28, 45, 0.56);
+    }
+    .status-insight-pill {
+      grid-area: pill;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .status-insight-label {
+      grid-area: label;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+    .status-insight-note {
+      grid-area: note;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      align-self: center;
+    }
+    .status-insight-pill--success {
+      background: rgba(102, 187, 106, 0.20);
+      border-color: rgba(102, 187, 106, 0.42);
+      color: #effbef;
+    }
+    .status-insight-pill--warning {
+      background: rgba(246, 184, 76, 0.22);
+      border-color: rgba(246, 184, 76, 0.42);
+      color: #fff8ed;
+    }
+    .status-insight-pill--error {
+      background: rgba(255, 107, 107, 0.20);
+      border-color: rgba(255, 107, 107, 0.42);
+      color: #fff4f4;
+    }
+    .status-insight-pill--low,
+    .status-insight-pill--confidence-low {
+      background: rgba(127, 179, 213, 0.24);
+      border-color: rgba(127, 179, 213, 0.48);
+      color: #eef7ff;
+    }
+    .status-insight-pill--confidence-medium {
+      background: rgba(246, 184, 76, 0.22);
+      border-color: rgba(246, 184, 76, 0.42);
+      color: #fff8ed;
+    }
+    .status-insight-pill--confidence-high {
+      background: rgba(102, 187, 106, 0.20);
+      border-color: rgba(102, 187, 106, 0.42);
+      color: #effbef;
+    }
+    .status-insight-pill--accent {
+      background: rgba(90, 209, 255, 0.16);
+      border-color: rgba(90, 209, 255, 0.40);
+      color: #eef9ff;
+    }
+    .status-insight-pill--neutral {
+      background: rgba(159, 176, 199, 0.14);
+      border-color: rgba(159, 176, 199, 0.34);
+      color: #eef3f8;
+    }
+    .compact-supportive-panel {
+      padding: 12px;
+    }
+    .compact-supportive-panel ul {
+      margin-bottom: 0;
+    }
+    .compact-evidence-stack {
+      gap: 8px;
+    }
+    .compact-evidence-stack .item {
+      padding: 10px;
+      border-radius: 12px;
+    }
+    .validation-plan-groups,
+    .evidence-checklist {
+      display: grid;
+      gap: 10px;
+    }
+    .validation-plan-group {
+      padding-top: 8px;
+      border-top: 1px solid rgba(159, 176, 199, 0.16);
+    }
+    .validation-plan-group:first-child {
+      padding-top: 0;
+      border-top: none;
+    }
+    .validation-plan-group strong,
+    .evidence-checklist-item h3 {
+      display: block;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .validation-plan-group ul,
+    .compact-list {
+      margin-top: 4px;
+    }
+    .compact-inline-list {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .evidence-checklist-item.warning-note {
+      border-color: rgba(246, 184, 76, 0.32);
+      background: rgba(66, 48, 24, 0.36);
+    }
+    .action-final-statement {
+      border: 1px solid rgba(90, 209, 255, 0.26);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: var(--text);
+      background: rgba(90, 209, 255, 0.08);
+      font-weight: 700;
+    }
+    .fleet-preview-note {
+      max-width: 980px;
+      margin-top: -4px;
+    }
+    .fleet-compact-card {
+      padding: 16px;
+    }
+    .fleet-summary-strip {
+      display: flex;
+      align-items: stretch;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .fleet-summary-fact {
+      min-width: 150px;
+      flex: 1 1 150px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+    .fleet-summary-fact span {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .fleet-summary-fact strong {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .fleet-detail-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .fleet-detail-row {
+      display: block;
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.54);
+    }
+    .fleet-detail-row.reason-row {
+      grid-column: 1 / -1;
+    }
+    .fleet-detail-row strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .fleet-detail-row span {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .similarity-case-grid {
+      gap: 8px;
+    }
+    .similarity-case-grid .info-box {
+      padding: 9px 10px;
+    }
+    .scalar-context-note {
+      margin-top: -2px;
+      margin-bottom: 12px;
+    }
     .narrative > p, .narrative > ol, .narrative > ul, .narrative > div { margin-top: 0; margin-bottom: 12px; }
     .data-table-wrap {
       overflow-x: auto;
@@ -4046,6 +4821,308 @@ def _shared_page_styles() -> str:
     }
     .health-check-summary { margin-bottom: 12px; }
     .health-check-card p { margin: 0; }
+    .pipeline-card {
+      overflow: hidden;
+    }
+
+    .pipeline-intro {
+      max-width: 980px;
+      margin-bottom: 14px;
+    }
+
+    .pipeline-mode-badge {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      margin: 14px 0 18px;
+      flex-wrap: wrap;
+    }
+
+    .pipeline-mode-badge .status-pill,
+    .pipeline-mode-badge .meta {
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .pipeline-mode-badge .meta {
+      display: inline-flex;
+      align-items: center;
+      opacity: 0.85;
+    }
+
+    .pipeline-flow {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .pipeline-node {
+      position: relative;
+      min-height: 104px;
+      padding: 14px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(159, 176, 199, 0.24);
+      background:
+        linear-gradient(180deg, rgba(20, 36, 58, 0.88), rgba(13, 24, 40, 0.9));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 22px rgba(0, 0, 0, 0.18);
+      transition:
+        transform 0.18s ease,
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease;
+    }
+
+    .pipeline-node:hover {
+      transform: translateY(-3px);
+      border-color: rgba(90, 209, 255, 0.62);
+      background:
+        linear-gradient(180deg, rgba(24, 44, 70, 0.96), rgba(13, 24, 40, 0.96));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 14px 28px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(90, 209, 255, 0.08);
+    }
+
+    .pipeline-node span {
+      display: block;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .pipeline-node small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .pipeline-node.source-node {
+      border-color: rgba(102, 187, 106, 0.42);
+      background:
+        linear-gradient(180deg, rgba(27, 59, 44, 0.72), rgba(13, 24, 40, 0.92));
+    }
+
+    .pipeline-node.core-node {
+      border-color: rgba(255, 107, 107, 0.55);
+      background:
+        linear-gradient(180deg, rgba(70, 34, 42, 0.56), rgba(13, 24, 40, 0.92));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 22px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(255, 107, 107, 0.15);
+    }
+
+    .pipeline-node.memory-node {
+      border-color: rgba(90, 209, 255, 0.52);
+      background:
+        linear-gradient(180deg, rgba(28, 67, 84, 0.62), rgba(13, 24, 40, 0.92));
+    }
+
+    .future-input-layout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .future-input-card {
+      padding: 14px 16px;
+    }
+
+    .future-input-panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+
+    .future-input-panel h3 {
+      margin-bottom: 10px;
+    }
+
+    .source-option-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .source-option {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      background: rgba(20, 36, 58, 0.84);
+      border: 1px solid rgba(159, 176, 199, 0.24);
+    }
+
+    .source-option.active {
+      color: #08111d;
+      background: var(--accent);
+      border-color: rgba(90, 209, 255, 0.62);
+    }
+
+    .future-input-field {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid rgba(90, 209, 255, 0.28);
+      border-radius: 10px;
+      padding: 9px 11px;
+      color: var(--text);
+      background: rgba(11, 21, 35, 0.74);
+      font: inherit;
+    }
+
+    .input-note {
+      margin-top: 8px;
+    }
+
+    .future-note {
+      margin-top: 10px;
+      padding: 12px;
+    }
+
+    .future-note strong {
+      color: var(--accent);
+    }
+
+    .future-note p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .agent-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+
+    .agent-card strong {
+      display: block;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .agent-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .truth-boundary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .truth-boundary-pane {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      background: rgba(16, 28, 45, 0.72);
+    }
+
+    .truth-boundary-pane h3 {
+      margin-bottom: 10px;
+    }
+
+    .deterministic-pane {
+      border-color: rgba(102, 187, 106, 0.34);
+      background:
+        linear-gradient(180deg, rgba(24, 54, 40, 0.58), rgba(13, 24, 40, 0.92));
+    }
+
+    .ai-pane {
+      border-color: rgba(246, 184, 76, 0.34);
+      background:
+        linear-gradient(180deg, rgba(66, 48, 24, 0.54), rgba(13, 24, 40, 0.92));
+    }
+
+    .truth-boundary-pane ul {
+      margin-top: 14px;
+    }
+
+    .memory-capability-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .memory-capability {
+      border: 1px solid rgba(90, 209, 255, 0.22);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(90, 209, 255, 0.07);
+    }
+
+    .memory-capability strong {
+      display: block;
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .memory-capability span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .agent-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 900px) {
+      .pipeline-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .pipeline-node {
+        min-height: auto;
+      }
+
+      .future-input-layout,
+      .truth-boundary-grid,
+      .memory-capability-grid,
+      .action-summary-grid,
+      .status-insight-row,
+      .fleet-detail-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .agent-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .footer { margin-top: 18px; color: var(--muted); font-size: 12px; text-align: right; }
     ul, ol { margin: 10px 0 0 18px; padding: 0; }
     li { margin: 4px 0; }
@@ -4071,7 +5148,11 @@ def _shared_page_styles() -> str:
       }
       .flow-grid, .nav-card-grid, .health-check-grid,
       .decision-grid, .info-grid, .provider-grid, .scalar-grid, .visual-layer-grid,
-      .visual-summary-grid, .domain-strip, .selector-control-grid {
+      .visual-summary-grid, .domain-strip, .selector-control-grid,
+      .diagnostic-snapshot-grid,
+      .diagnostic-driver-stack,
+      .screen4-verdict-grid,
+      .screen4-topology-grid {
         grid-template-columns: 1fr;
       }
       h1 { font-size: 28px; }
@@ -5812,16 +6893,8 @@ def _render_review_comparison_screen(
         "<p>CPU remained historically visible, though continuity across the full window was too mixed for a simple stability claim.</p>",
         "",
     )
-    topology_platform_review_html = _render_info_grid(
-        [
-            ("RAC Summary", topology_platform_review.get("rac_summary")),
-            ("Data Guard Summary", topology_platform_review.get("data_guard_summary")),
-            ("Exadata Summary", topology_platform_review.get("exadata_summary")),
-            (
-                "Host / Instance Notes",
-                ", ".join(topology_platform_review.get("host_instance_notes") or []),
-            ),
-        ]
+    topology_platform_review_html = _render_screen4_topology_platform_review(
+        topology_platform_review
     )
     topology_platform_review_html = topology_platform_review_html.replace(
         "Treat RAC coordination as supportive context rather than selected-scope topology truth.",
@@ -5832,51 +6905,11 @@ def _render_review_comparison_screen(
         "Data Guard signals are limited and treated as supporting context only.",
     )
 
-    explanation_section_map = {
-        "executive_summary": _render_supportive_section(
-            "Executive Summary",
-            (
-                "Historical evidence supports the current posture, with CPU and workload "
-                "distribution patterns providing the strongest available signals. "
-                "Supporting metrics from I/O and commit activity remain present but do "
-                "not override the overall interpretation."
-            ),
-            "",
-        ),
-        "historical_interpretation": _render_supportive_section(
-            "Historical Interpretation",
-            _normalize_narrative_for_display(
-                explanation_panel.get("historical_interpretation"),
-                normalized_decision,
-            ),
-            "",
-        ),
-        "action_context": _render_supportive_section(
-            "Historical Posture",
-            _normalize_narrative_for_display(
-                explanation_panel.get("action_context"),
-                normalized_decision,
-            ),
-            "",
-        ),
-        "technical_context": _render_supportive_section(
-            "Technical Context",
-            _normalize_narrative_for_display(
-                explanation_panel.get("technical_context"),
-                normalized_decision,
-            ),
-            "",
-        ),
-    }
-    ordered_explanation_sections = "".join(
-        explanation_section_map.get(section_key, "")
-        for section_key in (
-            visual_story.get("explanation_section_order")
-            or ["executive_summary", "historical_interpretation", "action_context", "technical_context"]
-        )
-        if explanation_section_map.get(section_key, "")
+    historical_interpretation_html = _render_screen4_historical_interpretation(
+        explanation_panel,
+        normalized_decision,
     )
-    ordered_explanation_sections = ordered_explanation_sections.replace(
+    historical_interpretation_html = historical_interpretation_html.replace(
         "CPU remained historically visible, though continuity across the full window was too mixed for a simple stability claim.",
         "CPU evidence remains one of the more visible signals in the historical window, but not consistently dominant.",
     )
@@ -5888,20 +6921,12 @@ def _render_review_comparison_screen(
         </section>
         """,
         "visual_analysis": "",
-        "historical_scope_memory": (
-            f"""
-        <section class="half evidence-pane">
+        "historical_scope_memory": f"""
+        <section class="half evidence-pane screen4-memory-pane">
           <h3>Memory Review</h3>
-          <div class="meta">
-            Explicit secondary-domain review before supporting I/O / commit trends and contextual RAC / topology comparison.
-          </div>
           {_render_historical_scope_memory(historical_scope_memory)}
         </section>
-        """
-            if _has_display_value(historical_scope_memory.get("summary"))
-            or bool(historical_scope_memory.get("items") or historical_scope_memory.get("scope_concepts"))
-            else ""
-        ),
+        """,
         "trend_review": f"""
         <section class="half evidence-pane">
           <h3>Trend Review</h3>
@@ -5955,10 +6980,10 @@ def _render_review_comparison_screen(
         """,
         "topology_platform_review": (
             f"""
-        <section class="half evidence-pane">
+        <section class="evidence-pane screen4-topology-pane">
           <h3>Topology / Platform Review</h3>
           <div class="meta">
-            Historical / Supporting Context (Not Selected-Scope Truth). Comparison context only; CPU and workload signals remain part of the historical review.
+            Historical / Supporting Context only. Topology and platform evidence supports interpretation but does not override selected-scope diagnostic truth.
           </div>
           {topology_platform_review_html}
         </section>
@@ -5968,32 +6993,23 @@ def _render_review_comparison_screen(
             or _has_display_value(topology_platform_review.get("exadata_summary"))
             else ""
         ),
-        "explanation": f"""
-        <section class="evidence-pane">
-          <h3>Explanation</h3>
-          <div class="supportive-panel">
-            <div class="meta">
-              Supportive, non-authoritative explanation derived from canonical findings.
-            </div>
-            {ordered_explanation_sections}
-          </div>
+        "historical_interpretation": f"""
+        <section class="evidence-pane screen4-interpretation-pane">
+          <h3>Historical Interpretation</h3>
+          {historical_interpretation_html}
         </section>
         """,
     }
     ordered_lower_sections = "".join(
         lower_section_map.get(section_key, "")
         for section_key in (
-            visual_story.get("story_section_order")
-            or [
-                "historical_summary",
-                "historical_scope_memory",
-                "visual_analysis",
-                "trend_review",
-                "anomaly_review",
-                "period_comparison",
-                "topology_platform_review",
-                "explanation",
-            ]
+            "historical_summary",
+            "historical_scope_memory",
+            "trend_review",
+            "anomaly_review",
+            "period_comparison",
+            "topology_platform_review",
+            "historical_interpretation",
         )
         if lower_section_map.get(section_key, "")
     )
@@ -6005,7 +7021,10 @@ def _render_review_comparison_screen(
     """
 
 
-def _render_recommendation_action_screen(screen_model: dict[str, Any]) -> str:
+def _render_recommendation_action_screen(
+    screen_model: dict[str, Any],
+    report_data: dict[str, Any] | None = None,
+) -> str:
     """Render Screen 5 from the canonical recommendation and action model."""
 
     header = _to_dict(screen_model.get("header"))
@@ -6024,43 +7043,803 @@ def _render_recommendation_action_screen(screen_model: dict[str, Any]) -> str:
     )
     supporting_primary_evidence = evidence_tie_back.get("primary_evidence") or {}
     supporting_secondary_evidence = evidence_tie_back.get("secondary_evidence") or []
-
+    posture_guidance = screen_model.get("posture_guidance") or []
+    validation_focus_areas = screen_model.get("validation_focus_areas") or []
+    canonical_empty_message = (
+        screen_model.get("canonical_empty_message")
+        or "No canonical recommendation objects were generated for this run."
+    )
+    risk_value = (
+        header.get("display_severity_label")
+        or normalized_decision.get("display_severity_label")
+        or normalized_decision.get("overall_status")
+    )
+    posture_value = (
+        header.get("decision_posture")
+        or normalized_decision.get("decision_posture")
+    )
+    posture_key = _screen5_posture_key(posture_value)
+    action_risk_value = _screen5_action_risk_label(risk_value)
+    confidence_level = _confidence_level_from_value(authoritative_confidence)
+    evidence_exists = bool(
+        _has_meaningful_evidence(_to_dict(supporting_primary_evidence))
+        or any(
+            _has_meaningful_evidence(_to_dict(item))
+            for item in supporting_secondary_evidence
+        )
+        or validation_focus_areas
+    )
+    vocalization_context = _screen5_vocalization_context(
+        posture_key=posture_key,
+        confidence=confidence_level,
+        action_risk=action_risk_value,
+        canonical_recommendation_count=canonical_recommendation_count,
+        report_data=report_data or {},
+        screen_model=screen_model,
+    )
+    rationale_lines = _vocalize_screen5_rationale_lines(
+        _screen5_base_rationale_lines(
+            posture_key,
+            confidence_level,
+            canonical_recommendation_count,
+        ),
+        vocalization_context,
+        _to_dict(screen_model.get("llm_vocalization")).get("action_rationale"),
+    )
+    final_action_statement = _screen5_final_action_statement(
+        posture_key,
+        canonical_recommendation_count,
+    )
     return f"""
-      <div class="subgrid">
-        <section class="evidence-pane">
-          <h3>Deterministic Recommendations</h3>
-          <div class="stack">
-            {
-                _render_recommendation_groups(recommendation_groups or recommendation_list)
-                if canonical_recommendation_count > 0
-                else _render_empty_item("No deterministic actions are recommended at this time.")
-            }
-          </div>
+      <div class="action-page-layout">
+        <section class="evidence-pane action-conclusion-card">
+          <div class="section-kicker">ACTION CONCLUSION</div>
+          <h3>Action Conclusion</h3>
+          {_render_screen5_action_conclusion(
+              posture_value,
+              risk_value,
+              authoritative_confidence,
+              canonical_recommendation_count,
+              evidence_exists,
+              posture_key,
+              vocalization_context,
+          )}
         </section>
-        <section class="evidence-pane">
-          <h3>Posture Guidance</h3>
-          <div class="supportive-panel">
+        <div class="action-summary-grid">
+        <section class="evidence-pane action-summary-pane">
+          <h3>Action Rationale</h3>
+          {_render_screen5_action_rationale_card(
+              canonical_recommendation_count,
+              canonical_empty_message,
+              recommendation_groups or recommendation_list,
+              rationale_lines,
+          )}
+        </section>
+        <section class="evidence-pane action-summary-pane">
+          <h3>Validation Plan</h3>
+          <div class="supportive-panel compact-supportive-panel">
             <div class="meta">
-              Generated from current decision posture, not from canonical recommendation list.
+              Posture-based guidance derived from decision posture and deterministic evidence. This is not a deterministic recommendation.
             </div>
-            {_render_supportive_explanation(
-                _build_screen5_posture_guidance_copy(screen_model),
-                "Insufficient data for a reliable conclusion.",
-            )}
+            {_render_screen5_validation_plan(posture_guidance, posture_key, vocalization_context)}
           </div>
         </section>
-        <section class="evidence-pane">
-          <h3>Supporting Evidence</h3>
-          <div class="stack">
-            {_render_screen5_supporting_evidence(
-                supporting_primary_evidence,
-                supporting_secondary_evidence,
-                normalized_decision.get("domain_scores") or {},
-            )}
+        <section class="evidence-pane action-summary-pane">
+          <h3>Evidence Checklist</h3>
+          <div class="stack compact-evidence-stack">
+            {_render_screen5_evidence_checklist(validation_focus_areas, vocalization_context)}
           </div>
         </section>
+        </div>
+        <div class="action-final-statement">
+          {escape(final_action_statement)}
+        </div>
+    </div>
+    """
+
+
+def _render_screen5_action_conclusion(
+    posture: Any,
+    risk: Any,
+    confidence: Any,
+    canonical_recommendation_count: int,
+    evidence_exists: bool,
+    posture_key: str | None = None,
+    vocalization_context: dict[str, Any] | None = None,
+) -> str:
+    posture_text = _display_value(posture) if _has_display_value(posture) else "Unavailable"
+    risk_text = _display_value(risk) if _has_display_value(risk) else "Unavailable"
+    action_risk_text = _screen5_action_risk_label(risk_text)
+    confidence_level = _confidence_level_from_value(confidence)
+    normalized_posture = posture_key or _screen5_posture_key(posture_text)
+    heading = _screen5_action_conclusion_title(
+        normalized_posture,
+        canonical_recommendation_count,
+    )
+    body = _screen5_action_conclusion_body(
+        normalized_posture,
+        canonical_recommendation_count,
+    )
+    base_context = dict(vocalization_context or {})
+    posture_note = _vocalize_text(
+        _screen5_posture_status_note(normalized_posture),
+        {
+            **base_context,
+            "required_terms": _screen5_note_required_terms(_screen5_posture_status_note(normalized_posture)),
+        },
+    )
+    action_risk_note = _vocalize_text(
+        _screen5_action_risk_status_note(action_risk_text),
+        {
+            **base_context,
+            "required_terms": _screen5_note_required_terms(_screen5_action_risk_status_note(action_risk_text)),
+        },
+    )
+    confidence_note = _vocalize_text(
+        _screen5_confidence_status_note(confidence_level),
+        {
+            **base_context,
+            "required_terms": _screen5_note_required_terms(_screen5_confidence_status_note(confidence_level)),
+        },
+    )
+    del evidence_exists
+    return f"""
+      <div class="action-conclusion-block">
+        {_render_status_insight_row([
+            {
+                "label": "POSTURE",
+                "value": posture_text,
+                "note": posture_note,
+                "tone": _screen5_posture_status_tone(normalized_posture),
+            },
+            {
+                "label": "ACTION RISK",
+                "value": action_risk_text,
+                "note": action_risk_note,
+                "tone": _screen5_action_risk_status_tone(action_risk_text),
+            },
+            {
+                "label": "CONFIDENCE",
+                "value": confidence_level,
+                "note": confidence_note,
+                "tone": f"confidence-{confidence_level.lower()}",
+            },
+        ])}
+        <h4>{escape(heading)}</h4>
+        <p>{escape(body)}</p>
       </div>
     """
+
+
+def _screen5_action_risk_label(risk: Any) -> str:
+    text = _display_value(risk) if _has_display_value(risk) else "Unavailable"
+    normalized = text.strip().upper()
+    if normalized in {"OK", "PASS", "SUCCESS", "SUCCEEDED"}:
+        return "LOW"
+    if normalized in {"WARNING", "MEDIUM", "MARGINAL", "DEFER", "DEFERRED"}:
+        return "MEDIUM"
+    if normalized in {"CRITICAL", "FAIL", "FAILED"}:
+        return "CRITICAL"
+    if normalized in {"HIGH", "SCALE NOW"}:
+        return "HIGH"
+    return text
+
+
+def _vocalize_text(deterministic_text: str, context: dict) -> str:
+    """Use an LLM only to rewrite deterministic dashboard text for clarity."""
+
+    base_text = str(deterministic_text or "").strip()
+    if not base_text or not _llm_vocalization_available(context):
+        return base_text
+    provider = str(context.get("llm_provider") or os.getenv("AI_PROVIDER", "")).strip().lower()
+    if not provider:
+        return base_text
+    cache_key = (provider, base_text + json.dumps(_vocalization_cache_context(context), sort_keys=True))
+    if cache_key in _VOCALIZATION_CACHE:
+        return _VOCALIZATION_CACHE[cache_key]
+    prompt = _vocalization_prompt(base_text)
+    try:
+        from ai_providers.ai_router import generate_ai_response as route_ai_response
+
+        candidate = route_ai_response(provider, prompt)
+    except Exception:
+        _VOCALIZATION_CACHE[cache_key] = base_text
+        return base_text
+    if not _vocalized_text_is_safe(candidate, base_text, context):
+        _VOCALIZATION_CACHE[cache_key] = base_text
+        return base_text
+    rewritten = _clean_vocalized_text(candidate)
+    _VOCALIZATION_CACHE[cache_key] = rewritten
+    return rewritten
+
+
+def _llm_vocalization_available(context: dict[str, Any]) -> bool:
+    if str(os.getenv("AWR_DISABLE_LLM_VOCALIZATION", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return False
+    return bool(context.get("llm_available"))
+
+
+def _vocalization_cache_context(context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "posture": context.get("posture"),
+        "risk": context.get("risk"),
+        "confidence": context.get("confidence"),
+        "required_terms": context.get("required_terms") or [],
+        "protected_values": context.get("protected_values") or [],
+        "memory_context": context.get("memory_context") or {},
+    }
+
+
+def _vocalization_prompt(deterministic_text: str) -> str:
+    return (
+        "You are rewriting a deterministic system message for clarity.\n\n"
+        "Rules:\n"
+        "- Do NOT change meaning\n"
+        "- Do NOT add new conclusions\n"
+        "- Do NOT introduce new recommendations\n"
+        "- Do NOT change risk, posture, or confidence\n"
+        "- Keep it concise (1-2 sentences)\n"
+        "- Maintain technical accuracy for DBAs and engineers\n\n"
+        "Original text:\n"
+        f"{deterministic_text}\n\n"
+        "Return only the rewritten text."
+    )
+
+
+def _vocalized_text_is_safe(candidate: Any, deterministic_text: str, context: dict[str, Any]) -> bool:
+    candidate_text = _clean_vocalized_text(candidate)
+    base_text = deterministic_text.strip()
+    if not candidate_text or candidate_text == base_text:
+        return False
+    if "\n" in candidate_text or "<" in candidate_text or ">" in candidate_text:
+        return False
+    if len(_sentence_list(candidate_text)) > 2:
+        return False
+    if re.search(r"\b(likely|probably|possibly|maybe|appears to|seems to)\b", candidate_text, re.IGNORECASE):
+        return False
+    if _vocalized_text_contradicts_protected_values(candidate_text, context):
+        return False
+    if _vocalized_text_introduces_forbidden_action(candidate_text, base_text):
+        return False
+    if _vocalized_text_removes_required_terms(candidate_text, base_text, context):
+        return False
+    if _vocalized_text_introduces_unsupported_concepts(candidate_text, base_text):
+        return False
+    return True
+
+
+def _clean_vocalized_text(value: Any) -> str:
+    text = _display_value(value) if _has_display_value(value) else ""
+    text = re.sub(r"^```(?:text)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text).strip()
+    text = re.sub(r"^(?:rewritten text|rewrite|output)\s*:\s*", "", text, flags=re.IGNORECASE).strip()
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        text = text[1:-1].strip()
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _sentence_list(text: str) -> list[str]:
+    return [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", text.strip())
+        if sentence.strip()
+    ]
+
+
+def _vocalized_text_contradicts_protected_values(candidate_text: str, context: dict[str, Any]) -> bool:
+    candidate_upper = candidate_text.upper()
+    protected_values = {
+        str(value).strip().upper()
+        for value in (context.get("protected_values") or [])
+        if str(value or "").strip()
+    }
+    posture_values = {"TUNE FIRST", "SCALE NOW", "DO NOT SCALE"}
+    confidence_values = {"LOW", "MEDIUM", "HIGH"}
+    risk_values = {"LOW", "MEDIUM", "HIGH", "CRITICAL", "OK", "WARNING", "FAIL"}
+    for value_group in (posture_values, confidence_values, risk_values):
+        protected_in_group = protected_values & value_group
+        if not protected_in_group:
+            continue
+        mentioned_other = any(
+            value in candidate_upper
+            for value in (value_group - protected_in_group)
+        )
+        if mentioned_other:
+            return True
+    return False
+
+
+def _vocalized_text_introduces_forbidden_action(candidate_text: str, base_text: str) -> bool:
+    candidate_lower = candidate_text.lower()
+    base_lower = base_text.lower()
+    action_families = (
+        ("scale", "scaling"),
+        ("tune", "tuning"),
+        ("validate", "validation"),
+        ("implement", "implementation"),
+        ("provision", "provisioning"),
+        ("resize", "resizing"),
+        ("increase",),
+        ("decrease",),
+        ("recommend", "recommendation", "recommendations"),
+        ("resolve", "resolution"),
+        ("address",),
+    )
+    for family in action_families:
+        candidate_has_action = any(term in candidate_lower for term in family)
+        base_has_action = any(term in base_lower for term in family)
+        if candidate_has_action and not base_has_action:
+            return True
+    return False
+
+
+def _vocalized_text_removes_required_terms(
+    candidate_text: str,
+    base_text: str,
+    context: dict[str, Any],
+) -> bool:
+    candidate_lower = candidate_text.lower()
+    base_lower = base_text.lower()
+    required_terms = [
+        str(term).strip().lower()
+        for term in (context.get("required_terms") or [])
+        if str(term or "").strip()
+    ]
+    for term in required_terms:
+        if term in base_lower and term not in candidate_lower:
+            return True
+    return False
+
+
+def _vocalized_text_introduces_unsupported_concepts(candidate_text: str, base_text: str) -> bool:
+    candidate_lower = candidate_text.lower()
+    base_lower = base_text.lower()
+    guarded_terms = {
+        "root cause",
+        "bottleneck",
+        "capacity",
+        "oracle memory",
+        "rac",
+        "data guard",
+        "sql",
+        "commit",
+        "transaction",
+        "anomaly",
+        "missing",
+        "metric",
+        "wait",
+    }
+    return any(term in candidate_lower and term not in base_lower for term in guarded_terms)
+
+
+def _vocalization_context(
+    report_data: dict[str, Any] | None = None,
+    screen_model: dict[str, Any] | None = None,
+    *,
+    required_terms: list[str] | None = None,
+    protected_values: list[Any] | None = None,
+) -> dict[str, Any]:
+    report = _to_dict(report_data or {})
+    screen = _to_dict(screen_model or {})
+    llm_explanation = _to_dict(report.get("llm_explanation"))
+    provider = (
+        llm_explanation.get("provider")
+        or report.get("ai_provider")
+        or os.getenv("AI_PROVIDER")
+    )
+    run_id = (
+        report.get("run_history_id")
+        or report.get("analysis_run_id")
+        or _to_dict(screen.get("header")).get("analysis_run_id")
+    )
+    return {
+        "llm_available": bool(llm_explanation.get("enabled") or report.get("ai_generated_narrative")),
+        "llm_provider": provider,
+        "posture": _display_value(_to_dict(screen.get("header")).get("decision_posture")),
+        "risk": _display_value(_to_dict(screen.get("header")).get("display_severity_label")),
+        "confidence": _confidence_level_from_value(_to_dict(screen.get("header")).get("confidence")),
+        "required_terms": required_terms or [],
+        "protected_values": protected_values or [],
+        "memory_context": _get_memory_context_for_vocalization(run_id),
+    }
+
+
+def _get_memory_context_for_vocalization(run_id: Any) -> dict[str, Any]:
+    del run_id
+    return {
+        "previous_similar_cases": [],
+        "prior_phrasing_style": None,
+        "memory_coverage": "none",
+    }
+
+
+def _render_status_insight_row(insights: list[dict[str, Any]]) -> str:
+    rendered = [
+        _render_status_insight(
+            insight.get("label"),
+            insight.get("value"),
+            insight.get("note"),
+            insight.get("tone"),
+        )
+        for insight in insights
+    ]
+    return '<div class="status-insight-row">' + "".join(rendered) + "</div>"
+
+
+def _render_status_insight(label: Any, value: Any, note: Any, tone: Any) -> str:
+    label_text = _display_value(label).upper() if _has_display_value(label) else "STATUS"
+    value_text = _display_value(value) if _has_display_value(value) else "Unavailable"
+    note_text = _display_value(note) if _has_display_value(note) else ""
+    tone_text = _screen5_status_insight_tone(tone)
+    return f"""
+          <div class="status-insight">
+            <span class="status-insight-pill status-insight-pill--{escape(tone_text)}">
+              {escape(value_text)}
+            </span>
+            <span class="status-insight-label">
+              {escape(label_text)}
+            </span>
+            <span class="status-insight-note">
+              {escape(note_text)}
+            </span>
+          </div>
+    """
+
+
+def _screen5_status_insight_tone(tone: Any) -> str:
+    normalized = str(tone or "").strip().lower()
+    allowed = {
+        "success",
+        "warning",
+        "error",
+        "low",
+        "confidence-low",
+        "confidence-medium",
+        "confidence-high",
+        "accent",
+        "neutral",
+    }
+    return normalized if normalized in allowed else "neutral"
+
+
+def _screen5_posture_status_note(posture_key: str) -> str:
+    if posture_key == "TUNE FIRST":
+        return "Validate and tune before scaling."
+    if posture_key == "SCALE NOW":
+        return "Scaling is supported by this run; validate implementation scope before execution."
+    if posture_key == "DO NOT SCALE":
+        return "Scaling is not supported by this run."
+    return "Review deterministic posture before taking action."
+
+
+def _screen5_posture_status_tone(posture_key: str) -> str:
+    if posture_key == "TUNE FIRST":
+        return "accent"
+    if posture_key == "SCALE NOW":
+        return "error"
+    if posture_key == "DO NOT SCALE":
+        return "success"
+    return "neutral"
+
+
+def _screen5_action_risk_status_note(action_risk: Any) -> str:
+    normalized = str(action_risk or "").strip().upper()
+    if normalized == "LOW":
+        return "No deterministic high-risk action trigger was selected."
+    if normalized == "MEDIUM":
+        return "Validation is required before operational action."
+    if normalized == "HIGH":
+        return "High-risk action context requires careful review before execution."
+    if normalized == "CRITICAL":
+        return "Critical action context requires immediate expert review."
+    return "Review deterministic risk before taking action."
+
+
+def _screen5_action_risk_status_tone(action_risk: Any) -> str:
+    normalized = str(action_risk or "").strip().upper()
+    if normalized == "LOW":
+        return "low"
+    if normalized == "MEDIUM":
+        return "warning"
+    if normalized in {"HIGH", "CRITICAL"}:
+        return "error"
+    return "neutral"
+
+
+def _screen5_confidence_status_note(confidence_level: Any) -> str:
+    normalized = str(confidence_level or "").strip().upper()
+    if normalized == "LOW":
+        return "Limited signal strength and data coverage."
+    if normalized == "MEDIUM":
+        return "Evidence is sufficient but should be validated."
+    if normalized == "HIGH":
+        return "Evidence is strong and internally consistent."
+    return "Confidence level is unavailable."
+
+
+def _screen5_note_required_terms(text: str) -> list[str]:
+    lower = text.lower()
+    terms = []
+    for term in (
+        "validate",
+        "tune",
+        "scaling",
+        "risk",
+        "confidence",
+        "signal",
+        "coverage",
+        "evidence",
+        "action",
+    ):
+        if term in lower:
+            terms.append(term)
+    return terms
+
+
+def _screen5_posture_key(posture: Any) -> str:
+    text = _display_value(posture) if _has_display_value(posture) else ""
+    normalized = re.sub(r"[^A-Z0-9]+", " ", text.upper()).strip()
+    if normalized == "TUNE FIRST":
+        return "TUNE FIRST"
+    if normalized == "SCALE NOW":
+        return "SCALE NOW"
+    if normalized in {"DO NOT SCALE", "DONT SCALE"}:
+        return "DO NOT SCALE"
+    return "UNKNOWN"
+
+
+def _screen5_action_conclusion_title(
+    posture_key: str,
+    canonical_recommendation_count: int,
+) -> str:
+    if posture_key == "TUNE FIRST":
+        return "No Immediate Scaling Action Recommended"
+    if posture_key == "SCALE NOW":
+        return "Scaling Action Supported"
+    if posture_key == "DO NOT SCALE":
+        return "Scaling Not Recommended"
+    if canonical_recommendation_count > 0:
+        return "Deterministic Action Available"
+    return "No Deterministic Action Recommendation Emitted"
+
+
+def _screen5_action_conclusion_body(
+    posture_key: str,
+    canonical_recommendation_count: int,
+) -> str:
+    if posture_key == "TUNE FIRST":
+        return "Operational next step: validate and tune before scaling."
+    if posture_key == "SCALE NOW":
+        return "Operational next step: review deterministic recommendations and evidence before scaling execution."
+    if posture_key == "DO NOT SCALE":
+        return "Operational next step: address the identified bottleneck before capacity action."
+    if canonical_recommendation_count > 0:
+        return "Operational next step: follow the deterministic recommendation objects listed on this page."
+    return "Operational next step: review deterministic findings and validation evidence before taking action."
+
+
+def _screen5_final_action_statement(
+    posture_key: str,
+    canonical_recommendation_count: int,
+) -> str:
+    if canonical_recommendation_count > 0:
+        return "Action page conclusion: follow the deterministic recommendation objects listed on this page."
+    if posture_key == "TUNE FIRST":
+        return "Action page conclusion: tune and validate first before any scaling decision."
+    if posture_key == "SCALE NOW":
+        return "Action page conclusion: scaling action is supported by this run. Review deterministic recommendations and evidence before execution."
+    if posture_key == "DO NOT SCALE":
+        return "Action page conclusion: scaling is not supported by this run. Address the identified bottleneck before capacity action."
+    if posture_key == "UNKNOWN":
+        return "Action page conclusion: no deterministic action recommendation was emitted for this run."
+    return "Action page conclusion: review deterministic findings and validation evidence before taking action."
+
+
+def _screen5_base_rationale_lines(
+    posture_key: str,
+    confidence_level: str,
+    canonical_recommendation_count: int,
+) -> list[str]:
+    if canonical_recommendation_count > 0:
+        return [
+            "Deterministic recommendation objects were emitted for this selected scope.",
+            "Action handling should follow the listed deterministic recommendation objects.",
+            f"{confidence_level} confidence reflects the deterministic evidence coverage for this run.",
+        ]
+    posture_line = {
+        "TUNE FIRST": "TUNE FIRST posture means validation and tuning should precede scaling.",
+        "SCALE NOW": "SCALE NOW posture means scaling is supported by deterministic evidence.",
+        "DO NOT SCALE": "DO NOT SCALE posture means scaling is not supported by this run.",
+    }.get(
+        posture_key,
+        "No deterministic action recommendation was emitted for this run.",
+    )
+    confidence_line = (
+        "Low confidence reflects limited evidence coverage, not a scaling trigger."
+        if confidence_level == "LOW"
+        else f"{confidence_level} confidence reflects deterministic evidence coverage."
+    )
+    return [
+        posture_line,
+        "No canonical recommendation object was emitted for this selected scope.",
+        confidence_line,
+    ]
+
+
+def _screen5_vocalization_context(
+    *,
+    posture_key: str,
+    confidence: str,
+    action_risk: str,
+    canonical_recommendation_count: int,
+    report_data: dict[str, Any] | None = None,
+    screen_model: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    context = _vocalization_context(
+        report_data or {},
+        screen_model or {},
+        protected_values=[posture_key, confidence, action_risk],
+    )
+    context.update(
+        {
+        "posture": posture_key,
+        "confidence": confidence,
+        "action_risk": action_risk,
+        "has_recommendations": canonical_recommendation_count > 0,
+        "memory_context": _get_screen5_memory_phrasing_context(),
+        }
+    )
+    return context
+
+
+def _vocalize_screen5_final_statement(
+    base_statement: str,
+    context: dict[str, Any],
+    candidate: Any = None,
+) -> str:
+    if not _screen5_vocalized_statement_is_safe(
+        candidate,
+        base_statement,
+        context,
+    ):
+        return base_statement
+    return _display_value(candidate)
+
+
+def _vocalize_screen5_rationale_lines(
+    base_lines: list[str],
+    context: dict[str, Any],
+    candidate: Any = None,
+) -> list[str]:
+    candidate_lines = [
+        _display_value(item)
+        for item in (candidate or [])
+        if _has_display_value(item)
+    ] if isinstance(candidate, list) else []
+    if not _screen5_vocalized_rationale_is_safe(
+        candidate_lines,
+        base_lines,
+        context,
+    ):
+        return [
+            _vocalize_text(
+                line,
+                {
+                    **context,
+                    "required_terms": _screen5_note_required_terms(line),
+                },
+            )
+            for line in base_lines[:3]
+        ]
+    return candidate_lines[:3]
+
+
+def _screen5_vocalized_statement_is_safe(
+    candidate: Any,
+    base_statement: str,
+    context: dict[str, Any],
+) -> bool:
+    if not _has_display_value(candidate):
+        return False
+    candidate_text = _display_value(candidate)
+    if len(re.split(r"(?<=[.!?])\s+", candidate_text.strip())) > 2:
+        return False
+    return _screen5_vocalized_text_preserves_intent(
+        candidate_text,
+        [base_statement],
+        context,
+    )
+
+
+def _screen5_vocalized_rationale_is_safe(
+    candidate_lines: list[str],
+    base_lines: list[str],
+    context: dict[str, Any],
+) -> bool:
+    if not candidate_lines or len(candidate_lines) > 3:
+        return False
+    return all(
+        _screen5_vocalized_text_preserves_intent(candidate, base_lines, context)
+        for candidate in candidate_lines
+    )
+
+
+def _screen5_vocalized_text_preserves_intent(
+    candidate_text: str,
+    base_texts: list[str],
+    context: dict[str, Any],
+) -> bool:
+    candidate_lower = candidate_text.lower()
+    base_joined = " ".join(base_texts).lower()
+    posture = str(context.get("posture") or "UNKNOWN").upper()
+    if posture in {"TUNE FIRST", "SCALE NOW", "DO NOT SCALE"}:
+        posture_token = posture.lower()
+        posture_words = posture_token.split()
+        if not all(word in candidate_lower or word in base_joined for word in posture_words):
+            return False
+    forbidden_patterns = (
+        r"\b(add|create|implement|resize|provision|increase|decrease)\b",
+        r"\b(ocpu|ecpu|cpu cores?|storage|memory size|sga|pga target)\b",
+        r"\b(root cause is|caused by|must be due to)\b",
+        r"\b(recommendation|recommend)\b",
+    )
+    if any(re.search(pattern, candidate_lower) for pattern in forbidden_patterns):
+        if "recommendation object" not in candidate_lower and "deterministic recommendation" not in candidate_lower:
+            return False
+    required_terms = []
+    if "has_recommendations" in context and not context.get("has_recommendations"):
+        required_terms.append("no")
+    if str(context.get("confidence") or "").upper() == "LOW":
+        required_terms.append("confidence")
+    return all(term in candidate_lower or term in base_joined for term in required_terms)
+
+
+def _get_screen5_memory_phrasing_context() -> dict[str, Any]:
+    # Oracle Agent Memory, if added in Phase 6N.1, is a non-authoritative recall and phrasing context layer. It must never influence scoring, parser behavior, decision posture, or deterministic recommendation generation.
+    return {
+        "recurrence": None,
+        "prior_outcome": None,
+        "prior_action": None,
+        "memory_coverage": "none",
+    }
+
+
+def _render_screen5_action_rationale_card(
+    canonical_recommendation_count: int,
+    canonical_empty_message: str,
+    recommendation_groups: list[Any],
+    rationale_lines: list[str],
+) -> str:
+    if canonical_recommendation_count > 0:
+        return (
+            '<div class="stack compact-evidence-stack">'
+            + _render_recommendation_groups(recommendation_groups)
+            + "</div>"
+        )
+    del canonical_empty_message
+    notes = rationale_lines[:3]
+    return (
+        '<div class="supportive-panel compact-supportive-panel">'
+        + "<ul>"
+        + "".join(f"<li>{escape(note)}</li>" for note in notes)
+        + "</ul></div>"
+    )
+
+
+def _render_action_status_chip(label: str, value: Any) -> str:
+    text = _display_value(value) if _has_display_value(value) else "Unavailable"
+    css_class = _status_pill_class(text) or "neutral"
+    if label.strip().lower() == "confidence":
+        css_class = f"confidence-{_confidence_level_from_value(text).lower()}"
+    return (
+        f'<span class="status-pill {escape(css_class)}">'
+        f"{escape(label)}: {escape(text)}</span>"
+    )
 
 
 def _render_screen5_supporting_evidence(
@@ -6080,6 +7859,265 @@ def _render_screen5_supporting_evidence(
         (_render_primary_evidence(primary, domain_scores) if has_primary else "")
         + _render_secondary_evidence(meaningful_secondary, domain_scores)
     )
+
+
+def _render_guidance_list(items: list[Any]) -> str:
+    cleaned_items = [
+        _display_value(item)
+        for item in items
+        if _has_display_value(item)
+    ]
+    if not cleaned_items:
+        return _render_empty_item("No posture-based guidance is available.")
+    return "<ul>" + "".join(
+        f"<li>{escape(item)}</li>" for item in cleaned_items
+    ) + "</ul>"
+
+
+def _render_screen5_validation_plan(
+    items: list[Any],
+    posture_key: str,
+    vocalization_context: dict[str, Any] | None = None,
+) -> str:
+    cleaned_items = [
+        _display_value(item)
+        for item in items
+        if _has_display_value(item)
+    ]
+    if not cleaned_items:
+        return _render_empty_item("No posture-based guidance is available.")
+    scaling_guidance = _screen5_validation_scaling_guidance(posture_key)
+    cleaned_items = [
+        item for item in cleaned_items
+        if not re.search(r"\bdo not scale until tuning validation is complete\b", item, re.IGNORECASE)
+    ]
+    if scaling_guidance:
+        cleaned_items.append(scaling_guidance)
+    categories = [
+        (
+            "SQL / Access Path",
+            [
+                item for item in cleaned_items
+                if re.search(r"\b(SQL|access-path|User I/O|db file sequential read)\b", item, re.IGNORECASE)
+            ],
+        ),
+        (
+            "Commit / Transaction Behavior",
+            [
+                item for item in cleaned_items
+                if re.search(r"\b(commit|log file sync|transaction)\b", item, re.IGNORECASE)
+            ],
+        ),
+        (
+            "RAC / Data Guard Context",
+            [
+                item for item in cleaned_items
+                if re.search(r"\b(RAC|Data Guard|replication)\b", item, re.IGNORECASE)
+            ],
+        ),
+        (
+            "Evidence Completeness",
+            [
+                item for item in cleaned_items
+                if re.search(r"\b(signal coverage|completeness|validation|scaling decision|capacity target|scale|bottleneck|action appropriate)\b", item, re.IGNORECASE)
+            ],
+        ),
+    ]
+    rendered = []
+    used: set[str] = set()
+    for title, category_items in categories:
+        unique_items = []
+        for item in category_items:
+            if item in used:
+                continue
+            unique_items.append(item)
+            used.add(item)
+        if not unique_items:
+            continue
+        rendered.append(
+            f"""
+            <div class="validation-plan-group">
+              <strong>{escape(title)}</strong>
+              <ul>{"".join(f"<li>{escape(_vocalize_screen5_validation_text(item, vocalization_context))}</li>" for item in unique_items)}</ul>
+            </div>
+            """
+        )
+    remaining = [item for item in cleaned_items if item not in used]
+    if remaining:
+        rendered.append(
+            f"""
+            <div class="validation-plan-group">
+              <strong>Additional Validation</strong>
+              <ul>{"".join(f"<li>{escape(_vocalize_screen5_validation_text(item, vocalization_context))}</li>" for item in remaining)}</ul>
+            </div>
+            """
+        )
+    return '<div class="validation-plan-groups">' + "".join(rendered) + "</div>"
+
+
+def _vocalize_screen5_validation_text(
+    text: str,
+    vocalization_context: dict[str, Any] | None,
+) -> str:
+    return _vocalize_text(
+        text,
+        {
+            **(vocalization_context or {}),
+            "required_terms": _screen5_note_required_terms(text),
+        },
+    )
+
+
+def _screen5_validation_scaling_guidance(posture_key: str) -> str:
+    if posture_key == "TUNE FIRST":
+        return "Complete tuning validation before making a scaling decision."
+    if posture_key == "SCALE NOW":
+        return "Validate implementation scope and capacity target before scaling."
+    if posture_key == "DO NOT SCALE":
+        return "Do not scale; resolve the identified bottleneck first."
+    return "Use validation results to determine whether tuning, scaling, or no action is appropriate."
+
+
+def _render_screen5_evidence_checklist(
+    focus_areas: list[Any],
+    vocalization_context: dict[str, Any] | None = None,
+) -> str:
+    grouped: dict[str, list[str]] = {
+        "waits": [],
+        "anomalies": [],
+        "missing": [],
+        "other": [],
+    }
+    anomaly_overflow = False
+    for focus_area in focus_areas:
+        area = _to_dict(focus_area)
+        title = _display_value(area.get("title"))
+        items = [
+            _display_value(item)
+            for item in (area.get("items") or [])
+            if _has_display_value(item)
+        ]
+        if not items:
+            continue
+        title_lower = title.lower()
+        if "wait" in title_lower:
+            grouped["waits"].extend(items)
+        elif "anomal" in title_lower:
+            anomaly_overflow = len(items) > 5
+            grouped["anomalies"].extend(
+                _screen5_top_anomaly_items(items, limit=5) if anomaly_overflow else items
+            )
+        elif "missing" in title_lower or "metric" in title_lower:
+            grouped["missing"].extend(items)
+        else:
+            grouped["other"].extend(items)
+    sections = []
+    if grouped["waits"]:
+        sections.append(
+            f"""
+            <article class="item evidence-checklist-item">
+              <h3>Top Waits</h3>
+              <div class="compact-inline-list">{escape(" · ".join(grouped["waits"]))}</div>
+            </article>
+            """
+        )
+    if grouped["anomalies"]:
+        overflow_note = _vocalize_text(
+            "Additional anomaly windows are available in Screen 4 Historical Review.",
+            {
+                **(vocalization_context or {}),
+                "required_terms": ["anomaly", "Screen 4"],
+            },
+        )
+        sections.append(
+            f"""
+            <article class="item evidence-checklist-item">
+              <h3>Anomalies</h3>
+              <ul class="compact-list">{"".join(f"<li>{escape(item)}</li>" for item in grouped["anomalies"])}</ul>
+              {f'<div class="meta">{escape(overflow_note)}</div>' if anomaly_overflow else ''}
+            </article>
+            """
+        )
+    if grouped["missing"]:
+        sections.append(
+            f"""
+            <article class="item evidence-checklist-item warning-note">
+              <h3>Missing Metrics</h3>
+              <div class="meta">{escape("; ".join(grouped["missing"]))}</div>
+            </article>
+            """
+        )
+    if grouped["other"]:
+        sections.append(
+            f"""
+            <article class="item evidence-checklist-item">
+              <h3>Other Evidence</h3>
+              <ul class="compact-list">{"".join(f"<li>{escape(item)}</li>" for item in grouped["other"])}</ul>
+            </article>
+            """
+        )
+    if not sections:
+        return _render_empty_item(
+            _vocalize_text(
+                "No validation focus areas were available.",
+                vocalization_context or {},
+            )
+        )
+    return '<div class="evidence-checklist">' + "".join(sections) + "</div>"
+
+
+def _render_validation_focus_areas(
+    focus_areas: list[Any],
+    *,
+    limit_anomalies: bool = False,
+) -> str:
+    sections = []
+    for focus_area in focus_areas:
+        area = _to_dict(focus_area)
+        title = _display_value(area.get("title"))
+        items = [
+            _display_value(item)
+            for item in (area.get("items") or [])
+            if _has_display_value(item)
+        ]
+        if not items:
+            continue
+        overflow_note = ""
+        if limit_anomalies and "anomal" in title.lower() and len(items) > 5:
+            items = _screen5_top_anomaly_items(items, limit=5)
+            overflow_note = (
+                '<div class="meta">Additional anomaly windows are available in '
+                "Screen 4 Historical Review.</div>"
+            )
+        sections.append(
+            f"""
+            <article class="item">
+              <h3>{escape(title)}</h3>
+              <ul>{"".join(f"<li>{escape(item)}</li>" for item in items)}</ul>
+              {overflow_note}
+            </article>
+            """
+        )
+    if not sections:
+        return _render_empty_item("No validation focus areas were available.")
+    return "".join(sections)
+
+
+def _screen5_top_anomaly_items(items: list[str], *, limit: int) -> list[str]:
+    severity_rank = {"critical": 0, "high": 1, "medium": 2, "warning": 2, "low": 3}
+
+    def rank(item_with_index: tuple[int, str]) -> tuple[int, int]:
+        index, item = item_with_index
+        lowered = item.lower()
+        for severity, severity_value in severity_rank.items():
+            if re.search(rf"\b{re.escape(severity)}\b", lowered):
+                return (severity_value, index)
+        return (4, index)
+
+    return [
+        item
+        for _, item in sorted(enumerate(items), key=rank)[:limit]
+    ]
 
 
 def _has_meaningful_evidence(payload: dict[str, Any]) -> bool:
@@ -6134,8 +8172,7 @@ def _display_value(value: Any) -> str:
             return "Insufficient data for a reliable conclusion"
         if (
             text.startswith("Similarity unavailable")
-            or text.startswith("Primary domain score unavailable")
-            or text == "Domain score unavailable"
+            or text == "No dominant scored domain selected"
         ):
             return text
         if text.startswith("CPU percentage is unavailable") or text.startswith("Average CPU percentage is unavailable"):
@@ -6458,17 +8495,42 @@ def _render_confidence_badge(value: Any) -> str:
     )
 
 
+def _render_screen2_confidence_pill(value: Any) -> str:
+    level = _confidence_level_from_value(value)
+    return (
+        f'<span class="confidence-pill {escape(level.lower())}">'
+        f"{escape(level)}</span>"
+    )
+
+
+def _screen2_confidence_display_note(value: Any) -> str:
+    level = _confidence_level_from_value(value)
+    if level == "LOW":
+        return "Limited signal strength and data coverage."
+    if level == "MEDIUM":
+        return "Moderate signal strength and data coverage."
+    return "Strong signal strength and data coverage."
+
+
 def _render_status_badge(value: Any) -> str:
     text = str(value or "").strip()
     if not text:
         return ""
     normalized = text.upper()
-    if normalized in {"CRITICAL", "HIGH", "FAIL"}:
-        css_class = "critical"
-    elif normalized in {"WARNING", "MEDIUM", "MARGINAL"}:
-        css_class = "medium"
-    else:
+    if normalized in {"OK", "PASS", "SUCCESS", "SUCCEEDED"}:
+        css_class = "success"
+    elif normalized in {"WARNING", "MEDIUM", "MARGINAL", "DEFER", "DEFERRED"}:
+        css_class = "warning"
+    elif normalized in {"CRITICAL", "HIGH", "FAIL", "FAILED", "SCALE NOW"}:
+        css_class = "error"
+    elif normalized == "TUNE FIRST":
+        css_class = "accent"
+    elif normalized == "LOW":
         css_class = "low"
+    elif normalized in {"UNKNOWN", "UNAVAILABLE", "N/A", "NA", "NONE"}:
+        css_class = "neutral"
+    else:
+        css_class = "neutral"
     return f'<span class="severity {escape(css_class)}">{escape(text)}</span>'
 
 
@@ -6480,11 +8542,16 @@ def _render_info_grid(items: list[tuple[str, Any]], extra_class: str = "") -> st
         return _render_empty_item("No additional details are available.")
     boxes = []
     for label, value in present_items:
+        value_html = (
+            str(value)
+            if isinstance(value, _TrustedHtml)
+            else escape(_display_value(value))
+        )
         boxes.append(
             f"""
             <div class="info-box">
               <strong>{escape(str(label))}</strong>
-              <div>{escape(_display_value(value))}</div>
+              <div>{value_html}</div>
             </div>
             """
         )
@@ -6916,7 +8983,7 @@ def _render_health_check(health_check: dict[str, Any]) -> str:
             f"""
             <article class="health-check-card">
               <div class="meta">
-                <span class="health-pill {_health_status_class(status)}">{escape(status)}</span>
+                <span class="health-pill {_health_status_class(status)}">{escape(display_status)}</span>
               </div>
               <h3>{escape(_display_value(row.get("check")))}</h3>
               <p><strong>Observed:</strong> {escape(_display_value(observed_value))}</p>
@@ -6926,7 +8993,7 @@ def _render_health_check(health_check: dict[str, Any]) -> str:
         )
     return f"""
       <div class="health-check-summary">
-        <span class="health-pill {_health_status_class(summary_status)}">{escape(summary_status)}</span>
+        <span class="health-pill {_health_status_class(summary_status)}">{escape(display_summary_status)}</span>
         {
             f'<div class="meta">{escape(_normalize_narrative_for_display(summary_reason))}</div>'
             if _has_display_value(summary_reason)
@@ -6969,14 +9036,75 @@ def _render_historical_scope_memory(scope_memory: dict[str, Any]) -> str:
 
     summary = _normalize_narrative_for_display(scope_memory.get("summary"))
     scope_concepts = scope_memory.get("items") or scope_memory.get("scope_concepts") or []
-    items = "".join(
-        f"<li>{escape(_display_value(_normalize_narrative_for_display(scope)))}</li>"
+    cleaned_items = [
+        _display_value(_normalize_narrative_for_display(scope))
         for scope in scope_concepts
+        if _has_display_value(scope)
+    ]
+    summary_text = (
+        _display_value(summary)
+        if _has_display_value(summary)
+        else "No prior memory outcome is available for this selected scope."
     )
+    return f"""
+      <article class="item screen4-memory-block">
+        <div class="meta">Memory context is supporting historical evidence only.</div>
+        <p>{escape(summary_text)}</p>
+        {"<ul>" + "".join(f"<li>{escape(item)}</li>" for item in cleaned_items) + "</ul>" if cleaned_items else ""}
+      </article>
+    """
+
+
+def _render_screen4_topology_platform_review(
+    topology_platform_review: dict[str, Any],
+) -> str:
+    """Render Screen 4 topology/platform context as aligned supporting evidence."""
+
+    host_notes = ", ".join(topology_platform_review.get("host_instance_notes") or [])
+    primary_items = [
+        ("RAC Summary", topology_platform_review.get("rac_summary")),
+        ("Data Guard Summary", topology_platform_review.get("data_guard_summary")),
+        ("Host / Instance Notes", host_notes),
+    ]
+    html = _render_info_grid(primary_items, extra_class="screen4-topology-grid")
+    if _has_display_value(topology_platform_review.get("exadata_summary")):
+        html += _render_info_grid(
+            [("Exadata Summary", topology_platform_review.get("exadata_summary"))],
+            extra_class="screen4-compact-info-grid",
+        )
+    return html
+
+
+def _render_screen4_historical_interpretation(
+    explanation_panel: dict[str, Any],
+    normalized_decision: dict[str, Any] | None,
+) -> str:
+    """Render a compact non-authoritative Screen 4 historical interpretation."""
+
+    interpretation = _normalize_narrative_for_display(
+        explanation_panel.get("historical_interpretation"),
+        normalized_decision,
+    )
+    if not _has_display_value(interpretation):
+        interpretation = (
+            "Historical evidence supports the current interpretation but remains "
+            "supporting context only."
+        )
+    interpretation = _screen4_first_sentence_pair(_display_value(interpretation))
     return (
-        f"<p>{escape(_display_value(summary))}</p>"
-        + (f"<ul>{items}</ul>" if items else "")
+        '<div class="supportive-panel screen4-interpretation-block">'
+        '<div class="meta">'
+        "Historical evidence supports interpretation but does not override the selected-scope diagnostic truth."
+        "</div>"
+        f'<div class="narrative">{escape(interpretation)}</div>'
+        "</div>"
     )
+
+
+def _screen4_first_sentence_pair(text: str) -> str:
+    sentences = re.split(r"(?<=[.!?])\s+", str(text or "").strip())
+    compact = " ".join(sentence for sentence in sentences[:2] if sentence)
+    return compact or text
 
 
 def _analysis_information_items(
@@ -6998,7 +9126,15 @@ def _analysis_information_items(
         ("Cumulative OCPUs / Cores", analysis_information.get("ocpus_cores")),
         ("Memory per Instance", analysis_information.get("memory_per_instance")),
         ("Platform Detected", analysis_information.get("platform_detected")),
-        ("Topology Detected", analysis_information.get("topology_detected")),
+        (
+            "Selected Scope Topology",
+            analysis_information.get("selected_scope_topology")
+            or analysis_information.get("topology_detected"),
+        ),
+        (
+            "Historical / Contextual Topology",
+            analysis_information.get("historical_contextual_topology"),
+        ),
         ("Snapshot Start", analysis_information.get("snapshot_start")),
         ("Snapshot End", analysis_information.get("snapshot_end")),
         (
@@ -8351,11 +10487,19 @@ def _health_status_class(status: str) -> str:
     }.get(normalized, "na")
 
 
+def _display_supporting_health_status(status: str) -> str:
+    normalized = str(status or "").strip().upper()
+    if normalized == "FAIL":
+        return "ATTENTION"
+    return normalized or "N/A"
+
+
 def _status_pill_class(status: str) -> str:
     normalized = status.strip().upper()
     if normalized in {
         "SUCCEEDED",
         "SUCCESS",
+        "PASS",
         "OK",
         "CONNECTED",
         "ALREADY LOADED",
@@ -8366,11 +10510,27 @@ def _status_pill_class(status: str) -> str:
         "UPDATED",
     }:
         return "success"
-    if normalized in {"FAILED", "ERROR"}:
+    if normalized in {"FAILED", "ERROR", "FAIL", "HIGH", "CRITICAL", "SCALE NOW"}:
         return "error"
-    if normalized in {"WARNINGS", "WARNING", "SKIPPED", "NOT CHECKED", "LOCAL ONLY", "MISSING"}:
+    if normalized in {
+        "WARNINGS",
+        "WARNING",
+        "MEDIUM",
+        "DEFER",
+        "DEFERRED",
+        "SKIPPED",
+        "NOT CHECKED",
+        "LOCAL ONLY",
+        "MISSING",
+    }:
         return "warning"
-    return ""
+    if normalized == "TUNE FIRST":
+        return "accent"
+    if normalized == "LOW":
+        return "low"
+    if normalized in {"UNKNOWN", "UNAVAILABLE", "N/A", "NA", "NONE"}:
+        return "neutral"
+    return "neutral"
 
 
 def _render_decision_boxes(agentic_decision: dict[str, Any]) -> str:
@@ -8746,16 +10906,70 @@ def _normalized_decision_banner_state(
     return posture_map.get(posture, fallback)
 
 
-def _short_model_name(provider: Any, model: Any) -> str:
-    """Return a readable model label for dashboard display."""
+def _model_alias_from_runtime(
+    report_data: dict[str, Any],
+    llm_explanation: dict[str, Any],
+) -> str | None:
+    metadata = _to_dict(report_data.get("metadata"))
+    llm_metadata = _to_dict(llm_explanation.get("metadata"))
+    for source in (llm_explanation, llm_metadata, metadata):
+        source_dict = _to_dict(source)
+        for key in (
+            "model_alias",
+            "friendly_model_alias",
+            "friendly_model_name",
+            "model_display_name",
+            "llm_model_alias",
+        ):
+            value = source_dict.get(key)
+            if _has_display_value(value):
+                return str(value).strip()
+    for env_name in ("AWR_LLM_MODEL_ALIAS", "LLM_MODEL_ALIAS"):
+        value = os.getenv(env_name)
+        if _has_display_value(value):
+            return str(value).strip()
+    return None
 
-    provider_name = str(provider or "").strip().lower()
-    model_name = str(model or "None").strip()
 
-    if provider_name == "oci" and model_name.startswith("ocid1."):
-        return "Grok 4.1"
+def format_model_display_name(raw_model: str, alias: str | None = None) -> str:
+    """Return a compact, human-readable model name for dashboard display."""
 
+    if _has_display_value(alias):
+        return str(alias).strip()
+    model_name = str(raw_model or "").strip()
+    if not model_name:
+        return "Model not identified in current runtime"
+    mappings = {
+        "xai.grok-4-1-fast-reasoning": "Grok 4.1 Fast (Reasoning)",
+        "xai.grok-4-1-fast": "Grok 4.1 Fast",
+        "xai.grok-4-fast-reasoning": "Grok 4 Fast (Reasoning)",
+        "xai.grok-4.20-reasoning": "Grok 4.20 Reasoning",
+        "gpt-5.4-mini": "GPT-5.4 Mini",
+    }
+    if model_name in mappings:
+        return mappings[model_name]
+    if model_name.startswith("ocid1.generativeaimodel."):
+        return "OCI Generative AI Model"
+    if len(model_name) > 40:
+        return model_name[:40] + "..."
     return model_name
+
+
+def _render_model_display_name(raw_model: Any, alias: str | None = None) -> _TrustedHtml:
+    raw_text = str(raw_model or "").strip()
+    display = format_model_display_name(raw_text, alias=alias)
+    if not raw_text or raw_text == display:
+        return _TrustedHtml(escape(display))
+    return _TrustedHtml(
+        f'<span title="{escape(raw_text)}">{escape(display)}</span>'
+    )
+
+
+def _runtime_model_name(provider: Any, model: Any) -> str:
+    """Return the runtime model label for dashboard display."""
+
+    del provider
+    return format_model_display_name(str(model or "None").strip())
 
 
 def _normalize_ai_sections(ai_sections: dict[str, str]) -> dict[str, str]:
@@ -9216,6 +11430,7 @@ def _render_topology_scalar_fallback(violin_payload: dict[str, Any]) -> str:
         ("Lag Stability Seconds", "lag_stability_sec"),
     ]
     boxes: list[str] = []
+    latest_values: dict[str, float] = {}
     for label, key in metric_specs:
         values = topology_payload.get(key)
         if _has_violin_display_data(values):
@@ -9230,6 +11445,7 @@ def _render_topology_scalar_fallback(violin_payload: dict[str, Any]) -> str:
         if not numeric_values:
             continue
         latest_value = numeric_values[-1]
+        latest_values[key] = latest_value
         range_text = (
             f"{_format_scalar_metric(min(numeric_values))} - "
             f"{_format_scalar_metric(max(numeric_values))}"
@@ -9248,6 +11464,7 @@ def _render_topology_scalar_fallback(violin_payload: dict[str, Any]) -> str:
 
     if not boxes:
         return ""
+    gc_equivalence_note = _render_gc_cluster_equivalence_note(latest_values)
     return (
         """
       <section id="topology-scalar-metrics" class="card secondary">
@@ -9257,6 +11474,9 @@ def _render_topology_scalar_fallback(violin_payload: dict[str, Any]) -> str:
           These topology facts use real samples but did not meet violin
           distribution gates, so they remain scalar evidence.
         </p>
+"""
+        + gc_equivalence_note
+        + """
         <div class="scalar-grid">
 """
         + "".join(boxes)
@@ -9265,6 +11485,20 @@ def _render_topology_scalar_fallback(violin_payload: dict[str, Any]) -> str:
       </section>
     """
     )
+
+
+def _render_gc_cluster_equivalence_note(latest_values: dict[str, float]) -> str:
+    cluster_wait = latest_values.get("cluster_wait_pct_db_time")
+    combined_gc = latest_values.get("combined_gc_wait_pct_db_time")
+    if cluster_wait is None or combined_gc is None:
+        return ""
+    if not math.isclose(cluster_wait, combined_gc, rel_tol=0.0, abs_tol=0.005):
+        return ""
+    return """
+        <p class="scalar-note scalar-context-note">
+          In this window, populated cluster wait evidence is GC-related, so combined GC wait matches total cluster wait.
+        </p>
+"""
 
 
 def _build_violin_metric_groups(
