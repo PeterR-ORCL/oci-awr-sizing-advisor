@@ -273,6 +273,46 @@ def persist_analysis(
             connection.close()
 
 
+def insert_action_history(
+    *,
+    run_history_id: int,
+    action_type: str,
+    action_description: str,
+    action_status: str = "RECORDED",
+    recommendation_history_id: int | None = None,
+    action_owner: str | None = None,
+    action_notes: str | None = None,
+    action_timestamp: datetime | None = None,
+    connection: Any | None = None,
+) -> int:
+    """Insert an append-only action history row and return ACTION_HISTORY_ID."""
+
+    managed_connection = connection is None
+    if connection is None:
+        connection = get_db_connection()
+    row = {
+        "run_history_id": run_history_id,
+        "recommendation_history_id": recommendation_history_id,
+        "action_status": action_status,
+        "action_type": action_type,
+        "action_description": action_description,
+        "action_notes": action_notes,
+        "action_owner": action_owner,
+        "action_timestamp": action_timestamp or datetime.now(timezone.utc),
+    }
+    try:
+        _ensure_schema(connection)
+        action_history_id = _insert_action_history_row(connection, row)
+        connection.commit()
+        return action_history_id
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        if managed_connection:
+            connection.close()
+
+
 def _ensure_schema(connection: Any) -> None:
     with connection.cursor() as cursor:
         for table_name, ddl in MEMORY_TABLE_DDL:
@@ -447,6 +487,42 @@ def _insert_unknown_signals(
             """,
             rows,
         )
+
+
+def _insert_action_history_row(connection: Any, row: dict[str, Any]) -> int:
+    with connection.cursor() as cursor:
+        action_history_id = cursor.var(int)
+        cursor.execute(
+            """
+            insert into AWR_ACTION_HISTORY (
+                RUN_HISTORY_ID,
+                RECOMMENDATION_HISTORY_ID,
+                ACTION_STATUS,
+                ACTION_TYPE,
+                ACTION_DESCRIPTION,
+                ACTION_NOTES,
+                ACTION_OWNER,
+                ACTION_TIMESTAMP
+            ) values (
+                :run_history_id,
+                :recommendation_history_id,
+                :action_status,
+                :action_type,
+                :action_description,
+                :action_notes,
+                :action_owner,
+                :action_timestamp
+            )
+            returning ACTION_HISTORY_ID into :action_history_id
+            """,
+            {**row, "action_history_id": action_history_id},
+        )
+        value = action_history_id.getvalue()
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value is None:
+            raise RuntimeError("AWR_ACTION_HISTORY insert did not return ACTION_HISTORY_ID.")
+        return int(value)
 
 
 def _build_run_history_row(

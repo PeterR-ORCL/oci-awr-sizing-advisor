@@ -37,7 +37,7 @@ from src.ingest.awr_adb_loader import (
     process_awr_batch,
     upsert_feature_vector,
 )
-from src.memory import memory_agent
+from src.memory import memory_orchestrator
 from src.parser.awr_parser import parse_awr_file
 from src.reporting.html_dashboard import generate_html_dashboard
 
@@ -4964,23 +4964,20 @@ if __name__ == "__main__":
             "snapshot_end": result.run_metadata.end_snapshot_time,
         },
     )
-    memory_run_history_id = None
-    try:
-        memory_run_history_id = memory_agent.persist_analysis(
-            phase4i_output=analysis_output,
-            source_context={
-                "analysis_run_id": analysis_awr_id,
-                "source_files": awr_files,
-                "latest_context": latest_context,
-                "decision_posture": decision_posture,
-                "analysis_timestamp": analysis_output["metadata"].get(
-                    "generated_at"
-                ),
-            },
-            parser_output=snapshot_results,
-        )
-    except Exception as exc:  # noqa: BLE001
-        print(f"Memory persistence failed: {type(exc).__name__}: {exc}")
+    memory_result = memory_orchestrator.persist_run_memory(
+        phase4i_output=analysis_output,
+        source_context={
+            "analysis_run_id": analysis_awr_id,
+            "source_files": awr_files,
+            "latest_context": latest_context,
+            "decision_posture": decision_posture,
+            "analysis_timestamp": analysis_output["metadata"].get(
+                "generated_at"
+            ),
+        },
+        parser_output=snapshot_results,
+    )
+    memory_run_history_id = memory_result.get("run_history_id")
     dashboard_metadata = {
         **analysis_output["metadata"],
         "file_name": latest_context["file_name"],
@@ -5177,6 +5174,17 @@ if __name__ == "__main__":
         "latest_snapshot_summary": multi_snapshot_analysis["latest_snapshot_summary"],
         "decision_posture": multi_snapshot_analysis["decision_posture"],
         "confidence": multi_snapshot_analysis["confidence"],
+        "memory_runtime": {
+            "enabled": bool(memory_result.get("enabled")),
+            "success": bool(memory_result.get("success")),
+            "state": (
+                "Off"
+                if not memory_result.get("enabled")
+                else "Active"
+                if memory_result.get("success")
+                else "Error"
+            ),
+        },
     }
     canonical_payload["screen_models"] = build_phase5_screen_models(
         canonical_payload,
@@ -5270,6 +5278,13 @@ if __name__ == "__main__":
     print(llm_explanation_text)
     print("\nHTML Dashboard:")
     print(f"  {dashboard_file}")
-    if memory_run_history_id is not None:
-        print("\nMemory Persistence:")
+    print("\nMemory Persistence:")
+    print(f"  enabled: {str(bool(memory_result.get('enabled'))).lower()}")
+    if memory_result.get("enabled"):
+        print(f"  success: {str(bool(memory_result.get('success'))).lower()}")
         print(f"  run_history_id: {memory_run_history_id}")
+        if memory_result.get("errors"):
+            print(f"  error: {memory_result['errors'][0]}")
+    else:
+        skipped = memory_result.get("skipped") or []
+        print(f"  skipped: {', '.join(skipped) if skipped else 'none'}")

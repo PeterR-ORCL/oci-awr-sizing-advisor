@@ -115,6 +115,23 @@
       color: var(--muted);
       margin-top: 4px;
     }
+    .meta-dot {
+      font-size: 10px;
+      margin: 0 4px 1px 6px;
+      vertical-align: middle;
+    }
+    .meta-dot.active {
+      color: var(--accent);
+    }
+    .meta-dot.off {
+      color: var(--na);
+    }
+    .meta-dot.error {
+      color: var(--high);
+    }
+    .memory-runtime-meta {
+      white-space: nowrap;
+    }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;
       gap: 18px;
@@ -1328,7 +1345,7 @@
       <div class="runtime-badge">
         <span class="status-pill success">FULL DB MODE</span>
         <div class="runtime-meta">
-          DB: Connected · Similarity: Available
+          <span>DB: Connected · Similarity: Available</span><span class="memory-runtime-meta"> · <span class="meta-dot active">●</span> Memory: Active</span>
         </div>
       </div>
     
@@ -1336,7 +1353,7 @@
           Deterministic Oracle AWR intelligence delivering consistent diagnosis,
           historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: May 4, 2026, 11:51 AM</div>
+        <div class="hero-meta">Generated: May 4, 2026, 1:00 PM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link active" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
@@ -1353,7 +1370,7 @@
         <div class="info-grid">
             <div class="info-box">
               <strong>Run Label</strong>
-              <div>May 4, 2026, 11:51 AM</div>
+              <div>May 4, 2026, 1:00 PM</div>
             </div>
             
             <div class="info-box">
@@ -1993,7 +2010,7 @@
     </div>
     
 
-    <div class="footer">Generated at May 4, 2026, 11:51 AM</div>
+    <div class="footer">Generated at May 4, 2026, 1:00 PM</div>
   </div>
 
 

@@ -757,10 +757,35 @@ def _render_runtime_status_badge(report_data: dict[str, Any]) -> str:
       <div class="runtime-badge">
         <span class="status-pill {escape(mode_class)}">{escape(status["runtime_mode"])}</span>
         <div class="runtime-meta">
-          DB: {escape(status["db_connectivity"])} · Similarity: {escape(status["similarity_status"])}
+          <span>DB: {escape(status["db_connectivity"])} · Similarity: {escape(status["similarity_status"])}</span>{_render_memory_runtime_meta(report_data)}
         </div>
       </div>
     """
+
+
+def _render_memory_runtime_meta(report_data: dict[str, Any]) -> str:
+    state, css_class = _memory_runtime_state(report_data)
+    return (
+        '<span class="memory-runtime-meta">'
+        f' · <span class="meta-dot {escape(css_class)}">●</span> Memory: {escape(state)}'
+        "</span>"
+    )
+
+
+def _memory_runtime_state(report_data: dict[str, Any]) -> tuple[str, str]:
+    memory_runtime = _to_dict(report_data.get("memory_runtime"))
+    state = str(memory_runtime.get("state") or "").strip()
+    if state.lower() == "off":
+        return "Off", "off"
+    if state.lower() == "error":
+        return "Error", "error"
+    enabled = memory_runtime.get("enabled")
+    success = memory_runtime.get("success")
+    if enabled is False:
+        return "Off", "off"
+    if success is False:
+        return "Error", "error"
+    return "Active", "active"
 
 
 def _runtime_status_from_report(report_data: dict[str, Any]) -> dict[str, str]:
@@ -3956,6 +3981,23 @@ def _shared_page_styles() -> str:
       font-size: 12px;
       color: var(--muted);
       margin-top: 4px;
+    }
+    .meta-dot {
+      font-size: 10px;
+      margin: 0 4px 1px 6px;
+      vertical-align: middle;
+    }
+    .meta-dot.active {
+      color: var(--accent);
+    }
+    .meta-dot.off {
+      color: var(--na);
+    }
+    .meta-dot.error {
+      color: var(--high);
+    }
+    .memory-runtime-meta {
+      white-space: nowrap;
     }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;

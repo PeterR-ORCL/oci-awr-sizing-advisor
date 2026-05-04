@@ -115,6 +115,23 @@
       color: var(--muted);
       margin-top: 4px;
     }
+    .meta-dot {
+      font-size: 10px;
+      margin: 0 4px 1px 6px;
+      vertical-align: middle;
+    }
+    .meta-dot.active {
+      color: var(--accent);
+    }
+    .meta-dot.off {
+      color: var(--na);
+    }
+    .meta-dot.error {
+      color: var(--high);
+    }
+    .memory-runtime-meta {
+      white-space: nowrap;
+    }
     .grid, .subgrid, .chart-grid, .flow-grid, .nav-card-grid, .health-check-grid {
       display: grid;
       gap: 18px;
@@ -1328,7 +1345,7 @@
       <div class="runtime-badge">
         <span class="status-pill success">FULL DB MODE</span>
         <div class="runtime-meta">
-          DB: Connected · Similarity: Available
+          <span>DB: Connected · Similarity: Available</span><span class="memory-runtime-meta"> · <span class="meta-dot active">●</span> Memory: Active</span>
         </div>
       </div>
     
@@ -1336,7 +1353,7 @@
           Deterministic Oracle AWR intelligence delivering consistent diagnosis,
           historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: May 4, 2026, 11:51 AM</div>
+        <div class="hero-meta">Generated: May 4, 2026, 1:00 PM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link active" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
@@ -1402,7 +1419,7 @@
                 <h3>CPU Signal</h3>
                 <p>DB CPU % DB Time = 30.4</p>
               </div>
-              <div class="meta diagnostic-driver-evidence">Latest interval shows visible CPU pressure.</div>
+              <div class="meta diagnostic-driver-evidence">There is visible CPU pressure in the latest interval.</div>
             </article>
             
             <article class="diagnostic-driver-row">
@@ -1410,7 +1427,7 @@
                 <h3>I/O Signal</h3>
                 <p>User I/O Pressure = 13.0</p>
               </div>
-              <div class="meta diagnostic-driver-evidence">Contributes to visible user I/O.</div>
+              <div class="meta diagnostic-driver-evidence">Contributor to visible user I/O.</div>
             </article>
             
             <article class="diagnostic-driver-row">
@@ -1434,7 +1451,7 @@
                 <h3>Memory Signal</h3>
                 <p>PGA Spill Pressure = 0.03</p>
               </div>
-              <div class="meta diagnostic-driver-evidence">Memory signal detected but below governing threshold.</div>
+              <div class="meta diagnostic-driver-evidence">Memory signal is present but below the governing threshold.</div>
             </article>
             
             <article class="diagnostic-driver-row">
@@ -1442,7 +1459,7 @@
                 <h3>ADG Signal</h3>
                 <p>Transport/apply lag evidence</p>
               </div>
-              <div class="meta diagnostic-driver-evidence">Evidence of Data Guard or redo transport exists in the selected scope.</div>
+              <div class="meta diagnostic-driver-evidence">Evidence of Data Guard or redo transport is present in the selected scope.</div>
             </article>
             </div>
       </section>
@@ -1627,7 +1644,7 @@
     </div>
     
 
-    <div class="footer">Generated at May 4, 2026, 11:51 AM</div>
+    <div class="footer">Generated at May 4, 2026, 1:00 PM</div>
   </div>
 
 
