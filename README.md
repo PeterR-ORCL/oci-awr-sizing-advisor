@@ -1,7 +1,7 @@
 # Agentic AI AWR Advisor
 
 <p align="center">
-  <b>From AWR Data to Intelligent Decisions and Automated Action</b><br/>
+  <b>From AWR Data to Deterministic Intelligence, Memory, and Action</b><br/>
   Autonomous Database Performance Intelligence Platform
 </p>
 
@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Python-3.10+-blue"/>
   <img src="https://img.shields.io/badge/Oracle-ADB-red"/>
   <img src="https://img.shields.io/badge/Object%20Storage-Enabled-blue"/>
-  <img src="https://img.shields.io/badge/Status-Phase%204%20In%20Progress-blue"/>
+  <img src="https://img.shields.io/badge/Status-Phase%206%20Active-blue"/>
   <img src="https://img.shields.io/badge/AI-Agentic-orange"/>
   <img src="https://img.shields.io/badge/Trend%20Engine-Enabled-purple"/>
   <img src="https://img.shields.io/badge/Architecture-Cloud%20Native-blueviolet"/>
@@ -20,13 +20,14 @@
 
 # Executive Summary
 
-The Agentic AI AWR Advisor is an Autonomous Database Performance Intelligence Platform that transforms Oracle AWR data into deterministic insights, autonomous decisions, and actionable outcomes.
+The Agentic AI AWR Advisor is an Autonomous Database Performance Intelligence Platform that transforms Oracle AWR data into deterministic insights, autonomous decisions, actionable outcomes, and persistent memory.
 
 It combines a deterministic analysis engine with an agentic AI layer to deliver:
 
 - Root-cause diagnostics with full explainability  
 - Prioritized and evidence-based recommendations  
 - Autonomous decision support  
+- Persistent run and action memory  
 - Scalable, cloud-native performance intelligence  
 - Built to operate reliably across heterogeneous AWR formats without requiring schema normalization or manual adjustment
 
@@ -36,12 +37,13 @@ It combines a deterministic analysis engine with an agentic AI layer to deliver:
 
 ## Executive Overview
 
-The Agentic AI  AWR Sizing Advisor is a **deterministic + agentic AI system** that transforms Oracle AWR reports into:
+The Agentic AI  AWR Sizing Advisor is a **deterministic + agentic AI + memory system** that transforms Oracle AWR reports into:
 
 - Root-cause performance diagnostics  
 - Prioritized remediation actions  
 - AI-guided decision support  
 - Infrastructure sizing recommendations  
+- Action tracking and memory-backed intelligence  
 
 This system eliminates subjective interpretation and replaces it with:
 
@@ -64,6 +66,7 @@ This platform introduces:
 - Structured data pipelines  
 - Automated analysis  
 - AI-assisted interpretation  
+- Persistent memory and action tracking  
 - Scalable architecture for enterprise environments  
 
 ---
@@ -72,6 +75,7 @@ This platform introduces:
 
 - Deterministic analysis is the source of truth  
 - AI augments interpretation, not facts  
+- Memory is downstream and non-influencing  
 - Stateless reasoning + stateful context (ADB)  
 - No fabricated data or synthetic distributions  
 - Observability-first architecture  
@@ -511,3 +515,37 @@ This project has evolved beyond reporting.
 It is now:
 
 **A deterministic intelligence platform evolving into a fully autonomous decision system.**
+
+
+---
+
+## Phase 6 — Memory & Action Tracking
+
+The system now includes a structured memory layer:
+
+- Run Memory (6G)  
+- Action Tracking (6H)  
+- Unknown Signal Capture  
+
+Memory is:
+
+- Deterministic-safe  
+- Non-influencing (does not affect scoring or decisions)  
+- Fully auditable  
+
+### Oracle Agent Memory (6N.1)
+
+Oracle Agent Memory can be integrated as a non-authoritative augmentation layer:
+
+- Provides contextual recall and conversational continuity  
+- Enhances phrasing and interpretation only  
+- Does NOT influence scoring, parsing, decisions, or recommendations  
+
+This ensures strict separation between:
+
+Deterministic Truth → Phase 4  
+Memory & Context → Phase 6  
+Adaptive Learning → Phase 7  
+
+---
+
