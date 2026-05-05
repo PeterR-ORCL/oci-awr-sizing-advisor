@@ -505,6 +505,8 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
         _build_time_series_groups(report_data),
         screen_4_model,
     )
+    parser_review_payload = _build_parser_review_payload()
+    governance_visibility_payload = _build_governance_visibility_payload()
 
     pages = {
         "index.html": _build_page_html(
@@ -522,7 +524,9 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
             page_title="Screen 1 - Ingestion",
             report_data=report_data,
             content_html=_render_screen_1_page(
-                screen_models.get("screen_1_ingestion") or {}
+                screen_models.get("screen_1_ingestion") or {},
+                parser_review_payload=parser_review_payload,
+                report_data=report_data,
             ),
             generated_at=generated_at,
         ),
@@ -580,7 +584,10 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
             page_key="screen_6",
             page_title="Screen 6 - Fleet Overview",
             report_data=report_data,
-            content_html=_render_screen_6_page(screen_6_model),
+            content_html=_render_screen_6_page(
+                screen_6_model,
+                governance_payload=governance_visibility_payload,
+            ),
             generated_at=generated_at,
         ),
     }
@@ -837,6 +844,218 @@ def _runtime_status_from_report(report_data: dict[str, Any]) -> dict[str, str]:
         "db_connectivity": display_db_connectivity,
         "similarity_status": similarity_status,
     }
+
+
+def _build_parser_review_payload() -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "available": False,
+        "summary": {
+            "TOTAL": 0,
+            "NEW": 0,
+            "REVIEWED": 0,
+            "CLASSIFIED": 0,
+            "IGNORED": 0,
+        },
+        "pattern_summary": [],
+        "recent_unknowns": [],
+        "error": None,
+    }
+    try:
+        connection = _dashboard_memory_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT REVIEW_STATUS, COUNT(*)
+                      FROM AWR_UNKNOWN_SIGNAL_HISTORY
+                     GROUP BY REVIEW_STATUS
+                    """
+                )
+                for status, count in cursor.fetchall():
+                    status_key = _memory_status_key(status) or "NEW"
+                    row_count = int(count or 0)
+                    payload["summary"]["TOTAL"] += row_count
+                    if status_key in payload["summary"]:
+                        payload["summary"][status_key] += row_count
+
+                cursor.execute(
+                    """
+                    SELECT
+                      UNKNOWN_SIGNAL_ID,
+                      SECTION_NAME,
+                      UNKNOWN_TYPE,
+                      DETECTION_REASON,
+                      REVIEW_STATUS,
+                      REVIEW_CLASSIFICATION
+                    FROM AWR_UNKNOWN_SIGNAL_HISTORY
+                    ORDER BY LAST_SEEN_TIMESTAMP DESC NULLS LAST
+                    """
+                )
+                payload["pattern_summary"] = _group_unknown_signal_patterns(
+                    [
+                        {
+                            "unknown_signal_id": row[0],
+                            "section_name": row[1],
+                            "unknown_type": row[2],
+                            "detection_reason": row[3],
+                            "review_status": row[4],
+                            "review_classification": row[5],
+                        }
+                        for row in cursor.fetchall()
+                    ]
+                )
+
+                cursor.execute(
+                    """
+                    SELECT
+                      UNKNOWN_SIGNAL_ID,
+                      SECTION_NAME,
+                      UNKNOWN_TYPE,
+                      DETECTION_REASON,
+                      REVIEW_STATUS,
+                      REVIEW_CLASSIFICATION,
+                      REVIEWED_BY,
+                      REVIEWED_AT
+                    FROM AWR_UNKNOWN_SIGNAL_HISTORY
+                    ORDER BY UNKNOWN_SIGNAL_ID ASC
+                    """
+                )
+                payload["recent_unknowns"] = [
+                    {
+                        "unknown_signal_id": row[0],
+                        "section_name": row[1],
+                        "unknown_type": row[2],
+                        "detection_reason": row[3],
+                        "review_status": row[4],
+                        "review_classification": row[5],
+                        "reviewed_by": row[6],
+                        "reviewed_at": row[7],
+                    }
+                    for row in cursor.fetchall()
+                ]
+        finally:
+            connection.close()
+        payload["available"] = True
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        payload["error"] = f"{type(exc).__name__}: {exc}"
+        return payload
+
+
+def _build_governance_visibility_payload(limit: int = 5) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "available": False,
+        "approval_summary": {
+            "PENDING": 0,
+            "APPROVED": 0,
+            "REJECTED": 0,
+            "NEEDS_REVIEW": 0,
+        },
+        "artifact_summary": {
+            "INACTIVE": 0,
+            "READY": 0,
+            "ACTIVE": 0,
+        },
+        "linkage": [],
+        "error": None,
+    }
+    try:
+        connection = _dashboard_memory_connection()
+        try:
+            with connection.cursor() as cursor:
+                request_id_column = _dashboard_table_id_column(
+                    cursor,
+                    "AWR_KNOWLEDGE_UPDATE_REQUEST",
+                    ("REQUEST_ID", "KNOWLEDGE_UPDATE_ID"),
+                )
+                cursor.execute(
+                    """
+                    SELECT APPROVAL_STATUS, COUNT(*)
+                      FROM AWR_KNOWLEDGE_UPDATE_REQUEST
+                     GROUP BY APPROVAL_STATUS
+                    """
+                )
+                for status, count in cursor.fetchall():
+                    status_key = _memory_status_key(status) or "PENDING"
+                    if status_key in payload["approval_summary"]:
+                        payload["approval_summary"][status_key] += int(count or 0)
+
+                cursor.execute(
+                    """
+                    SELECT ACTIVATION_STATUS, COUNT(*)
+                      FROM AWR_KNOWLEDGE_ARTIFACT
+                     GROUP BY ACTIVATION_STATUS
+                    """
+                )
+                for status, count in cursor.fetchall():
+                    status_key = _memory_status_key(status) or "INACTIVE"
+                    if status_key in payload["artifact_summary"]:
+                        payload["artifact_summary"][status_key] += int(count or 0)
+
+                cursor.execute(
+                    f"""
+                    SELECT
+                      r.{request_id_column},
+                      r.SOURCE_TYPE,
+                      r.SOURCE_ID,
+                      r.RUN_HISTORY_ID,
+                      r.APPROVAL_STATUS,
+                      a.ARTIFACT_ID,
+                      a.ARTIFACT_CLASSIFICATION,
+                      a.ACTIVATION_STATUS
+                    FROM AWR_KNOWLEDGE_UPDATE_REQUEST r
+                    LEFT JOIN AWR_KNOWLEDGE_ARTIFACT a
+                      ON a.REQUEST_ID = r.{request_id_column}
+                    ORDER BY r.CREATED_AT DESC NULLS LAST
+                    FETCH FIRST {max(1, min(int(limit or 5), 5))} ROWS ONLY
+                    """
+                )
+                payload["linkage"] = [
+                    {
+                        "request_id": row[0],
+                        "source_type": row[1],
+                        "source_id": row[2],
+                        "run_history_id": row[3],
+                        "approval_status": row[4],
+                        "artifact_id": row[5],
+                        "artifact_classification": row[6],
+                        "activation_status": row[7],
+                    }
+                    for row in cursor.fetchall()
+                ]
+        finally:
+            connection.close()
+        payload["available"] = True
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        payload["error"] = f"{type(exc).__name__}: {exc}"
+        return payload
+
+
+def _dashboard_memory_connection() -> Any:
+    from src.ingest.awr_adb_loader import get_db_connection
+
+    return get_db_connection()
+
+
+def _dashboard_table_id_column(
+    cursor: Any,
+    table_name: str,
+    candidates: tuple[str, ...],
+) -> str:
+    cursor.execute(
+        """
+        SELECT COLUMN_NAME
+          FROM USER_TAB_COLUMNS
+         WHERE TABLE_NAME = :table_name
+        """,
+        {"table_name": table_name.upper()},
+    )
+    columns = {str(row[0]).upper() for row in cursor.fetchall()}
+    for candidate in candidates:
+        if candidate in columns:
+            return candidate
+    return candidates[0]
 
 
 def _clean_runtime_status_text(value: Any, *, default: str) -> str:
@@ -1239,11 +1458,16 @@ def _render_home_system_ux_sections() -> str:
     """
 
 
-def _render_screen_1_page(screen_model: dict[str, Any]) -> str:
+def _render_screen_1_page(
+    screen_model: dict[str, Any],
+    parser_review_payload: dict[str, Any] | None = None,
+    report_data: dict[str, Any] | None = None,
+) -> str:
     return f"""
     <div class="grid">
       <!-- Screen 1 = intake / parse confidence / adaptation. -->
-      {_render_ingestion_screen(screen_model)}
+      {_render_ingestion_screen(screen_model, parser_review_payload, report_data)}
+      {_render_parser_review_section(parser_review_payload or {})}
     </div>
     """
 
@@ -2560,7 +2784,369 @@ def _render_screen_5_page(
     """
 
 
-def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
+def _render_parser_review_section(payload: dict[str, Any]) -> str:
+    if not payload.get("available"):
+        body = _render_empty_item("Data unavailable for this run.")
+    else:
+        summary = _to_dict(payload.get("summary"))
+        body = f"""
+        <div class="parser-review-grid">
+          {_render_memory_count_card("Total unknown signals", summary.get("TOTAL"), "neutral")}
+          {_render_memory_count_card("NEW", summary.get("NEW"), _parser_review_status_class("NEW"))}
+          {_render_memory_count_card("REVIEWED", summary.get("REVIEWED"), _parser_review_status_class("REVIEWED"))}
+          {_render_memory_count_card("CLASSIFIED", summary.get("CLASSIFIED"), _parser_review_status_class("CLASSIFIED"))}
+          {_render_memory_count_card("IGNORED", summary.get("IGNORED"), _parser_review_status_class("IGNORED"))}
+        </div>
+        {_render_unknown_signal_pattern_summary(payload.get("pattern_summary") or [])}
+        {_render_parser_review_list(payload.get("recent_unknowns") or [])}
+        """
+    return f"""
+      <section class="card secondary parser-review-card">
+        <div class="section-kicker">Phase 6 Parser Review</div>
+        <h2>Parser Review & Unknown Signals</h2>
+        <p class="meta">
+          Parser review records are read-only in this phase. Classification and approval workflows are not interactive in this phase. All parser review actions are recorded and tracked, with interactive controls planned for a future release.
+        </p>
+        {body}
+      </section>
+    """
+
+
+def _render_unknown_signal_pattern_summary(patterns: list[dict[str, Any]]) -> str:
+    if not patterns:
+        return _render_empty_item("No grouped parser patterns are available.")
+    rendered_patterns = []
+    for pattern in patterns[:3]:
+        status_parts = []
+        for status in ("NEW", "REVIEWED", "CLASSIFIED", "IGNORED"):
+            count = int(pattern.get("status_breakdown", {}).get(status) or 0)
+            if count:
+                status_parts.append(
+                    f'<span class="mini-pill {escape(_parser_review_status_class(status))}">{escape(status)} {count}</span>'
+                )
+        class_parts = [
+            f"{escape(classification)} {escape(str(count))}"
+            for classification, count in sorted(
+                _to_dict(pattern.get("classification_breakdown")).items()
+            )
+            if _has_display_value(classification)
+        ]
+        rendered_patterns.append(
+            f"""
+            <article class="unknown-pattern-row">
+              <div>
+                <strong>{escape(_memory_cell_text(pattern.get("section_name")))}</strong>
+                <span>{escape(_memory_cell_text(pattern.get("unknown_type")))}</span>
+              </div>
+              <div>{escape(_truncate_memory_text(pattern.get("detection_reason"), 120))}</div>
+              <div><span class="mini-pill neutral">{escape(str(pattern.get("count") or 0))} records</span></div>
+              <div class="mini-pill-group">{''.join(status_parts) or escape("—")}</div>
+              <div>{", ".join(class_parts) if class_parts else "—"}</div>
+              <div>{escape(_format_unknown_signal_example_ids(pattern.get("example_ids") or []))}</div>
+            </article>
+            """
+        )
+    overflow = (
+        '<p class="meta">Additional parser pattern groups are available in AWR_UNKNOWN_SIGNAL_HISTORY.</p>'
+        if len(patterns) > 3
+        else ""
+    )
+    return f"""
+        <div class="parser-pattern-summary">
+          <h3>Grouped Parser Pattern Summary</h3>
+          <p class="meta">Summary groups repeated parser patterns for readability. Individual records remain separately tracked and reviewable.</p>
+          <div class="unknown-pattern-list">
+            <div class="unknown-pattern-row unknown-pattern-header">
+              <div>Pattern / Section</div>
+              <div>Reason</div>
+              <div>Count</div>
+              <div>Status Breakdown</div>
+              <div>Class Breakdown</div>
+              <div>Example IDs</div>
+            </div>
+            {"".join(rendered_patterns)}
+          </div>
+          {overflow}
+        </div>
+    """
+
+
+def _render_parser_review_list(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return _render_empty_item("No recent unknown signal records are available.")
+    rendered_rows = []
+    for row in rows:
+        status = _memory_cell_text(row.get("review_status"))
+        classification = _memory_cell_text(row.get("review_classification"))
+        review_action = _parser_review_action_text(status)
+        rendered_rows.append(
+            f"""
+            <article class="parser-review-row">
+              <div>
+                <strong>#{escape(_memory_cell_text(row.get("unknown_signal_id")))}</strong>
+                <span>{escape(_memory_cell_text(row.get("section_name")))}</span>
+              </div>
+              <div>{escape(_memory_cell_text(row.get("unknown_type")))}</div>
+              <div>{escape(_truncate_memory_text(row.get("detection_reason"), 120))}</div>
+              <div><span class="mini-pill {escape(_parser_review_status_class(status))}">{escape(status)}</span></div>
+              <div>{escape(classification)}</div>
+              <div>{escape(_memory_cell_text(row.get("reviewed_by")))}</div>
+              <div>{escape(_memory_cell_text(row.get("reviewed_at")))}</div>
+              <div>{escape(review_action)}</div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="parser-review-list">
+          <h3>Individual Unknown Signal Records</h3>
+          <p class="meta">Grouped patterns summarize repeated parser findings. Individual records are shown because each record remains separately reviewable.</p>
+          <div class="parser-review-row parser-review-header">
+            <div>ID / Section</div>
+            <div>Type</div>
+            <div>Detection Reason</div>
+            <div>Status</div>
+            <div>Class</div>
+            <div>Reviewed By</div>
+            <div>Reviewed At</div>
+            <div>Review Action</div>
+          </div>
+          {"".join(rendered_rows)}
+        </div>
+    """
+
+
+def _render_governance_visibility_section(payload: dict[str, Any]) -> str:
+    if not payload.get("available"):
+        body = _render_empty_item("Data unavailable for this run.")
+    else:
+        approval_summary = _to_dict(payload.get("approval_summary"))
+        artifact_summary = _to_dict(payload.get("artifact_summary"))
+        body = f"""
+        <div class="governance-section-block">
+          <h3>Approval State Summary</h3>
+          <div class="governance-summary-grid">
+            {_render_memory_count_card("Pending", approval_summary.get("PENDING"), _governance_approval_status_class("PENDING"))}
+            {_render_memory_count_card("Approved", approval_summary.get("APPROVED"), _governance_approval_status_class("APPROVED"))}
+            {_render_memory_count_card("Rejected", approval_summary.get("REJECTED"), _governance_approval_status_class("REJECTED"))}
+            {_render_memory_count_card("Needs Review", approval_summary.get("NEEDS_REVIEW"), _governance_approval_status_class("NEEDS_REVIEW"))}
+          </div>
+        </div>
+        <div class="governance-section-block">
+          <h3>Knowledge Artifacts Summary</h3>
+          <p class="meta">Knowledge artifacts are materialized but not active in runtime analysis.</p>
+          <div class="governance-summary-grid governance-artifact-grid">
+            {_render_memory_count_card("Inactive", artifact_summary.get("INACTIVE"), _artifact_activation_status_class("INACTIVE"))}
+            {_render_memory_count_card("Ready", artifact_summary.get("READY"), _artifact_activation_status_class("READY"))}
+            {_render_memory_count_card("Active", artifact_summary.get("ACTIVE"), _artifact_activation_status_class("ACTIVE"))}
+          </div>
+        </div>
+        <div class="governance-section-block">
+          <h3>Run Linkage / Provenance</h3>
+          {_render_governance_linkage_list(payload.get("linkage") or [])}
+        </div>
+        """
+    return f"""
+      <section class="card secondary governance-visibility-card">
+        <div class="section-kicker">Phase 6 Governance</div>
+        <h2>Governance & Knowledge Readiness</h2>
+        <p class="meta">
+          Governance records are read-only system memory. Approved requests and materialized artifacts do not change parser, scoring, recommendations, or runtime decisions until a future controlled activation phase.
+          Interactive approval and governance workflows will be introduced in a future control-plane interface.
+        </p>
+        {body}
+      </section>
+    """
+
+
+def _render_governance_linkage_list(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return _render_empty_item("No governance request or artifact linkage records are available.")
+    rendered_rows = []
+    for row in rows:
+        approval_status = _memory_cell_text(row.get("approval_status"))
+        activation_status = _memory_cell_text(row.get("activation_status"))
+        rendered_rows.append(
+            f"""
+            <article class="governance-linkage-row">
+              <div><strong>#{escape(_memory_cell_text(row.get("request_id")))}</strong></div>
+              <div>{escape(_memory_cell_text(row.get("source_type")))}</div>
+              <div>{escape(_memory_cell_text(row.get("source_id")))}</div>
+              <div>{escape(_memory_cell_text(row.get("run_history_id")))}</div>
+              <div><span class="mini-pill {escape(_governance_approval_status_class(approval_status))}">{escape(approval_status)}</span></div>
+              <div>{escape(_memory_cell_text(row.get("artifact_id")))}</div>
+              <div>{escape(_memory_cell_text(row.get("artifact_classification")))}</div>
+              <div><span class="mini-pill {escape(_artifact_activation_status_class(activation_status))}">{escape(activation_status)}</span></div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="governance-linkage-list">
+          <div class="governance-linkage-row governance-linkage-header">
+            <div>Request</div>
+            <div>Source</div>
+            <div>Source ID</div>
+            <div>Run</div>
+            <div>Approval</div>
+            <div>Artifact</div>
+            <div>Classification</div>
+            <div>Activation</div>
+          </div>
+          {"".join(rendered_rows)}
+        </div>
+    """
+
+
+def _render_memory_count_card(label: str, value: Any, tone: str) -> str:
+    count_text = _memory_cell_text(value)
+    if count_text == "—":
+        count_text = "0"
+    return f"""
+      <div class="memory-count-card">
+        <span>{escape(label)}</span>
+        <strong class="mini-pill {escape(tone)}">{escape(count_text)}</strong>
+      </div>
+    """
+
+
+def _parser_review_status_class(status: Any) -> str:
+    normalized = _memory_status_key(status)
+    if normalized == "NEW":
+        return "warning"
+    if normalized == "CLASSIFIED":
+        return "success"
+    if normalized in {"REVIEWED", "IGNORED"}:
+        return "neutral"
+    return "neutral"
+
+
+def _parser_review_action_text(status: Any) -> str:
+    normalized = _memory_status_key(status)
+    if normalized == "NEW":
+        return "Review and classify outside dashboard"
+    if normalized == "CLASSIFIED":
+        return "No action required / Already classified"
+    if normalized == "REVIEWED":
+        return "Awaiting classification or approval"
+    if normalized == "IGNORED":
+        return "No action required"
+    return "Review outside dashboard"
+
+
+def _governance_approval_status_class(status: Any) -> str:
+    normalized = _memory_status_key(status)
+    if normalized == "APPROVED":
+        return "success"
+    if normalized in {"PENDING", "NEEDS_REVIEW"}:
+        return "warning"
+    if normalized == "REJECTED":
+        return "error"
+    return "neutral"
+
+
+def _artifact_activation_status_class(status: Any) -> str:
+    normalized = _memory_status_key(status)
+    if normalized == "ACTIVE":
+        return "success"
+    if normalized == "READY":
+        return "warning"
+    if normalized == "INACTIVE":
+        return "neutral"
+    return "neutral"
+
+
+def _group_unknown_signal_patterns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for row in rows:
+        section_name = _memory_cell_text(row.get("section_name"))
+        unknown_type = _memory_cell_text(row.get("unknown_type"))
+        detection_reason = _memory_cell_text(row.get("detection_reason"))
+        key = (section_name, unknown_type, detection_reason)
+        pattern = grouped.setdefault(
+            key,
+            {
+                "section_name": section_name,
+                "unknown_type": unknown_type,
+                "detection_reason": detection_reason,
+                "count": 0,
+                "status_breakdown": {
+                    "NEW": 0,
+                    "REVIEWED": 0,
+                    "CLASSIFIED": 0,
+                    "IGNORED": 0,
+                },
+                "classification_breakdown": {},
+                "example_ids": [],
+            },
+        )
+        pattern["count"] += 1
+        status = _memory_status_key(row.get("review_status")) or "NEW"
+        if status in pattern["status_breakdown"]:
+            pattern["status_breakdown"][status] += 1
+        classification = _memory_cell_text(row.get("review_classification"))
+        if classification != "—":
+            class_breakdown = pattern["classification_breakdown"]
+            class_breakdown[classification] = int(class_breakdown.get(classification) or 0) + 1
+        pattern["example_ids"].append(_memory_cell_text(row.get("unknown_signal_id")))
+
+    def sort_key(pattern: dict[str, Any]) -> tuple[int, int, str]:
+        status_breakdown = _to_dict(pattern.get("status_breakdown"))
+        reviewed_or_classified = int(status_breakdown.get("CLASSIFIED") or 0) + int(
+            status_breakdown.get("REVIEWED") or 0
+        )
+        return (
+            0 if reviewed_or_classified else 1,
+            -int(pattern.get("count") or 0),
+            str(pattern.get("section_name") or ""),
+        )
+
+    return sorted(grouped.values(), key=sort_key)
+
+
+def _format_unknown_signal_example_ids(values: list[Any]) -> str:
+    numeric_ids: list[int] = []
+    text_ids: list[str] = []
+    for value in values:
+        text = _memory_cell_text(value)
+        if text == "—":
+            continue
+        try:
+            numeric_ids.append(int(text))
+        except ValueError:
+            text_ids.append(text)
+    if numeric_ids:
+        return ", ".join(f"#{item}" for item in sorted(set(numeric_ids))[:3])
+    if text_ids:
+        return ", ".join(f"#{item}" for item in sorted(set(text_ids))[:3])
+    return "—"
+
+
+def _memory_status_key(value: Any) -> str:
+    return _normalized_status_token(value).replace(" ", "_")
+
+
+def _memory_cell_text(value: Any) -> str:
+    if not _has_display_value(value):
+        return "—"
+    if hasattr(value, "read"):
+        try:
+            value = value.read()
+        except Exception:  # noqa: BLE001
+            return "—"
+    text = str(value).strip()
+    return text if text else "—"
+
+
+def _truncate_memory_text(value: Any, max_chars: int = 120) -> str:
+    text = _memory_cell_text(value)
+    if text == "—" or len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars - 3)].rstrip() + "..."
+
+
+def _render_screen_6_page(
+    screen_model: dict[str, Any],
+    governance_payload: dict[str, Any] | None = None,
+) -> str:
     header = _to_dict(screen_model.get("header"))
     fleet_summary = _to_dict(screen_model.get("fleet_summary"))
     clusters = _to_dict(screen_model.get("clusters"))
@@ -2605,6 +3191,7 @@ def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
           to enable AWR reuse, feature-vector lookup, similarity, and fleet intelligence.
         </p>
       </section>
+      {_render_governance_visibility_section(governance_payload or {})}
     </div>
     """
     return f"""
@@ -2660,6 +3247,7 @@ def _render_screen_6_page(screen_model: dict[str, Any]) -> str:
         )}
         {_render_similarity_cases(outliers) if outliers else _render_empty_item("No outlier case aggregation is established yet.")}
       </section>
+      {_render_governance_visibility_section(governance_payload or {})}
     </div>
     """
 
@@ -4485,6 +5073,134 @@ def _shared_page_styles() -> str:
       background: rgba(159, 176, 199, 0.14);
       border: 1px solid rgba(159, 176, 199, 0.34);
     }
+    .parser-review-grid,
+    .governance-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0 14px;
+    }
+    .governance-summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .governance-artifact-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .memory-count-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(16, 28, 45, 0.56);
+    }
+    .memory-count-card span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+    .parser-review-list,
+    .unknown-pattern-list,
+    .governance-linkage-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .validation-note-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .validation-note-row {
+      display: grid;
+      gap: 4px;
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(16, 28, 45, 0.48);
+    }
+    .validation-note-row strong {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.3;
+    }
+    .validation-note-row span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .parser-review-row,
+    .unknown-pattern-row,
+    .governance-linkage-row {
+      display: grid;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(16, 28, 45, 0.56);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .parser-review-row {
+      grid-template-columns: 0.95fr 0.65fr 1.7fr 0.75fr 0.65fr 0.8fr 0.9fr 1.35fr;
+    }
+    .unknown-pattern-row {
+      grid-template-columns: 1fr 1.7fr 0.65fr 1.25fr 1fr 0.8fr;
+    }
+    .governance-linkage-row {
+      grid-template-columns: 0.65fr 1fr 0.75fr 0.75fr 1fr 0.75fr 1.1fr 1fr;
+    }
+    .parser-review-row strong,
+    .unknown-pattern-row strong,
+    .governance-linkage-row strong {
+      color: var(--text);
+    }
+    .parser-review-row span:not(.mini-pill),
+    .unknown-pattern-row span:not(.mini-pill) {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+    }
+    .parser-pattern-summary {
+      margin-top: 14px;
+    }
+    .parser-pattern-summary h3,
+    .parser-review-list h3 {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .mini-pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .parser-review-header,
+    .unknown-pattern-header,
+    .governance-linkage-header {
+      background: transparent;
+      border-color: transparent;
+      padding-top: 0;
+      padding-bottom: 0;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .governance-section-block {
+      margin-top: 14px;
+    }
+    .governance-section-block h3 {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
     .nav-card-note {
       margin-top: 8px;
       font-size: 12px;
@@ -5195,7 +5911,20 @@ def _shared_page_styles() -> str:
       .memory-capability-grid,
       .action-summary-grid,
       .status-insight-row,
+      .parser-review-grid,
+      .governance-summary-grid,
+      .governance-artifact-grid,
       .fleet-detail-list {
+        grid-template-columns: 1fr;
+      }
+      .parser-review-header,
+      .unknown-pattern-header,
+      .governance-linkage-header {
+        display: none;
+      }
+      .parser-review-row,
+      .unknown-pattern-row,
+      .governance-linkage-row {
         grid-template-columns: 1fr;
       }
     }
@@ -6631,7 +7360,307 @@ def _render_recommendations(recommendations: list[Any]) -> str:
     return "".join(parts)
 
 
-def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
+def _render_validation_note_summary(
+    validation_notes: dict[str, Any],
+    report_data: dict[str, Any] | None = None,
+    screen_model: dict[str, Any] | None = None,
+) -> str:
+    if not validation_notes:
+        return _render_empty_item("No intake or validation notes are available.")
+    raw_notes = validation_notes.get("notes") or validation_notes.get("items") or []
+    groups = _group_validation_notes(raw_notes)
+    total_count = len(raw_notes)
+    summary_text = _validation_note_dynamic_text(
+        raw_notes,
+        groups,
+        report_data,
+        screen_model,
+    )
+    if not groups:
+        if _has_display_value(summary_text):
+            return f"""
+              <article class="item validation-note-summary">
+                <p>{escape(summary_text)}</p>
+                <p class="meta">File-level details are shown in the intake table above.</p>
+              </article>
+            """
+        return _render_empty_item("No intake or validation notes are available.")
+
+    rendered_groups = []
+    for group in groups[:3]:
+        examples = ", ".join(group["examples"][:3]) if group["examples"] else "—"
+        rendered_groups.append(
+            f"""
+            <article class="validation-note-row">
+              <strong>{escape(group["message"])} — {escape(str(group["count"]))} files</strong>
+              <span>Examples: {escape(examples)}</span>
+            </article>
+            """
+        )
+    overflow_note = (
+        '<p class="meta">Additional validation note groups are available in the intake table above.</p>'
+        if len(groups) > 3
+        else ""
+    )
+    return f"""
+      <article class="item validation-note-summary">
+        <p>{escape(summary_text)}</p>
+        <h4>Validation Notes Summary</h4>
+        <div class="validation-note-list">
+          {"".join(rendered_groups)}
+        </div>
+        <p class="meta">File-level details are shown in the intake table above.</p>
+        {overflow_note}
+      </article>
+    """
+
+
+def _group_validation_notes(notes: list[Any]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for item in notes:
+        item_text = _summary_item_text(item)
+        if not item_text:
+            continue
+        file_name, message = _split_validation_note(item_text)
+        normalized_key = re.sub(r"[^a-z0-9]+", " ", message.lower()).strip()
+        if not normalized_key:
+            normalized_key = "validation note"
+        group = groups.setdefault(
+            normalized_key,
+            {
+                "message": message,
+                "count": 0,
+                "examples": [],
+                "files": [],
+            },
+        )
+        group["count"] += 1
+        if file_name:
+            if file_name not in group["files"]:
+                group["files"].append(file_name)
+            if len(group["examples"]) < 3:
+                group["examples"].append(file_name)
+    return sorted(groups.values(), key=lambda group: (-int(group["count"]), group["message"]))
+
+
+def _split_validation_note(note_text: str) -> tuple[str | None, str]:
+    text = str(note_text or "").strip()
+    file_name: str | None = None
+    message = text
+    match = re.match(r"^([^:]+):\s*(.+)$", text)
+    if match:
+        file_name = match.group(1).strip()
+        message = match.group(2).strip()
+    message = re.sub(r"^(INFO|WARNING|WARN|ERROR):\s*", "", message, flags=re.IGNORECASE)
+    message = message.strip()
+    if message and not message.endswith((".", "!", "?")):
+        message += "."
+    return file_name, message or text
+
+
+def _validation_note_dynamic_text(
+    notes: list[Any],
+    groups: list[dict[str, Any]],
+    report_data: dict[str, Any] | None = None,
+    screen_model: dict[str, Any] | None = None,
+) -> str:
+    total_validation_notes = len(notes)
+    unique_validation_note_groups = len(groups)
+    affected_file_count = _validation_note_affected_file_count(notes, groups)
+    if total_validation_notes == 0:
+        base_text = "No intake validation notes were detected for this ingestion run."
+    elif total_validation_notes <= 3:
+        base_text = f"{total_validation_notes} validation notes were detected and are shown below."
+    elif unique_validation_note_groups == 1:
+        base_text = (
+            f"{total_validation_notes} validation notes were detected across "
+            f"{affected_file_count} files. These represent repeated intake conditions "
+            "and are summarized above."
+        )
+    else:
+        base_text = (
+            f"{total_validation_notes} validation notes across "
+            f"{unique_validation_note_groups} distinct patterns were detected. "
+            "See summary above for grouped conditions and affected files."
+        )
+    context = _vocalization_context(
+        report_data,
+        screen_model,
+        required_terms=["validation notes"],
+        protected_values=[
+            total_validation_notes,
+            unique_validation_note_groups,
+            affected_file_count,
+        ],
+    )
+    vocalized = _vocalize_text(base_text, context)
+    if not _validation_note_vocalization_is_safe(
+        vocalized,
+        base_text,
+        total_validation_notes,
+        unique_validation_note_groups,
+        affected_file_count,
+    ):
+        return base_text
+    return vocalized
+
+
+def _validation_note_vocalization_is_safe(
+    candidate: str,
+    base_text: str,
+    total_validation_notes: int,
+    unique_validation_note_groups: int,
+    affected_file_count: int,
+) -> bool:
+    candidate_text = str(candidate or "").strip()
+    if not candidate_text:
+        return False
+    if "review" in candidate_text.lower():
+        return False
+    if str(total_validation_notes) not in candidate_text:
+        return False
+    if "distinct patterns" in base_text and str(unique_validation_note_groups) not in candidate_text:
+        return False
+    if " across " in base_text and str(affected_file_count) not in candidate_text:
+        return False
+    return True
+
+
+def _validation_note_affected_file_count(
+    notes: list[Any],
+    groups: list[dict[str, Any]],
+) -> int:
+    files: set[str] = set()
+    for group in groups:
+        files.update(str(file_name) for file_name in (group.get("files") or []) if file_name)
+    if files:
+        return len(files)
+    return len(notes)
+
+
+def _runtime_parser_unknowns_note(
+    parse_confidence: dict[str, Any],
+    parser_review_payload: dict[str, Any],
+    report_data: dict[str, Any] | None,
+    screen_model: dict[str, Any],
+) -> str:
+    runtime_unknowns = _count_for_display(parse_confidence.get("unknowns_captured"))
+    summary = _to_dict(parser_review_payload.get("summary"))
+    persisted_total = _count_for_display(summary.get("TOTAL"))
+    status_counts = {
+        "NEW": _count_for_display(summary.get("NEW")),
+        "REVIEWED": _count_for_display(summary.get("REVIEWED")),
+        "CLASSIFIED": _count_for_display(summary.get("CLASSIFIED")),
+        "IGNORED": _count_for_display(summary.get("IGNORED")),
+    }
+
+    if runtime_unknowns == 0 and persisted_total == 0:
+        base_text = (
+            "No runtime parser unknowns were detected in the current ingestion run, "
+            "and no persisted unknown-signal records are currently pending parser review."
+        )
+    elif runtime_unknowns == 0:
+        status_phrase = _parser_review_status_count_phrase(status_counts)
+        base_text = (
+            "No runtime parser unknowns were detected in the current ingestion run. "
+            f"Phase 6 memory currently tracks {persisted_total} persisted unknown-signal "
+            f"{_pluralize_record(persisted_total)} for review{status_phrase}."
+        )
+    else:
+        base_text = (
+            f"The current ingestion run detected {runtime_unknowns} runtime parser "
+            f"{_pluralize_unknown(runtime_unknowns)}. Phase 6 memory currently tracks "
+            f"{persisted_total} persisted unknown-signal {_pluralize_record(persisted_total)} "
+            "for review."
+        )
+
+    context = _vocalization_context(
+        report_data,
+        screen_model,
+        required_terms=[
+            "runtime parser unknown",
+            "Phase 6 memory",
+            "persisted unknown-signal records",
+        ],
+        protected_values=[
+            runtime_unknowns,
+            persisted_total,
+            *[count for count in status_counts.values() if count],
+            *[status for status, count in status_counts.items() if count],
+        ],
+    )
+    vocalized = _vocalize_text(base_text, context)
+    if not _runtime_parser_unknowns_note_is_safe(vocalized, base_text, runtime_unknowns, persisted_total, status_counts):
+        return base_text
+    return vocalized
+
+
+def _runtime_parser_unknowns_note_is_safe(
+    candidate: str,
+    base_text: str,
+    runtime_unknowns: int,
+    persisted_total: int,
+    status_counts: dict[str, int],
+) -> bool:
+    candidate_text = str(candidate or "").strip()
+    if not candidate_text:
+        return False
+    candidate_lower = candidate_text.lower()
+    required_terms = [
+        "runtime parser unknown",
+        "phase 6 memory",
+        "persisted unknown-signal",
+    ]
+    if any(term not in candidate_lower for term in required_terms if term in base_text.lower()):
+        return False
+    required_numbers = [runtime_unknowns, persisted_total] + [
+        count for count in status_counts.values() if count
+    ]
+    if any(str(number) not in candidate_text for number in required_numbers):
+        return False
+    for status, count in status_counts.items():
+        if count and status not in candidate_text:
+            return False
+    return True
+
+
+def _parser_review_status_count_phrase(status_counts: dict[str, int]) -> str:
+    parts = [
+        f"{count} {status}"
+        for status in ("NEW", "REVIEWED", "CLASSIFIED", "IGNORED")
+        for count in [int(status_counts.get(status) or 0)]
+        if count
+    ]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return f", including {parts[0]} {_pluralize_record(int(parts[0].split()[0]))}"
+    return f", including {', '.join(parts[:-1])} and {parts[-1]} {_pluralize_record(int(parts[-1].split()[0]))}"
+
+
+def _pluralize_unknown(count: int) -> str:
+    return "unknown" if int(count) == 1 else "unknowns"
+
+
+def _pluralize_record(count: int) -> str:
+    return "record" if int(count) == 1 else "records"
+
+
+def _count_for_display(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        numeric = _safe_float(value)
+        return int(numeric) if numeric is not None else 0
+
+
+def _render_ingestion_screen(
+    screen_model: dict[str, Any],
+    parser_review_payload: dict[str, Any] | None = None,
+    report_data: dict[str, Any] | None = None,
+) -> str:
     """Render Screen 1 from the canonical ingestion and validation model."""
 
     header = _to_dict(screen_model.get("header"))
@@ -6643,10 +7672,16 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
     report_rows = screen_model.get("report_rows") or []
     validation_notes = _to_dict(screen_model.get("validation_notes"))
     supportive_explanation = _to_dict(screen_model.get("supportive_explanation"))
-    validation_notes_html = _render_context_summary(
+    validation_notes_html = _render_validation_note_summary(
         validation_notes,
-        "notes",
-        "No intake or validation notes are available.",
+        report_data,
+        screen_model,
+    )
+    intake_validation_note_text = _validation_note_dynamic_text(
+        validation_notes.get("notes") or validation_notes.get("items") or [],
+        _group_validation_notes(validation_notes.get("notes") or validation_notes.get("items") or []),
+        report_data,
+        screen_model,
     )
 
     return f"""
@@ -6659,8 +7694,8 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
           }
       )}
       <section class="card secondary">
-      <div class="section-kicker">Screen 1</div>
-      <h2>Ingestion / Parse Confidence / Adaptation</h2>
+      <div class="section-kicker">Files, Scope & Parse Completeness</div>
+      <h2>Intake Details</h2>
       <div class="subgrid">
         <section class="evidence-pane">
           <h3>Analysis Information</h3>
@@ -6670,6 +7705,9 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
               else ""
           }
           {_render_info_grid(_analysis_information_items(environment_context))}
+          <div class="meta context-note">
+            Current selected scope reflects the active diagnostic target. Historical and file-level topology hints may include broader signals observed across the full AWR set.
+          </div>
         </section>
         <section class="evidence-pane">
           <h3>Intake Summary</h3>
@@ -6713,19 +7751,22 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
                     ("Warnings", parse_confidence.get("warnings_count")),
                     ("Sections Detected", parse_confidence.get("sections_detected")),
                     ("Sections Missing", parse_confidence.get("sections_missing")),
-                    ("Unknowns Captured", parse_confidence.get("unknowns_captured")),
+                    ("Runtime Parser Unknowns", parse_confidence.get("unknowns_captured")),
                     (
                         "Alias / Fallback Matching",
                         parse_confidence.get("alias_fallback_matching"),
                     ),
                     (
-                        "File-Level Version / Platform / Topology Hints",
+                        "File-Level Topology Hints",
                         ", ".join(
                             parse_confidence.get("version_platform_topology_hints") or []
                         ),
                     ),
                 ]
             )}
+            <div class="meta context-note">
+              {escape(_runtime_parser_unknowns_note(parse_confidence, parser_review_payload or {}, report_data, screen_model))}
+            </div>
           </div>
         </section>
         <section class="half evidence-pane">
@@ -6733,15 +7774,12 @@ def _render_ingestion_screen(screen_model: dict[str, Any]) -> str:
           {validation_notes_html}
         </section>
         <section class="evidence-pane">
-          <h3>Supportive Explanation</h3>
+          <h3>Intake Notes</h3>
           <div class="supportive-panel">
             <div class="meta">
-              Supportive, non-authoritative explanation derived from canonical intake findings.
+              Summary of processed files, parsing completeness, validation notes, and selected scope.
             </div>
-            {_render_supportive_explanation(
-                supportive_explanation.get("text"),
-                "No supportive explanation is available.",
-            )}
+            <div class="narrative">{escape(intake_validation_note_text)}</div>
           </div>
         </section>
       </div>
@@ -8222,8 +9260,8 @@ def _has_meaningful_evidence(payload: dict[str, Any]) -> bool:
 def _render_ingestion_header_card(header: dict[str, Any]) -> str:
     return f"""
       <section class="card primary">
-        <div class="section-kicker">Ingestion</div>
-        <h2>Ingestion / Parse Confidence / Adaptation</h2>
+        <div class="section-kicker">Loader & Parser Overview</div>
+        <h2>Intake Summary</h2>
         {_render_info_grid(
             [
                 ("Run Label", header.get("run_label")),
@@ -9208,22 +10246,22 @@ def _analysis_information_items(
         ("Database Role", analysis_information.get("database_role")),
         ("Cumulative OCPUs / Cores", analysis_information.get("ocpus_cores")),
         ("Memory per Instance", analysis_information.get("memory_per_instance")),
-        ("Platform Detected", analysis_information.get("platform_detected")),
         (
-            "Selected Scope Topology",
+            "Current Selected Scope",
             analysis_information.get("selected_scope_topology")
             or analysis_information.get("topology_detected"),
         ),
+        ("Platform Detected", analysis_information.get("platform_detected")),
         (
-            "Historical / Contextual Topology",
+            "Historical Topology Signals",
             analysis_information.get("historical_contextual_topology"),
         ),
-        ("Snapshot Start", analysis_information.get("snapshot_start")),
-        ("Snapshot End", analysis_information.get("snapshot_end")),
         (
             "Total Reports / Snapshot Window",
             analysis_information.get("total_reports_snapshot_window"),
         ),
+        ("Snapshot Start", analysis_information.get("snapshot_start")),
+        ("Snapshot End", analysis_information.get("snapshot_end")),
         ("Last Snapshot", analysis_information.get("last_snapshot")),
     ]
 
