@@ -37,6 +37,7 @@ from src.ingest.awr_adb_loader import (
     process_awr_batch,
     upsert_feature_vector,
 )
+from src.loader.awr_loader import load_awr_sources, loader_file_paths
 from src.memory import memory_orchestrator
 from src.parser.awr_parser import parse_awr_file
 from src.reporting.html_dashboard import generate_html_dashboard
@@ -72,7 +73,10 @@ def _resolve_ai_model_identifier(provider: str) -> str:
 
     normalized_provider = str(provider or "").strip().lower()
     if normalized_provider == "oci":
-        return str(os.getenv("OCI_MODEL_ID", "") or "").strip()
+        return (
+            str(os.getenv("OCI_MODEL", "") or "").strip()
+            or str(os.getenv("OCI_MODEL_ID", "") or "").strip()
+        )
     if normalized_provider == "openai":
         return str(os.getenv("OPENAI_MODEL", "gpt-5.4-mini") or "").strip()
     return ""
@@ -4859,7 +4863,8 @@ if __name__ == "__main__":
     print(f"  provider: {provider}")
     print(f"  model: {resolved_model or '(not configured)'}")
     input_dir = Path("data/input")
-    awr_files = sorted(input_dir.glob("*.out"))
+    loader_result = load_awr_sources(input_dir)
+    awr_files = loader_file_paths(loader_result)
     if not awr_files:
         raise FileNotFoundError("No AWR input files found in data/input")
 

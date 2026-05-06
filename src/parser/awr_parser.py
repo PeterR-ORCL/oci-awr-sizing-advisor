@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from src.models.parse_result import ParseResult
 from src.models.run_metadata import RunMetadata
@@ -114,6 +115,70 @@ def parse_awr_file(file_path: str | Path) -> ParseResult:
         ),
         parse_errors=[],
     )
+
+
+def build_parser_result_contract(parse_result: ParseResult) -> dict[str, Any]:
+    """Return a parser-boundary contract without changing extraction output.
+
+    The canonical parser still returns ``ParseResult`` for existing runtime
+    behavior. This adapter exposes the parser-facing responsibilities in a
+    stable dictionary shape for orchestration, tests, and future UI adapters.
+    It does not discover sources and does not mutate the parse result.
+    """
+
+    diagnostics = parse_result.parse_diagnostics
+    sections_detected = list(
+        diagnostics.sections_found or parse_result.sections_found.keys()
+    )
+    sections_missing = list(diagnostics.sections_missing)
+    unknown_signals = [
+        _unknown_parser_element_to_contract(unknown)
+        for unknown in diagnostics.unknown_sections
+    ]
+    topology_hints = [
+        key
+        for key, value in sorted(parse_result.topology_signals.items())
+        if value not in (None, "", [], {})
+    ]
+    platform_hints = [
+        value
+        for value in (
+            parse_result.run_metadata.platform,
+            parse_result.run_metadata.db_version,
+        )
+        if value
+    ]
+    parse_status = "PARSED_WITH_ERRORS" if parse_result.parse_errors else "PARSED"
+
+    return {
+        "file_name": parse_result.run_metadata.source_file_name,
+        "parse_status": parse_status,
+        "sections_detected": sections_detected,
+        "sections_missing": sections_missing,
+        "metrics": {
+            "cpu_metrics": parse_result.cpu_metrics,
+            "io_metrics": parse_result.io_metrics,
+            "wait_events": parse_result.wait_events,
+            "top_sql": parse_result.top_sql,
+            "instance_activity_stats": parse_result.instance_activity_stats,
+            "datafile_io_stats": parse_result.datafile_io_stats,
+            "tablespace_io_stats": parse_result.tablespace_io_stats,
+        },
+        "topology_hints": topology_hints,
+        "platform_hints": platform_hints,
+        "parse_confidence": diagnostics.parse_completeness_ratio,
+        "parser_notes": list(parse_result.parse_warnings),
+        "unknown_signals": unknown_signals,
+    }
+
+
+def _unknown_parser_element_to_contract(unknown: Any) -> dict[str, Any]:
+    return {
+        "parser_stage": getattr(unknown, "parser_stage", None),
+        "raw_text": getattr(unknown, "raw_text", None),
+        "line_number": getattr(unknown, "line_number", None),
+        "classification_hint": getattr(unknown, "classification_hint", None),
+    }
 
 
 def _slice_section_lines(

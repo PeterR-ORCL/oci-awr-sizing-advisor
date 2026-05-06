@@ -1509,7 +1509,7 @@
           Deterministic Oracle AWR intelligence delivering consistent diagnosis,
           historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: May 5, 2026, 1:32 PM</div>
+        <div class="hero-meta">Generated: May 6, 2026, 6:19 PM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link active" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
@@ -1533,7 +1533,7 @@
         <div class="section-kicker">System Flow</div>
         <h2>AWR Intelligence Pipeline</h2>
         <p class="meta pipeline-intro">
-          Current mode: local AWR staging from <strong>data/input</strong>. The pipeline converts raw AWR files into deterministic diagnosis, recommendations, dashboard evidence, and persistent memory.
+          Current mode: local AWR staging from <strong>data/input</strong>. The pipeline converts staged AWR files into deterministic diagnosis, governed memory, and dashboard evidence. Phase 6 memory supports parser review, action/outcome tracking, feedback, approvals, and inactive knowledge artifacts without changing runtime decisions.
         </p>
 
         <div class="pipeline-mode-badge">
@@ -1543,48 +1543,48 @@
 
         <div class="pipeline-flow" aria-label="AWR intelligence pipeline">
           <div class="pipeline-node source-node">
-            <span>data/input</span>
-            <small>Default local AWR staging directory</small>
+            <span>Input Source</span>
+            <small>Local path or future object storage staging</small>
           </div>
 
           <div class="pipeline-node">
             <span>Loader Agent</span>
-            <small>Normalizes and prepares inputs</small>
+            <small>Discovers files and prepares source inventory</small>
           </div>
 
           <div class="pipeline-node">
             <span>Parser Agent</span>
-            <small>Extracts metrics and unknowns</small>
+            <small>Extracts AWR sections, metrics, and unknowns</small>
           </div>
 
           <div class="pipeline-node">
             <span>Feature Model</span>
-            <small>Builds structured signals</small>
+            <small>Builds structured diagnostic signals</small>
           </div>
 
           <div class="pipeline-node core-node">
             <span>Scoring Engine</span>
-            <small>Deterministic domain scoring</small>
+            <small>Computes deterministic domain scores</small>
           </div>
 
           <div class="pipeline-node core-node">
             <span>Decision Engine</span>
-            <small>Posture and primary driver</small>
+            <small>Determines posture and issue prioritization</small>
           </div>
 
           <div class="pipeline-node">
-            <span>Recommendations</span>
-            <small>Deterministic action guidance</small>
-          </div>
-
-          <div class="pipeline-node">
-            <span>Dashboard</span>
-            <small>Evidence and visual workflow</small>
+            <span>Recommendation Engine</span>
+            <small>Produces deterministic action guidance</small>
           </div>
 
           <div class="pipeline-node memory-node">
-            <span>Memory Layer</span>
-            <small>Runs, actions, outcomes, feedback</small>
+            <span>Memory &amp; Governance</span>
+            <small>Runs, actions, outcomes, feedback, approvals, artifacts</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Dashboard / Visualization</span>
+            <small>Renders evidence, review state, and guidance</small>
           </div>
         </div>
       </section>
@@ -1740,25 +1740,25 @@
           Deterministic findings remain authoritative. The LLM is used only for
           supportive explanation, executive wording, and technical framing.
         </p>
-        <div class="info-grid">
+        <div class="info-grid ai-explanation-grid">
             <div class="info-box">
               <strong>Explanation Mode</strong>
               <div>Enabled</div>
             </div>
             
             <div class="info-box">
+              <strong>Authoritative Source</strong>
+              <div>Deterministic decision, evidence, and recommendations</div>
+            </div>
+            
+            <div class="info-box">
               <strong>Provider</strong>
-              <div>oci</div>
+              <div>OCI Generative AI</div>
             </div>
             
             <div class="info-box">
               <strong>Model</strong>
-              <div><span title="ocid1.generativeaimodel.oc1.phx.amaaaaaask7dceyaxdqqojt337jnsswwug3y3tmuel7pwnrnzctjndk656ea">OCI Generative AI Model</span></div>
-            </div>
-            
-            <div class="info-box">
-              <strong>Authoritative Source</strong>
-              <div>Deterministic decision, evidence, and recommendations</div>
+              <div><span title="ocid1.generativeaimodel.oc1.phx.amaaaaaask7dceyaxdqqojt337jnsswwug3y3tmuel7pwnrnzctjndk656ea">Grok 4.1 Fast (Reasoning)</span></div>
             </div>
             
             <div class="info-box">
@@ -1814,7 +1814,7 @@
     </div>
     
 
-    <div class="footer">Generated at May 5, 2026, 1:32 PM</div>
+    <div class="footer">Generated at May 6, 2026, 6:19 PM</div>
   </div>
 
 

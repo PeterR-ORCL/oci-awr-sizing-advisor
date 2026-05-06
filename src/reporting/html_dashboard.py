@@ -1122,21 +1122,33 @@ def _render_home_page(
     review_header = _to_dict(screen_4_review.get("header"))
     fleet_summary = _to_dict(screen_6_fleet.get("fleet_summary"))
     llm_enabled = bool(llm_explanation.get("enabled"))
-    llm_provider = llm_explanation.get("provider")
+    llm_provider = (
+        llm_explanation.get("provider")
+        or report_data.get("ai_provider")
+        or os.getenv("AI_PROVIDER")
+    )
     llm_model = llm_explanation.get("model")
     llm_model_alias = _model_alias_from_runtime(report_data, llm_explanation)
     llm_info_items = [
         ("Explanation Mode", "Enabled" if llm_enabled else "Disabled"),
-        ("Provider", llm_provider or "LLM provider not available"),
-        (
-            "Model",
-            _render_model_display_name(llm_model, alias=llm_model_alias)
-            if _has_display_value(llm_model) or _has_display_value(llm_model_alias)
-            else "Model not identified in current runtime",
-        ),
         (
             "Authoritative Source",
             "Deterministic decision, evidence, and recommendations",
+        ),
+        ("Provider", _runtime_provider_display_name(llm_provider)),
+        (
+            "Model",
+            _render_runtime_model_display_name(
+                llm_provider,
+                llm_model,
+                alias=llm_model_alias,
+            )
+            if (
+                _has_display_value(llm_model)
+                or _has_display_value(llm_model_alias)
+                or _has_display_value(_runtime_model_config_value(llm_provider, llm_model))
+            )
+            else "Model not identified in current runtime",
         ),
         (
             "Purpose",
@@ -1235,7 +1247,7 @@ def _render_home_page(
           Deterministic findings remain authoritative. The LLM is used only for
           supportive explanation, executive wording, and technical framing.
         </p>
-        {_render_info_grid(llm_info_items)}
+        {_render_info_grid(llm_info_items, extra_class="ai-explanation-grid")}
       </section>
 
       <section class="card prominent">
@@ -1257,7 +1269,7 @@ def _render_home_system_ux_sections() -> str:
         <div class="section-kicker">System Flow</div>
         <h2>AWR Intelligence Pipeline</h2>
         <p class="meta pipeline-intro">
-          Current mode: local AWR staging from <strong>data/input</strong>. The pipeline converts raw AWR files into deterministic diagnosis, recommendations, dashboard evidence, and persistent memory.
+          Current mode: local AWR staging from <strong>data/input</strong>. The pipeline converts staged AWR files into deterministic diagnosis, governed memory, and dashboard evidence. Phase 6 memory supports parser review, action/outcome tracking, feedback, approvals, and inactive knowledge artifacts without changing runtime decisions.
         </p>
 
         <div class="pipeline-mode-badge">
@@ -1267,48 +1279,48 @@ def _render_home_system_ux_sections() -> str:
 
         <div class="pipeline-flow" aria-label="AWR intelligence pipeline">
           <div class="pipeline-node source-node">
-            <span>data/input</span>
-            <small>Default local AWR staging directory</small>
+            <span>Input Source</span>
+            <small>Local path or future object storage staging</small>
           </div>
 
           <div class="pipeline-node">
             <span>Loader Agent</span>
-            <small>Normalizes and prepares inputs</small>
+            <small>Discovers files and prepares source inventory</small>
           </div>
 
           <div class="pipeline-node">
             <span>Parser Agent</span>
-            <small>Extracts metrics and unknowns</small>
+            <small>Extracts AWR sections, metrics, and unknowns</small>
           </div>
 
           <div class="pipeline-node">
             <span>Feature Model</span>
-            <small>Builds structured signals</small>
+            <small>Builds structured diagnostic signals</small>
           </div>
 
           <div class="pipeline-node core-node">
             <span>Scoring Engine</span>
-            <small>Deterministic domain scoring</small>
+            <small>Computes deterministic domain scores</small>
           </div>
 
           <div class="pipeline-node core-node">
             <span>Decision Engine</span>
-            <small>Posture and primary driver</small>
+            <small>Determines posture and issue prioritization</small>
           </div>
 
           <div class="pipeline-node">
-            <span>Recommendations</span>
-            <small>Deterministic action guidance</small>
-          </div>
-
-          <div class="pipeline-node">
-            <span>Dashboard</span>
-            <small>Evidence and visual workflow</small>
+            <span>Recommendation Engine</span>
+            <small>Produces deterministic action guidance</small>
           </div>
 
           <div class="pipeline-node memory-node">
-            <span>Memory Layer</span>
-            <small>Runs, actions, outcomes, feedback</small>
+            <span>Memory &amp; Governance</span>
+            <small>Runs, actions, outcomes, feedback, approvals, artifacts</small>
+          </div>
+
+          <div class="pipeline-node">
+            <span>Dashboard / Visualization</span>
+            <small>Renders evidence, review state, and guidance</small>
           </div>
         </div>
       </section>
@@ -2805,7 +2817,7 @@ def _render_parser_review_section(payload: dict[str, Any]) -> str:
         <div class="section-kicker">Phase 6 Parser Review</div>
         <h2>Parser Review & Unknown Signals</h2>
         <p class="meta">
-          Parser review records are read-only in this phase. Classification and approval workflows are not interactive in this phase. All parser review actions are recorded and tracked, with interactive controls planned for a future release.
+          Parser review records are read-only in this phase. Classification and approval workflows are tracked through Phase 6 memory, with interactive controls planned for a future release.
         </p>
         {body}
       </section>
@@ -6427,6 +6439,12 @@ def _build_dashboard_html(report_data: dict[str, Any]) -> str:
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
+    }}
+    .ai-explanation-grid {{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .ai-explanation-grid .info-box:nth-child(5) {{
+      grid-column: 1 / -1;
     }}
     .intake-summary-grid {{
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -12150,7 +12168,7 @@ def format_model_display_name(raw_model: str, alias: str | None = None) -> str:
     if model_name in mappings:
         return mappings[model_name]
     if model_name.startswith("ocid1.generativeaimodel."):
-        return "OCI Generative AI Model"
+        return model_name
     if len(model_name) > 40:
         return model_name[:40] + "..."
     return model_name
@@ -12171,6 +12189,47 @@ def _runtime_model_name(provider: Any, model: Any) -> str:
 
     del provider
     return format_model_display_name(str(model or "None").strip())
+
+
+def _runtime_provider_display_name(provider: Any) -> str:
+    normalized = str(provider or os.getenv("AI_PROVIDER") or "").strip().lower()
+    if normalized == "oci":
+        return "OCI Generative AI"
+    if normalized == "openai":
+        return "OpenAI"
+    return str(provider or "LLM provider not available").strip()
+
+
+def _runtime_model_config_value(provider: Any, raw_model: Any) -> str:
+    normalized_provider = str(provider or os.getenv("AI_PROVIDER") or "").strip().lower()
+    if normalized_provider == "oci":
+        return (
+            str(os.getenv("OCI_MODEL", "") or "").strip()
+            or str(raw_model or "").strip()
+            or str(os.getenv("OCI_MODEL_ID", "") or "").strip()
+        )
+    if normalized_provider == "openai":
+        return (
+            str(os.getenv("OPENAI_MODEL", "") or "").strip()
+            or str(raw_model or "").strip()
+            or "gpt-5.4-mini"
+        )
+    return str(raw_model or "").strip()
+
+
+def _render_runtime_model_display_name(
+    provider: Any,
+    raw_model: Any,
+    alias: str | None = None,
+) -> _TrustedHtml:
+    configured_model = _runtime_model_config_value(provider, raw_model)
+    display = format_model_display_name(configured_model, alias=alias)
+    title_text = str(raw_model or configured_model or "").strip()
+    if title_text and title_text != display:
+        return _TrustedHtml(
+            f'<span title="{escape(title_text)}">{escape(display)}</span>'
+        )
+    return _TrustedHtml(escape(display))
 
 
 def _normalize_ai_sections(ai_sections: dict[str, str]) -> dict[str, str]:
