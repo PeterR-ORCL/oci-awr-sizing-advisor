@@ -508,6 +508,7 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
     parser_review_payload = _build_parser_review_payload()
     parser_governance_payload = _build_parser_governance_payload()
     governance_visibility_payload = _build_governance_visibility_payload()
+    semantic_recall_visibility_payload = _build_semantic_recall_visibility_payload()
 
     pages = {
         "index.html": _build_page_html(
@@ -589,6 +590,7 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
             content_html=_render_screen_6_page(
                 screen_6_model,
                 governance_payload=governance_visibility_payload,
+                semantic_recall_payload=semantic_recall_visibility_payload,
             ),
             generated_at=generated_at,
         ),
@@ -1177,6 +1179,38 @@ def _build_governance_visibility_payload(limit: int = 5) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         payload["error"] = f"{type(exc).__name__}: {exc}"
         return payload
+
+
+def _build_semantic_recall_visibility_payload() -> dict[str, Any]:
+    enabled = _env_flag_enabled("ORACLE_AGENT_MEMORY_ENABLED")
+    return {
+        "enabled": enabled,
+        "provider": "Oracle Agent Memory",
+        "mode": "Curated semantic recall",
+        "authoritative": False,
+        "runtime_influence": False,
+        "semantic_only": True,
+        "reviewer_assist_only": True,
+        "status_message": (
+            "Oracle Agent Memory semantic recall is enabled by configuration. "
+            "Live semantic context is not queried during dashboard generation."
+            if enabled
+            else "Oracle Agent Memory semantic recall is currently disabled. Structured memory recall remains available."
+        ),
+        "assist_scope": [
+            "DB context recall",
+            "issue-type recall",
+            "posture recall",
+            "parser governance assistance",
+            "knowledge request assistance",
+            "artifact review assistance",
+        ],
+        "latest_context": [],
+    }
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return str(os.getenv(name, "") or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _dashboard_memory_connection() -> Any:
@@ -3275,6 +3309,94 @@ def _render_governance_visibility_section(payload: dict[str, Any]) -> str:
     """
 
 
+def _render_semantic_recall_visibility_section(payload: dict[str, Any]) -> str:
+    enabled = bool(payload.get("enabled"))
+    status_tone = "success" if enabled else "neutral"
+    status_text = "enabled" if enabled else "disabled"
+    latest_context = payload.get("latest_context") or []
+    latest_context_html = (
+        _render_semantic_context_summary(latest_context)
+        if latest_context
+        else _render_empty_item(
+            "No live semantic context is queried during dashboard generation. Semantic context, not diagnostic evidence, remains available only through optional reviewer-assist flows when configured."
+        )
+    )
+    return f"""
+      <section class="card secondary semantic-recall-card">
+        <div class="section-kicker">Phase 6 Semantic Memory</div>
+        <h2>Semantic Recall Visibility</h2>
+        <p class="meta">
+          Semantic recall provides optional analyst and reviewer context from curated Oracle Agent Memory entries. It is non-authoritative and does not alter parser, scoring, recommendations, approvals, or runtime decisions.
+        </p>
+        <div class="governance-section-block">
+          <h3>Semantic Recall Status</h3>
+          {_render_info_grid(
+              [
+                  ("Status", _TrustedHtml(f'<span class="mini-pill {status_tone}">{escape(status_text)}</span>')),
+                  ("Provider", payload.get("provider")),
+                  ("Mode", payload.get("mode")),
+                  ("Authoritative", str(bool(payload.get("authoritative"))).lower()),
+                  ("Runtime influence", str(bool(payload.get("runtime_influence"))).lower()),
+              ],
+              extra_class="semantic-recall-status-grid",
+          )}
+          <p class="meta semantic-status-message">{escape(_memory_cell_text(payload.get("status_message")))}</p>
+        </div>
+        <div class="governance-section-block">
+          <h3>Semantic Assist Scope</h3>
+          {_render_semantic_assist_scope(payload.get("assist_scope") or [])}
+        </div>
+        <div class="governance-section-block">
+          <h3>Optional Latest Semantic Context</h3>
+          <p class="meta">Semantic context, not diagnostic evidence.</p>
+          {latest_context_html}
+        </div>
+        <p class="meta semantic-boundary-notice">
+          Semantic recall is reviewer-assist context only. It does not change deterministic diagnosis, scoring, recommendations, governance approvals, artifact activation, or dashboard truth.
+        </p>
+      </section>
+    """
+
+
+def _render_semantic_assist_scope(items: list[Any]) -> str:
+    if not items:
+        return _render_empty_item("No semantic assist scope is configured.")
+    rendered = [
+        f"<li>{escape(_memory_cell_text(item))}</li>"
+        for item in items
+        if _has_display_value(item)
+    ]
+    if not rendered:
+        return _render_empty_item("No semantic assist scope is configured.")
+    return f'<ul class="semantic-assist-scope-list">{"".join(rendered)}</ul>'
+
+
+def _render_semantic_context_summary(rows: list[dict[str, Any]]) -> str:
+    rendered_rows = []
+    for row in rows:
+        rendered_rows.append(
+            f"""
+            <article class="semantic-context-row">
+              <div>{escape(_truncate_memory_text(row.get("query"), 42))}</div>
+              <div>{escape(_memory_cell_text(row.get("count")))}</div>
+              <div>{escape(_truncate_memory_text(row.get("summary"), 96))}</div>
+            </article>
+            """
+        )
+    if not rendered_rows:
+        return _render_empty_item("No semantic context records are available.")
+    return f"""
+        <div class="semantic-context-list">
+          <div class="semantic-context-row semantic-context-header">
+            <div>Query</div>
+            <div>Count</div>
+            <div>Summary</div>
+          </div>
+          {"".join(rendered_rows)}
+        </div>
+    """
+
+
 def _render_governance_linkage_list(rows: list[dict[str, Any]]) -> str:
     if not rows:
         return _render_empty_item("No governance request or artifact linkage records are available.")
@@ -3496,6 +3618,7 @@ def _truncate_memory_text(value: Any, max_chars: int = 120) -> str:
 def _render_screen_6_page(
     screen_model: dict[str, Any],
     governance_payload: dict[str, Any] | None = None,
+    semantic_recall_payload: dict[str, Any] | None = None,
 ) -> str:
     header = _to_dict(screen_model.get("header"))
     fleet_summary = _to_dict(screen_model.get("fleet_summary"))
@@ -3542,6 +3665,7 @@ def _render_screen_6_page(
         </p>
       </section>
       {_render_governance_visibility_section(governance_payload or {})}
+      {_render_semantic_recall_visibility_section(semantic_recall_payload or {})}
     </div>
     """
     return f"""
@@ -3598,6 +3722,7 @@ def _render_screen_6_page(
         {_render_similarity_cases(outliers) if outliers else _render_empty_item("No outlier case aggregation is established yet.")}
       </section>
       {_render_governance_visibility_section(governance_payload or {})}
+      {_render_semantic_recall_visibility_section(semantic_recall_payload or {})}
     </div>
     """
 
@@ -5460,7 +5585,8 @@ def _shared_page_styles() -> str:
     .parser-review-list,
     .parser-governance-list,
     .unknown-pattern-list,
-    .governance-linkage-list {
+    .governance-linkage-list,
+    .semantic-context-list {
       display: grid;
       gap: 8px;
       margin-top: 12px;
@@ -5491,7 +5617,8 @@ def _shared_page_styles() -> str:
     .parser-review-row,
     .parser-governance-row,
     .unknown-pattern-row,
-    .governance-linkage-row {
+    .governance-linkage-row,
+    .semantic-context-row {
       display: grid;
       align-items: center;
       gap: 10px;
@@ -5515,10 +5642,14 @@ def _shared_page_styles() -> str:
     .governance-linkage-row {
       grid-template-columns: 0.65fr 1fr 0.75fr 0.75fr 1fr 0.75fr 1.1fr 1fr;
     }
+    .semantic-context-row {
+      grid-template-columns: 0.85fr 0.35fr 2fr;
+    }
     .parser-review-row strong,
     .parser-governance-row strong,
     .unknown-pattern-row strong,
-    .governance-linkage-row strong {
+    .governance-linkage-row strong,
+    .semantic-context-row strong {
       color: var(--text);
     }
     .parser-review-row span:not(.mini-pill),
@@ -5544,7 +5675,8 @@ def _shared_page_styles() -> str:
     .parser-review-header,
     .parser-governance-header,
     .unknown-pattern-header,
-    .governance-linkage-header {
+    .governance-linkage-header,
+    .semantic-context-header {
       background: transparent;
       border-color: transparent;
       padding-top: 0;
@@ -5561,6 +5693,27 @@ def _shared_page_styles() -> str:
     .governance-section-block h3 {
       margin-bottom: 8px;
       font-size: 14px;
+    }
+    .semantic-assist-scope-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .semantic-assist-scope-list li {
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: rgba(16, 28, 45, 0.48);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .semantic-boundary-notice,
+    .semantic-status-message {
+      margin-top: 10px;
     }
     .nav-card-note {
       margin-top: 8px;
@@ -6276,19 +6429,22 @@ def _shared_page_styles() -> str:
       .governance-summary-grid,
       .governance-artifact-grid,
       .workflow-summary-grid,
+      .semantic-assist-scope-list,
       .fleet-detail-list {
         grid-template-columns: 1fr;
       }
       .parser-review-header,
       .parser-governance-header,
       .unknown-pattern-header,
-      .governance-linkage-header {
+      .governance-linkage-header,
+      .semantic-context-header {
         display: none;
       }
       .parser-review-row,
       .parser-governance-row,
       .unknown-pattern-row,
-      .governance-linkage-row {
+      .governance-linkage-row,
+      .semantic-context-row {
         grid-template-columns: 1fr;
       }
     }

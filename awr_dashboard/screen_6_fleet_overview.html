@@ -629,7 +629,8 @@
     .parser-review-list,
     .parser-governance-list,
     .unknown-pattern-list,
-    .governance-linkage-list {
+    .governance-linkage-list,
+    .semantic-context-list {
       display: grid;
       gap: 8px;
       margin-top: 12px;
@@ -660,7 +661,8 @@
     .parser-review-row,
     .parser-governance-row,
     .unknown-pattern-row,
-    .governance-linkage-row {
+    .governance-linkage-row,
+    .semantic-context-row {
       display: grid;
       align-items: center;
       gap: 10px;
@@ -684,10 +686,14 @@
     .governance-linkage-row {
       grid-template-columns: 0.65fr 1fr 0.75fr 0.75fr 1fr 0.75fr 1.1fr 1fr;
     }
+    .semantic-context-row {
+      grid-template-columns: 0.85fr 0.35fr 2fr;
+    }
     .parser-review-row strong,
     .parser-governance-row strong,
     .unknown-pattern-row strong,
-    .governance-linkage-row strong {
+    .governance-linkage-row strong,
+    .semantic-context-row strong {
       color: var(--text);
     }
     .parser-review-row span:not(.mini-pill),
@@ -713,7 +719,8 @@
     .parser-review-header,
     .parser-governance-header,
     .unknown-pattern-header,
-    .governance-linkage-header {
+    .governance-linkage-header,
+    .semantic-context-header {
       background: transparent;
       border-color: transparent;
       padding-top: 0;
@@ -730,6 +737,27 @@
     .governance-section-block h3 {
       margin-bottom: 8px;
       font-size: 14px;
+    }
+    .semantic-assist-scope-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .semantic-assist-scope-list li {
+      border: 1px solid rgba(159, 176, 199, 0.16);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: rgba(16, 28, 45, 0.48);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .semantic-boundary-notice,
+    .semantic-status-message {
+      margin-top: 10px;
     }
     .nav-card-note {
       margin-top: 8px;
@@ -1445,19 +1473,22 @@
       .governance-summary-grid,
       .governance-artifact-grid,
       .workflow-summary-grid,
+      .semantic-assist-scope-list,
       .fleet-detail-list {
         grid-template-columns: 1fr;
       }
       .parser-review-header,
       .parser-governance-header,
       .unknown-pattern-header,
-      .governance-linkage-header {
+      .governance-linkage-header,
+      .semantic-context-header {
         display: none;
       }
       .parser-review-row,
       .parser-governance-row,
       .unknown-pattern-row,
-      .governance-linkage-row {
+      .governance-linkage-row,
+      .semantic-context-row {
         grid-template-columns: 1fr;
       }
     }
@@ -1523,7 +1554,7 @@
           Deterministic Oracle AWR intelligence delivering consistent diagnosis,
           historical context, and actionable guidance.
         </p>
-        <div class="hero-meta">Generated: May 9, 2026, 2:28 PM</div>
+        <div class="hero-meta">Generated: May 11, 2026, 1:36 PM</div>
       </section>
 
       <nav class="page-nav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="screen_1_ingestion.html">1 Ingestion</a><a class="nav-link" href="screen_2_analysis.html">2 Analysis</a><a class="nav-link" href="screen_3_history_selector.html">3 Selector</a><a class="nav-link" href="screen_4_historical_review.html">4 Review</a><a class="nav-link" href="screen_5_recommendation_action.html">5 Action</a><a class="nav-link active" href="screen_6_fleet_overview.html">6 Fleet</a></nav>
@@ -1924,10 +1955,61 @@
         </p>
       </section>
     
+      
+      <section class="card secondary semantic-recall-card">
+        <div class="section-kicker">Phase 6 Semantic Memory</div>
+        <h2>Semantic Recall Visibility</h2>
+        <p class="meta">
+          Semantic recall provides optional analyst and reviewer context from curated Oracle Agent Memory entries. It is non-authoritative and does not alter parser, scoring, recommendations, approvals, or runtime decisions.
+        </p>
+        <div class="governance-section-block">
+          <h3>Semantic Recall Status</h3>
+          <div class="info-grid semantic-recall-status-grid">
+            <div class="info-box">
+              <strong>Status</strong>
+              <div><span class="mini-pill neutral">disabled</span></div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Provider</strong>
+              <div>Oracle Agent Memory</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Mode</strong>
+              <div>Curated semantic recall</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Authoritative</strong>
+              <div>false</div>
+            </div>
+            
+            <div class="info-box">
+              <strong>Runtime influence</strong>
+              <div>false</div>
+            </div>
+            </div>
+          <p class="meta semantic-status-message">Oracle Agent Memory semantic recall is currently disabled. Structured memory recall remains available.</p>
+        </div>
+        <div class="governance-section-block">
+          <h3>Semantic Assist Scope</h3>
+          <ul class="semantic-assist-scope-list"><li>DB context recall</li><li>issue-type recall</li><li>posture recall</li><li>parser governance assistance</li><li>knowledge request assistance</li><li>artifact review assistance</li></ul>
+        </div>
+        <div class="governance-section-block">
+          <h3>Optional Latest Semantic Context</h3>
+          <p class="meta">Semantic context, not diagnostic evidence.</p>
+          <div class="item"><div class="meta">No live semantic context is queried during dashboard generation. Semantic context, not diagnostic evidence, remains available only through optional reviewer-assist flows when configured.</div></div>
+        </div>
+        <p class="meta semantic-boundary-notice">
+          Semantic recall is reviewer-assist context only. It does not change deterministic diagnosis, scoring, recommendations, governance approvals, artifact activation, or dashboard truth.
+        </p>
+      </section>
+    
     </div>
     
 
-    <div class="footer">Generated at May 9, 2026, 2:28 PM</div>
+    <div class="footer">Generated at May 11, 2026, 1:36 PM</div>
   </div>
 
 
