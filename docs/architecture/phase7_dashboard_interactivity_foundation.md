@@ -26,7 +26,7 @@ Selections are exploratory only. They may affect browser-visible selection styli
 
 ## 5. Supported State Keys
 
-The Phase 7H.1 foundation supports these state keys for future use: `selectedAwr`, `selectedRun`, `selectedDb`, `selectedSystem`, `selectedSnapshot`, `selectedDomain`, `selectedSeverity`, `selectedRecommendation`, `selectedEvidenceGroup`, `selectedMetricGroup`, `selectedWaitEventGroup`, `selectedSqlSignal`, `selectedDiagnosticSection`, `selectedGovernanceItem`, `selectedSemanticItem`, `selectedLearningCandidate`, `selectedFleetGroup`, and `selectedComparisonBaseline`.
+The Phase 7H.1 foundation supports these state keys for future use: `selectedAwr`, `selectedRun`, `selectedDb`, `selectedSystem`, `selectedSnapshot`, `selectedDomain`, `selectedSeverity`, `selectedRecommendation`, `selectedEvidenceGroup`, `selectedMetricGroup`, `selectedWaitEventGroup`, `selectedSqlSignal`, `selectedDiagnosticSection`, `selectedHistoricalWindow`, `selectedTrendMetric`, `selectedAnomalyGroup`, `selectedDistribution`, `selectedSimilarCase`, `selectedGovernanceItem`, `selectedSemanticItem`, `selectedLearningCandidate`, `selectedFleetGroup`, and `selectedComparisonBaseline`.
 
 For Phase 7H.1 these keys are defined and safely handled only. They do not drive full screen-specific behavior.
 

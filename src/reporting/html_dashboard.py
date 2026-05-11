@@ -40,6 +40,11 @@ DASHBOARD_INTERACTIVITY_STATE_KEYS = (
     "selectedWaitEventGroup",
     "selectedSqlSignal",
     "selectedDiagnosticSection",
+    "selectedHistoricalWindow",
+    "selectedTrendMetric",
+    "selectedAnomalyGroup",
+    "selectedDistribution",
+    "selectedSimilarCase",
     "selectedGovernanceItem",
     "selectedSemanticItem",
     "selectedLearningCandidate",
@@ -61,6 +66,7 @@ DASHBOARD_INTERACTIVITY_STORAGE_KEY = (
 )
 SCREEN3_CONTROL_CENTER_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
+SCREEN4_HISTORICAL_EXPLORATION_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 
 
 class _TrustedHtml(str):
@@ -864,6 +870,16 @@ def _build_dashboard_interactivity_javascript() -> str:
         sql: 'selectedSqlSignal',
         diagnosticSection: 'selectedDiagnosticSection',
         diagnostic: 'selectedDiagnosticSection',
+        historicalWindow: 'selectedHistoricalWindow',
+        historical: 'selectedHistoricalWindow',
+        trendMetric: 'selectedTrendMetric',
+        trend: 'selectedTrendMetric',
+        anomalyGroup: 'selectedAnomalyGroup',
+        anomaly: 'selectedAnomalyGroup',
+        distribution: 'selectedDistribution',
+        distributionDomain: 'selectedDistribution',
+        similarCase: 'selectedSimilarCase',
+        similar: 'selectedSimilarCase',
         governanceItem: 'selectedGovernanceItem',
         governance: 'selectedGovernanceItem',
         semanticItem: 'selectedSemanticItem',
@@ -4331,6 +4347,13 @@ def _render_screen_4_page(
           </section>
         </div>
       </section>
+      {_render_screen4_historical_exploration(
+          screen_model,
+          chart_payload,
+          violin_metric_groups,
+          time_series_groups,
+          derived_scalar_metrics,
+      )}
       {ordered_visual_sections}
       {topology_scalar_html}
       {_render_similarity_evidence_section(similarity_evidence)}
@@ -4376,6 +4399,477 @@ def _screen4_similarity_context_label(similarity_evidence: dict[str, Any]) -> st
     if similar_count:
         return f"{similar_count} nearest-neighbor case(s); {cluster_label}"
     return cluster_label
+
+
+def _render_screen4_historical_exploration(
+    screen_model: dict[str, Any],
+    chart_payload: dict[str, Any],
+    violin_metric_groups: list[dict[str, Any]],
+    time_series_groups: list[dict[str, Any]],
+    derived_scalar_metrics: dict[str, Any],
+) -> str:
+    exploration = _build_screen4_historical_exploration_model(
+        screen_model,
+        chart_payload,
+        violin_metric_groups,
+        time_series_groups,
+        derived_scalar_metrics,
+    )
+    return f"""
+      <section class="card secondary screen4-historical-exploration">
+        <div class="section-kicker">Screen 4 Historical Review Exploration</div>
+        <h2>Screen 4 Historical Review Exploration</h2>
+        <p class="meta">
+          Read-only historical exploration. Exploratory only. No backend writes.
+          Does not change historical truth. Does not recalculate trends.
+          Does not reclassify anomalies. Does not change baseline.
+          Does not change diagnostic truth. Does not change recommendation truth.
+          Semantic/learning context is not historical evidence.
+          Selection only highlights deterministic historical context.
+          Cross-screen propagation remains future Phase 7H.8.
+          No approval controls. No runtime activation.
+        </p>
+        <div class="subgrid">
+          <section class="evidence-pane selector-pane screen4-selected-historical-panel">
+            <h3>Selected Historical Summary</h3>
+            <p class="screen4-selected-historical-summary" data-dashboard-selected-summary data-dashboard-state-empty="true">
+              Read-only historical exploration: no local selection. Selection is local and read-only. Historical output remains unchanged.
+            </p>
+            <div class="meta">
+              Selection does not recalculate trends, reclassify anomalies, change baseline, change similarity results, change diagnostic truth, or change recommendation truth.
+            </div>
+          </section>
+          {_render_screen4_selector_group(
+              "Historical Domain Selector",
+              "Domain selection is local and does not recalculate trends, anomalies, baseline, primary issue, or severity.",
+              exploration["domain_controls"],
+              "Historical domain controls are limited to fixed authoritative domains. Selection is local and read-only. Historical output remains unchanged.",
+          )}
+          {_render_screen4_selector_group(
+              "Time Window Selector",
+              "Window selection highlights existing historical context only. No trend recalculation.",
+              exploration["time_windows"],
+              "No additional historical windows available in this static export. Selection is local and read-only. Historical output remains unchanged.",
+          )}
+          {_render_screen4_selector_group(
+              "Trend / Metric Selector",
+              "Trend selection uses already rendered metrics only. No metric recalculation.",
+              exploration["trend_metrics"],
+              "No additional trend or metric groups available in this static export. Selection is local and read-only. Historical output remains unchanged.",
+          )}
+          {_render_screen4_selector_group(
+              "Anomaly Selector",
+              "Anomaly selection highlights deterministic anomaly context only. No reclassification.",
+              exploration["anomaly_groups"],
+              "No anomaly groups available in this static export. Selection is local and read-only. Historical output remains unchanged.",
+          )}
+          {_render_screen4_selector_group(
+              "Violin / Distribution Selector",
+              "Distribution selection highlights rendered distribution domains only. No distribution recalculation.",
+              exploration["distribution_groups"],
+              "No distribution selector available in this static export. Selection is local and read-only. Historical output remains unchanged.",
+          )}
+          {_render_screen4_selector_group(
+              "Baseline / Similar Case Selector",
+              "Baseline and similar-case selection uses deterministic output already present. No similarity recomputation.",
+              exploration["baseline_similarity"],
+              "No similar-case selector available in this static export. Selection is local and read-only. Historical output remains unchanged.",
+          )}
+        </div>
+      </section>
+    """
+
+
+def _build_screen4_historical_exploration_model(
+    screen_model: dict[str, Any],
+    chart_payload: dict[str, Any],
+    violin_metric_groups: list[dict[str, Any]],
+    time_series_groups: list[dict[str, Any]],
+    derived_scalar_metrics: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    header = _to_dict(screen_model.get("header"))
+    current_selection_summary = _to_dict(screen_model.get("current_selection_summary"))
+    historical_verdict = _to_dict(screen_model.get("historical_verdict"))
+    normalized_decision = _to_dict(screen_model.get("normalized_decision"))
+    anomaly_review = _to_dict(screen_model.get("anomaly_review"))
+    comparison_review = _to_dict(screen_model.get("comparison_review"))
+    similarity_evidence = _to_dict(screen_model.get("similarity_evidence"))
+    time_series_payload = _to_dict(chart_payload.get("time_series_charts"))
+    domain_scores = _to_dict(normalized_decision.get("domain_scores"))
+    primary_domain = _screen4_selector_domain(
+        normalized_decision.get("primary_issue")
+        or historical_verdict.get("primary_issue")
+        or header.get("primary_issue")
+    )
+
+    domain_controls: list[dict[str, Any]] = []
+    for domain in SCREEN4_HISTORICAL_EXPLORATION_DOMAINS:
+        score = _screen2_domain_score(domain_scores, domain)
+        _append_screen4_selector_item(
+            domain_controls,
+            label=domain,
+            value=domain,
+            select_type="historical-domain",
+            state_key="selectedDomain",
+            domain=domain,
+            active=domain == primary_domain,
+            display_value=(
+                f"{score:.1f}" if score is not None else "Exploration domain"
+            ),
+            note="Historical domain selection only; no trend, anomaly, baseline, primary-issue, or severity change.",
+        )
+
+    time_windows: list[dict[str, Any]] = []
+    window_summary = _format_window_summary(
+        header.get("snapshot_count"),
+        header.get("comparison_window"),
+    )
+    for label, raw_value, note in (
+        ("Historical Window", window_summary, "Existing Screen 4 comparison window. No trend recalculation."),
+        ("Current Window", current_selection_summary.get("current_window"), "Current selection context already rendered."),
+        ("Latest Interval", comparison_review.get("latest_interval"), "Existing latest interval. No re-windowing."),
+        ("Worst Interval", comparison_review.get("worst_interval"), "Existing worst interval. No baseline change."),
+    ):
+        if not _has_display_value(raw_value):
+            continue
+        _append_screen4_selector_item(
+            time_windows,
+            label=label,
+            value=_screen4_state_id(raw_value),
+            select_type="historical-window",
+            state_key="selectedHistoricalWindow",
+            display_value=raw_value,
+            note=note,
+        )
+    snapshot_labels = [
+        _display_value(label)
+        for label in (time_series_payload.get("snapshot_labels") or [])
+        if _has_display_value(label)
+    ]
+    if len(snapshot_labels) >= 2:
+        _append_screen4_selector_item(
+            time_windows,
+            label="Snapshot Label Range",
+            value=_screen4_state_id(f"{snapshot_labels[0]}-{snapshot_labels[-1]}"),
+            select_type="historical-window",
+            state_key="selectedHistoricalWindow",
+            display_value=f"{snapshot_labels[0]} -> {snapshot_labels[-1]}",
+            note="Rendered time-series label range. No trend recalculation.",
+        )
+
+    trend_metrics: list[dict[str, Any]] = []
+    for group in time_series_groups:
+        group_title = _display_value(group.get("group_title"))
+        for chart in group.get("charts") or []:
+            title = _display_value(chart.get("title") or chart.get("label"))
+            if not title:
+                continue
+            domain = _screen4_selector_domain(group.get("group_key") or title)
+            _append_screen4_selector_item(
+                trend_metrics,
+                label=title,
+                value=f"{_screen4_state_id(group.get('group_key'))}-{_screen4_state_id(chart.get('key') or title)}",
+                select_type="trend-metric",
+                state_key="selectedTrendMetric",
+                domain=domain,
+                display_value=group_title or title,
+                note="Rendered trend metric only. No metric recalculation.",
+            )
+    for label, value in _to_dict(derived_scalar_metrics).items():
+        if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            continue
+        _append_screen4_selector_item(
+            trend_metrics,
+            label=_screen4_title_from_key(label),
+            value=f"scalar-{_screen4_state_id(label)}",
+            select_type="trend-metric",
+            state_key="selectedTrendMetric",
+            domain=_screen4_selector_domain(label),
+            display_value=_format_scalar_metric(value),
+            note="Derived scalar metric already rendered. No metric recalculation.",
+        )
+
+    anomaly_groups = _screen4_anomaly_selector_items(anomaly_review)
+    distribution_groups = _screen4_distribution_selector_items(violin_metric_groups)
+    baseline_similarity = _screen4_baseline_similarity_selector_items(
+        current_selection_summary,
+        comparison_review,
+        similarity_evidence,
+    )
+
+    return {
+        "domain_controls": _dedupe_screen4_selector_items(domain_controls),
+        "time_windows": _dedupe_screen4_selector_items(time_windows),
+        "trend_metrics": _dedupe_screen4_selector_items(trend_metrics),
+        "anomaly_groups": _dedupe_screen4_selector_items(anomaly_groups),
+        "distribution_groups": _dedupe_screen4_selector_items(distribution_groups),
+        "baseline_similarity": _dedupe_screen4_selector_items(baseline_similarity),
+    }
+
+
+def _screen4_anomaly_selector_items(anomaly_review: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    anomalies = _to_dict(anomaly_review.get("anomalies"))
+    anomaly_summary = _to_dict(anomaly_review.get("anomaly_summary"))
+    count = _safe_float(anomalies.get("count") or anomaly_summary.get("count"))
+    if count is not None and count > 0:
+        _append_screen4_selector_item(
+            items,
+            label="Anomaly Review",
+            value="anomaly-review",
+            select_type="anomaly-group",
+            state_key="selectedAnomalyGroup",
+            display_value=f"{int(count)} anomaly group(s)",
+            note="Deterministic anomaly summary only. No reclassification.",
+        )
+    windows = anomaly_summary.get("windows") or anomaly_summary.get("items") or []
+    if isinstance(windows, dict):
+        windows = list(windows.values())
+    for index, window in enumerate(windows):
+        window_dict = _to_dict(window) if isinstance(window, dict) else {}
+        label = (
+            window_dict.get("label")
+            or window_dict.get("window")
+            or window_dict.get("title")
+            or window
+        )
+        if not _has_display_value(label):
+            continue
+        _append_screen4_selector_item(
+            items,
+            label=_display_value(label),
+            value=f"anomaly-{index}-{_screen4_state_id(label)}",
+            select_type="anomaly-group",
+            state_key="selectedAnomalyGroup",
+            domain=_screen4_selector_domain(label),
+            display_value=window_dict.get("severity") or "Historical anomaly context",
+            note="Existing anomaly window only. No anomaly reclassification.",
+        )
+    return _dedupe_screen4_selector_items(items)
+
+
+def _screen4_distribution_selector_items(
+    violin_metric_groups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for group in violin_metric_groups:
+        group_key = group.get("group_key")
+        group_title = _display_value(group.get("group_title") or group_key)
+        metrics = list(group.get("metrics") or [])
+        if not group_title:
+            continue
+        _append_screen4_selector_item(
+            items,
+            label=group_title,
+            value=_screen4_state_id(group_key or group_title),
+            select_type="distribution",
+            state_key="selectedDistribution",
+            domain=_screen4_selector_domain(group_title),
+            display_value=f"{len(metrics)} rendered distribution metric(s)",
+            note=_display_value(group.get("group_note") or "Rendered distribution group. No distribution recalculation."),
+        )
+        for metric in metrics[:3]:
+            title = _display_value(metric.get("title") or metric.get("payload_key"))
+            if not title:
+                continue
+            _append_screen4_selector_item(
+                items,
+                label=title,
+                value=f"{_screen4_state_id(group_key)}-{_screen4_state_id(metric.get('payload_key') or title)}",
+                select_type="distribution",
+                state_key="selectedDistribution",
+                domain=_screen4_selector_domain(title),
+                display_value=group_title,
+                note="Rendered distribution metric only. No distribution recalculation.",
+            )
+    return _dedupe_screen4_selector_items(items)
+
+
+def _screen4_baseline_similarity_selector_items(
+    current_selection_summary: dict[str, Any],
+    comparison_review: dict[str, Any],
+    similarity_evidence: dict[str, Any],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    baseline_pairs = (
+        ("Comparison Mode", current_selection_summary.get("comparison_mode")),
+        ("Latest vs Prior", current_selection_summary.get("latest_vs_prior")),
+        ("Latest vs Trend", comparison_review.get("latest_vs_trend")),
+        ("Drift Summary", comparison_review.get("drift_summary")),
+    )
+    for label, value in baseline_pairs:
+        if not _has_display_value(value):
+            continue
+        _append_screen4_selector_item(
+            items,
+            label=label,
+            value=f"baseline-{_screen4_state_id(label)}",
+            select_type="comparison-baseline",
+            state_key="selectedComparisonBaseline",
+            display_value=value,
+            note="Existing comparison baseline context only. No baseline change.",
+        )
+    if similarity_evidence.get("enabled"):
+        for index, case in enumerate(similarity_evidence.get("similar_cases") or []):
+            case_dict = _to_dict(case)
+            case_id = (
+                case_dict.get("awr_id")
+                or case_dict.get("id")
+                or case_dict.get("db_name")
+                or f"case-{index + 1}"
+            )
+            _append_screen4_selector_item(
+                items,
+                label=f"Similar Case {_display_value(case_id)}",
+                value=f"similar-{_screen4_state_id(case_id)}",
+                select_type="similar-case",
+                state_key="selectedSimilarCase",
+                domain=_screen4_selector_domain(case_dict.get("primary_signal_domain")),
+                display_value=case_dict.get("db_name") or case_dict.get("workload_class") or "Nearest-neighbor case",
+                note="Deterministic similar-case row already present. No similarity recomputation.",
+            )
+    return _dedupe_screen4_selector_items(items)
+
+
+def _append_screen4_selector_item(
+    items: list[dict[str, Any]],
+    *,
+    label: Any,
+    value: Any,
+    select_type: str,
+    state_key: str,
+    display_value: Any = None,
+    note: Any = None,
+    domain: Any = None,
+    active: bool = False,
+) -> None:
+    if not _has_display_value(label) or not _has_display_value(value):
+        return
+    domain_text = _screen4_selector_domain(domain)
+    items.append(
+        {
+            "label": _display_value(label),
+            "value": _display_value(value),
+            "select_type": select_type,
+            "state_key": state_key,
+            "display_value": _display_value(display_value) if _has_display_value(display_value) else "",
+            "note": _display_value(note) if _has_display_value(note) else "",
+            "domain": domain_text,
+            "active": active,
+        }
+    )
+
+
+def _render_screen4_selector_group(
+    title: str,
+    description: str,
+    items: list[dict[str, Any]],
+    empty_message: str,
+) -> str:
+    if not items:
+        return f"""
+          <section class="evidence-pane selector-pane">
+            <h3>{escape(title)}</h3>
+            <p class="meta">{escape(description)}</p>
+            <div class="item">
+              <p>{escape(empty_message)}</p>
+            </div>
+          </section>
+        """
+    cards = "".join(_render_screen4_selector_card(item) for item in items)
+    return f"""
+          <section class="evidence-pane selector-pane">
+            <h3>{escape(title)}</h3>
+            <p class="meta">{escape(description)}</p>
+            <div class="screen4-selector-grid">{cards}</div>
+          </section>
+    """
+
+
+def _render_screen4_selector_card(item: dict[str, Any]) -> str:
+    select_type = _display_value(item.get("select_type"))
+    state_key = _display_value(item.get("state_key"))
+    value = _display_value(item.get("value"))
+    domain = _display_value(item.get("domain")) if _has_display_value(item.get("domain")) else ""
+    active_class = " active" if item.get("active") else ""
+    domain_attribute = (
+        f' data-dashboard-select-domain="{escape(domain, quote=True)}"'
+        if domain
+        else ""
+    )
+    return f"""
+              <article
+                class="screen4-selector-card{active_class}"
+                data-dashboard-selectable="true"
+                data-dashboard-select-type="{escape(select_type, quote=True)}"
+                data-dashboard-select-key="{escape(state_key, quote=True)}"
+                data-dashboard-select-id="{escape(value, quote=True)}"
+                data-dashboard-filter-key="{escape(state_key, quote=True)}"
+                data-dashboard-filter-value="{escape(value, quote=True)}"{domain_attribute}
+                data-selected="false"
+                aria-selected="false"
+                tabindex="0"
+              >
+                <strong>{escape(select_type.replace("-", " ").title())}</strong>
+                <span>{escape(_display_value(item.get("label")))}</span>
+                {
+                    f'<p>{escape(_display_value(item.get("display_value")))}</p>'
+                    if _has_display_value(item.get("display_value"))
+                    else ""
+                }
+                {
+                    f'<p>{escape(_display_value(item.get("note")))}</p>'
+                    if _has_display_value(item.get("note"))
+                    else ""
+                }
+              </article>
+    """
+
+
+def _screen4_selector_domain(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    if not text:
+        return None
+    if "USER I/O" in text or "USER IO" in text:
+        return "IO"
+    if "LOG FILE" in text or "COMMIT" in text:
+        return "COMMIT"
+    if "CLUSTER" in text or "GC " in text or "RAC" in text:
+        return "RAC"
+    if "DATA GUARD" in text or "TRANSPORT" in text or "APPLY LAG" in text or "ADG" in text:
+        return "ADG"
+    if "PGA" in text or "MEMORY" in text or "TEMP" in text:
+        return "MEMORY"
+    if "CPU" in text:
+        return "CPU"
+    if "IO" in text or "I/O" in text:
+        return "IO"
+    for domain in SCREEN4_HISTORICAL_EXPLORATION_DOMAINS:
+        if domain in text:
+            return domain
+    return None
+
+
+def _screen4_state_id(value: Any) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", _display_value(value).strip().lower())
+    return text.strip("-")[:80] or "selection"
+
+
+def _screen4_title_from_key(value: Any) -> str:
+    text = re.sub(r"[_\-]+", " ", _display_value(value)).strip()
+    return text.title() if text else "Historical Metric"
+
+
+def _dedupe_screen4_selector_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in items:
+        key = (_display_value(item.get("state_key")), _display_value(item.get("value")))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
 
 
 def _render_screen_5_page(
@@ -7010,6 +7504,55 @@ def _shared_page_styles() -> str:
     .screen4-summary-card {
       padding: 16px;
     }
+    .screen4-historical-exploration {
+      border-color: rgba(90, 209, 255, 0.32);
+    }
+    .screen4-selected-historical-panel {
+      border-color: rgba(90, 209, 255, 0.34);
+      background: rgba(90, 209, 255, 0.08);
+    }
+    .screen4-selected-historical-summary {
+      margin: 0 0 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .screen4-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen4-selector-card {
+      display: grid;
+      gap: 6px;
+      min-height: 104px;
+      border: 1px solid rgba(159, 176, 199, 0.24);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+      color: inherit;
+    }
+    .screen4-selector-card strong {
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .screen4-selector-card span {
+      color: var(--text);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .screen4-selector-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .screen4-selector-card.active {
+      border-color: rgba(90, 209, 255, 0.62);
+      background: rgba(90, 209, 255, 0.12);
+    }
     .screen4-compact-pane {
       padding: 14px;
     }
@@ -8214,6 +8757,7 @@ def _shared_page_styles() -> str:
       .semantic-assist-scope-list,
       .screen2-selector-grid,
       .screen3-selector-grid,
+      .screen4-selector-grid,
       .fleet-detail-list {
         grid-template-columns: 1fr;
       }
