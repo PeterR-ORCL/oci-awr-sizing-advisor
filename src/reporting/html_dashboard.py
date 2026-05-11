@@ -35,6 +35,11 @@ DASHBOARD_INTERACTIVITY_STATE_KEYS = (
     "selectedDomain",
     "selectedSeverity",
     "selectedRecommendation",
+    "selectedEvidenceGroup",
+    "selectedMetricGroup",
+    "selectedWaitEventGroup",
+    "selectedSqlSignal",
+    "selectedDiagnosticSection",
     "selectedGovernanceItem",
     "selectedSemanticItem",
     "selectedLearningCandidate",
@@ -55,6 +60,7 @@ DASHBOARD_INTERACTIVITY_STORAGE_KEY = (
     "agenticAiAwrAdvisor.dashboardInteractivityState.v1"
 )
 SCREEN3_CONTROL_CENTER_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
+SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 
 
 class _TrustedHtml(str):
@@ -848,6 +854,16 @@ def _build_dashboard_interactivity_javascript() -> str:
         domain: 'selectedDomain',
         severity: 'selectedSeverity',
         recommendation: 'selectedRecommendation',
+        evidenceGroup: 'selectedEvidenceGroup',
+        evidence: 'selectedEvidenceGroup',
+        metricGroup: 'selectedMetricGroup',
+        metric: 'selectedMetricGroup',
+        waitEventGroup: 'selectedWaitEventGroup',
+        waitEvent: 'selectedWaitEventGroup',
+        sqlSignal: 'selectedSqlSignal',
+        sql: 'selectedSqlSignal',
+        diagnosticSection: 'selectedDiagnosticSection',
+        diagnostic: 'selectedDiagnosticSection',
         governanceItem: 'selectedGovernanceItem',
         governance: 'selectedGovernanceItem',
         semanticItem: 'selectedSemanticItem',
@@ -2166,6 +2182,12 @@ def _render_screen_2_page(
     return f"""
     <div class="grid">
       <!-- Screen 2 = diagnosis only. Ingestion stays on Screen 1; historical proof stays on Screen 4; action stays on Screen 5. -->
+      {_render_screen2_diagnostic_exploration(
+          screen_model,
+          visual_summary,
+          report_data,
+          authoritative_confidence,
+      )}
       <section class="card prominent diagnostic-compact-card">
         <div class="section-kicker">DECISION</div>
         <h2>Diagnostic Snapshot</h2>
@@ -2243,6 +2265,486 @@ def _render_screen_2_page(
       </section>
     </div>
     """
+
+
+def _render_screen2_diagnostic_exploration(
+    screen_model: dict[str, Any],
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+    authoritative_confidence: Any,
+) -> str:
+    """Render Phase 7H.3 read-only diagnostic exploration controls."""
+
+    exploration = _build_screen2_diagnostic_exploration_model(
+        screen_model,
+        visual_summary,
+        report_data,
+        authoritative_confidence,
+    )
+    return f"""
+      <!-- Phase 7H.3 Screen 2 Diagnostic Exploration: read-only selectors only. -->
+      <section class="card secondary screen2-diagnostic-exploration">
+        <div class="section-kicker">Phase 7H.3</div>
+        <h2>Screen 2 Diagnostic Exploration</h2>
+        <p class="static-selection-note">
+          Read-only diagnostic exploration. Exploratory only. No backend writes. Does not change diagnostic truth. Does not change primary issue.
+        </p>
+        <p class="static-selection-note">
+          Does not change severity. Does not change confidence. Does not change recommendation truth. Semantic/learning context is not diagnostic evidence. Selection only highlights deterministic evidence. Cross-screen propagation remains future Phase 7H.8. No approval controls. No runtime activation.
+        </p>
+        <div class="subgrid selector-subgrid">
+          <section class="evidence-pane selector-pane screen2-selected-diagnostic-panel">
+            <h3>Selected Diagnostic Summary</h3>
+            <p class="screen2-selected-diagnostic-summary" data-dashboard-selected-summary data-dashboard-state-empty="true">
+              Read-only diagnostic exploration: no exploratory diagnostic selection
+            </p>
+            <div class="mini-pill-group">
+              <span class="mini-pill neutral">Read-only diagnostic exploration</span>
+              <span class="mini-pill neutral">Exploratory only</span>
+              <span class="mini-pill neutral">No backend writes</span>
+              <span class="mini-pill neutral">No approval controls</span>
+              <span class="mini-pill neutral">No runtime activation</span>
+            </div>
+            <p class="meta">
+              Selection only highlights deterministic evidence already rendered on this page. Diagnostic output remains unchanged.
+            </p>
+          </section>
+          <section class="evidence-pane selector-pane">
+            <h3>Diagnostic Domain Selector</h3>
+            {_render_screen2_selector_group(
+                exploration["domains"],
+                "No diagnostic domain choices are available.",
+            )}
+            <p class="meta">Domain selection does not change primary issue or severity.</p>
+          </section>
+          <section class="half evidence-pane selector-pane">
+            <h3>Evidence Group Selector</h3>
+            {_render_screen2_selector_group(
+                exploration["evidence_groups"],
+                "No additional evidence groups available in this static export. Selection is local and read-only. Diagnostic output remains unchanged.",
+            )}
+          </section>
+          <section class="half evidence-pane selector-pane">
+            <h3>Metric / Score Group Selector</h3>
+            {_render_screen2_selector_group(
+                exploration["metric_groups"],
+                "No metric or score groups are available in this static export. Selection is local and read-only. Diagnostic output remains unchanged.",
+            )}
+          </section>
+          <section class="half evidence-pane selector-pane">
+            <h3>Wait Event Selector</h3>
+            {_render_screen2_selector_group(
+                exploration["wait_event_groups"],
+                "No wait event groups are available in this static export. Selection is local and read-only. Diagnostic output remains unchanged.",
+            )}
+          </section>
+          <section class="half evidence-pane selector-pane">
+            <h3>SQL Signal Selector</h3>
+            {_render_screen2_selector_group(
+                exploration["sql_signal_groups"],
+                "No SQL signal groups are available in this static export. Selection is local and read-only. Diagnostic output remains unchanged.",
+            )}
+          </section>
+          <section class="evidence-pane selector-pane">
+            <h3>Deterministic Diagnostic Sections</h3>
+            {_render_screen2_selector_group(
+                exploration["diagnostic_sections"],
+                "No deterministic diagnostic sections are available in this static export.",
+            )}
+          </section>
+          <section class="half evidence-pane selector-pane">
+            <h3>Current AWR / Run Context</h3>
+            {_render_screen2_selector_group(
+                exploration["run_context"],
+                "No current AWR or run context selector metadata is available in this static export.",
+            )}
+          </section>
+        </div>
+      </section>
+    """
+
+
+def _build_screen2_diagnostic_exploration_model(
+    screen_model: dict[str, Any],
+    visual_summary: dict[str, Any],
+    report_data: dict[str, Any],
+    authoritative_confidence: Any,
+) -> dict[str, list[dict[str, Any]]]:
+    """Build Screen 2 selector metadata from deterministic display data only."""
+
+    decision_summary = _to_dict(screen_model.get("decision_summary"))
+    normalized_decision = _to_dict(screen_model.get("normalized_decision"))
+    health_check = _to_dict(screen_model.get("health_check"))
+    technical_sections = [_to_dict(section) for section in (screen_model.get("technical_sections") or [])]
+    metadata = _to_dict(report_data.get("metadata"))
+    decision = _to_dict(report_data.get("decision"))
+    agentic_decision = _to_dict(report_data.get("agentic_decision"))
+    domain_scores = _to_dict(_to_dict(report_data.get("scores")).get("domain_scores"))
+    primary_domain = _screen3_domain_key(
+        _first_display_value(
+            normalized_decision.get("primary_issue"),
+            decision_summary.get("primary_issue"),
+            decision.get("primary_issue"),
+            decision.get("primary_domain"),
+        )
+    )
+
+    domains = [
+        {
+            "label": domain,
+            "value": domain,
+            "select_type": "diagnostic-domain",
+            "state_key": "selectedDomain",
+            "note": "Exploratory diagnostic domain only; does not change primary issue or severity.",
+            "active": domain == primary_domain,
+            "domain": domain,
+        }
+        for domain in SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS
+    ]
+
+    evidence_groups = []
+    for driver in _screen2_diagnostic_drivers(visual_summary, report_data):
+        domain = _screen2_selector_domain(driver.get("domain"))
+        label = _display_value(driver.get("domain"))
+        value = _screen2_state_id(label)
+        note = (
+            f"{_display_value(driver.get('label'))}: {_display_value(driver.get('value'))}. "
+            "Highlight/exploration only; evidence value is unchanged."
+        )
+        _append_screen2_selector_item(
+            evidence_groups,
+            label=label,
+            value=value,
+            display_value=label,
+            select_type="evidence-group",
+            state_key="selectedEvidenceGroup",
+            note=note,
+            domain=domain,
+        )
+
+    metric_groups = []
+    for domain in SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS:
+        score = _screen2_domain_score(domain_scores, domain)
+        if score is None:
+            continue
+        _append_screen2_selector_item(
+            metric_groups,
+            label=f"{domain} score",
+            value=f"{domain}-{_format_score_display(score) or '0.0'}",
+            display_value=f"{domain} score",
+            select_type="metric-group",
+            state_key="selectedMetricGroup",
+            note=f"Deterministic displayed score: {_format_score_display(score) or '0.0'}. No recalculation.",
+            domain=domain,
+        )
+    for key, domain in (
+        ("cpu", "CPU"),
+        ("io", "IO"),
+        ("memory", "MEMORY"),
+        ("rac", "RAC"),
+        ("cluster", "RAC"),
+        ("adg", "ADG"),
+    ):
+        card = _to_dict(visual_summary.get(key))
+        latest = _screen2_card_latest(card)
+        if latest is None:
+            continue
+        _append_screen2_selector_item(
+            metric_groups,
+            label=_screen2_card_label(card),
+            value=f"{domain}-{_screen2_state_id(_screen2_card_label(card))}",
+            display_value=_screen2_card_label(card),
+            select_type="metric-group",
+            state_key="selectedMetricGroup",
+            note=f"Latest displayed metric: {_format_screen2_metric(latest)}. No recalculation.",
+            domain=domain,
+        )
+
+    wait_event_groups = _screen2_wait_event_selector_items(report_data, visual_summary)
+    sql_signal_groups = _screen2_sql_signal_selector_items(report_data)
+
+    diagnostic_sections = []
+    for title in (
+        "Diagnostic Snapshot",
+        "Current Diagnostic Drivers",
+        "Visual Summary",
+        "Health / Data Completeness",
+        "Selected-Scope Explanation",
+        "Diagnostic Conclusion",
+        "Similarity Context",
+    ):
+        _append_screen2_selector_item(
+            diagnostic_sections,
+            label=title,
+            value=_screen2_state_id(title),
+            display_value=title,
+            select_type="diagnostic-section",
+            state_key="selectedDiagnosticSection",
+            note="Read-only section focus only; deterministic text is unchanged.",
+        )
+    for section in technical_sections:
+        title = _first_display_value(section.get("title"))
+        if not title:
+            continue
+        _append_screen2_selector_item(
+            diagnostic_sections,
+            label=title,
+            value=_screen2_state_id(title),
+            display_value=title,
+            select_type="diagnostic-section",
+            state_key="selectedDiagnosticSection",
+            note="Read-only technical section focus only.",
+        )
+
+    run_context = []
+    _append_screen2_selector_item(
+        run_context,
+        label="Current AWR",
+        value=_first_display_value(
+            metadata.get("awr_id"),
+            report_data.get("awr_id"),
+            agentic_decision.get("awr_id"),
+            decision.get("awr_id"),
+        ),
+        select_type="awr",
+        state_key="selectedAwr",
+        note="Current static export context only.",
+    )
+    _append_screen2_selector_item(
+        run_context,
+        label="Current confidence",
+        value=_confidence_level_from_value(authoritative_confidence),
+        select_type="severity",
+        state_key="selectedSeverity",
+        note="Confidence display is read-only and does not change confidence.",
+    )
+
+    return {
+        "domains": domains,
+        "evidence_groups": evidence_groups,
+        "metric_groups": _dedupe_screen2_selector_items(metric_groups),
+        "wait_event_groups": wait_event_groups,
+        "sql_signal_groups": sql_signal_groups,
+        "diagnostic_sections": _dedupe_screen2_selector_items(diagnostic_sections),
+        "run_context": run_context,
+    }
+
+
+def _append_screen2_selector_item(
+    items: list[dict[str, Any]],
+    *,
+    label: str,
+    value: Any,
+    select_type: str,
+    state_key: str,
+    note: str,
+    display_value: Any | None = None,
+    domain: Any | None = None,
+) -> None:
+    value_text = _first_display_value(value)
+    if not value_text:
+        return
+    label_text = _first_display_value(label) or value_text
+    item = {
+        "label": label_text,
+        "value": value_text,
+        "display_value": _first_display_value(display_value) or label_text,
+        "select_type": select_type,
+        "state_key": state_key,
+        "note": note,
+    }
+    domain_text = _screen2_selector_domain(domain)
+    if domain_text:
+        item["domain"] = domain_text
+    items.append(item)
+
+
+def _render_screen2_selector_group(
+    items: list[dict[str, Any]],
+    empty_message: str,
+) -> str:
+    if not items:
+        return _render_empty_item(empty_message)
+    cards = "".join(_render_screen2_selector_card(item) for item in items)
+    return f'<div class="screen2-selector-grid">{cards}</div>'
+
+
+def _render_screen2_selector_card(item: dict[str, Any]) -> str:
+    label = _display_value(item.get("label"))
+    value = _display_value(item.get("value"))
+    display_value = _display_value(item.get("display_value") or label)
+    select_type = str(item.get("select_type") or "").strip()
+    state_key = str(item.get("state_key") or "").strip()
+    note = _display_value(item.get("note"))
+    active_class = " active" if bool(item.get("active")) else ""
+    domain_attr = ""
+    if _has_display_value(item.get("domain")):
+        domain_attr = f' data-dashboard-select-domain="{escape(_display_value(item.get("domain")), quote=True)}"'
+    return f"""
+      <article
+        class="screen2-selector-card{active_class}"
+        tabindex="0"
+        aria-selected="false"
+        data-dashboard-selectable="true"
+        data-dashboard-select-type="{escape(select_type, quote=True)}"
+        data-dashboard-select-key="{escape(state_key, quote=True)}"
+        data-dashboard-select-id="{escape(value, quote=True)}"
+        data-dashboard-filter-key="{escape(state_key, quote=True)}"
+        data-dashboard-filter-value="{escape(value, quote=True)}"{domain_attr}
+      >
+        <strong>{escape(label)}</strong>
+        <span>{escape(display_value)}</span>
+        <p>{escape(note)}</p>
+      </article>
+    """
+
+
+def _screen2_wait_event_selector_items(
+    report_data: dict[str, Any],
+    visual_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    wait_sources = []
+    for key in ("wait_events", "top_wait_events", "wait_event_groups"):
+        value = report_data.get(key)
+        if isinstance(value, list):
+            wait_sources.extend(value)
+    for index, event in enumerate(wait_sources[:6], start=1):
+        event_dict = _to_dict(event) if isinstance(event, dict) or hasattr(event, "model_dump") else {}
+        name = _first_display_value(
+            event_dict.get("event_name"),
+            event_dict.get("event"),
+            event_dict.get("wait_event"),
+            event_dict.get("name"),
+            event,
+        )
+        if not name:
+            continue
+        _append_screen2_selector_item(
+            items,
+            label=name,
+            value=f"wait-{index}-{_screen2_state_id(name)}",
+            display_value=name,
+            select_type="wait-event-group",
+            state_key="selectedWaitEventGroup",
+            note="Wait event selection is read-only and does not reclassify waits.",
+            domain=_screen2_selector_domain(name),
+        )
+    commit = _screen2_latest_series_value(report_data, "log_file_sync_trend")
+    if commit is not None and commit > 0.0:
+        _append_screen2_selector_item(
+            items,
+            label="log file sync",
+            value="wait-log-file-sync",
+            display_value="log file sync",
+            select_type="wait-event-group",
+            state_key="selectedWaitEventGroup",
+            note=f"Displayed commit wait signal: {_format_screen2_metric(commit)}. No reclassification.",
+            domain="COMMIT",
+        )
+    rac = _screen2_card_latest(_to_dict(visual_summary.get("rac") or visual_summary.get("cluster")))
+    if rac is not None and rac > 0.0:
+        _append_screen2_selector_item(
+            items,
+            label="RAC / cluster waits",
+            value="wait-rac-cluster",
+            display_value="RAC / cluster waits",
+            select_type="wait-event-group",
+            state_key="selectedWaitEventGroup",
+            note="Cluster wait selection is topology context only.",
+            domain="RAC",
+        )
+    return _dedupe_screen2_selector_items(items)
+
+
+def _screen2_sql_signal_selector_items(report_data: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    sql_rows = report_data.get("top_sql") or report_data.get("top_sql_signals") or []
+    if not isinstance(sql_rows, list):
+        return items
+    for index, row in enumerate(sql_rows[:6], start=1):
+        row_dict = _to_dict(row) if isinstance(row, dict) or hasattr(row, "model_dump") else {}
+        sql_id = _first_display_value(
+            row_dict.get("sql_id"),
+            row_dict.get("sql_identifier"),
+            row_dict.get("id"),
+            f"SQL {index}",
+        )
+        label = _first_display_value(
+            row_dict.get("label"),
+            row_dict.get("sql_text"),
+            row_dict.get("module"),
+            sql_id,
+        )
+        if not sql_id or not label:
+            continue
+        _append_screen2_selector_item(
+            items,
+            label=label,
+            value=f"sql-{_screen2_state_id(sql_id)}",
+            display_value=sql_id,
+            select_type="sql-signal",
+            state_key="selectedSqlSignal",
+            note="SQL signal selection is read-only and does not change SQL ranking.",
+            domain="CPU",
+        )
+    return _dedupe_screen2_selector_items(items)
+
+
+def _screen2_domain_score(domain_scores: dict[str, Any], domain: str) -> float | None:
+    aliases = {
+        "IO": ("IO", "I/O", "USER_IO", "USER I/O"),
+        "COMMIT": ("COMMIT", "LOG_FILE_SYNC", "LOG FILE SYNC"),
+    }.get(domain, (domain,))
+    for alias in aliases:
+        value = domain_scores.get(alias)
+        if value is None:
+            value = domain_scores.get(alias.lower())
+        numeric = _safe_float(value)
+        if numeric is not None:
+            return numeric
+    return None
+
+
+def _screen2_selector_domain(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    if not text:
+        return None
+    if "USER I/O" in text or " I/O" in text or text == "I/O":
+        return "IO"
+    if "COMMIT" in text or "LOG FILE SYNC" in text:
+        return "COMMIT"
+    if "CLUSTER" in text or "GC " in text:
+        return "RAC"
+    if "DATA GUARD" in text or "TRANSPORT" in text or "APPLY" in text:
+        return "ADG"
+    for domain in SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS:
+        if domain in text:
+            return domain
+    return None
+
+
+def _screen2_state_id(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = text.strip("-")
+    return text[:80] or "diagnostic-item"
+
+
+def _dedupe_screen2_selector_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in items:
+        key = (
+            str(item.get("state_key") or ""),
+            str(item.get("select_type") or ""),
+            str(item.get("value") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
 
 
 def _render_screen2_executive_summary(
@@ -6450,6 +6952,55 @@ def _shared_page_styles() -> str:
       font-size: 12px;
       line-height: 1.35;
     }
+    .screen2-diagnostic-exploration {
+      border-color: rgba(90, 209, 255, 0.32);
+    }
+    .screen2-selected-diagnostic-panel {
+      border-color: rgba(90, 209, 255, 0.34);
+      background: rgba(90, 209, 255, 0.08);
+    }
+    .screen2-selected-diagnostic-summary {
+      margin: 0 0 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .screen2-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen2-selector-card {
+      display: grid;
+      gap: 6px;
+      min-height: 104px;
+      border: 1px solid rgba(159, 176, 199, 0.24);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+      color: inherit;
+    }
+    .screen2-selector-card strong {
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .screen2-selector-card span {
+      color: var(--text);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .screen2-selector-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .screen2-selector-card.active {
+      border-color: rgba(90, 209, 255, 0.62);
+      background: rgba(90, 209, 255, 0.12);
+    }
     .decision-box, .info-box, .provider-box, .scalar-box {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -7661,6 +8212,7 @@ def _shared_page_styles() -> str:
       .workflow-summary-grid,
       .pipeline-support-grid,
       .semantic-assist-scope-list,
+      .screen2-selector-grid,
       .screen3-selector-grid,
       .fleet-detail-list {
         grid-template-columns: 1fr;

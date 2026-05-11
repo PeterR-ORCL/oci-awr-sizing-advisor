@@ -185,7 +185,7 @@ class DashboardInteractivityFoundationTests(unittest.TestCase):
         self.assertIn("runtime_influence=false", source)
         self.assertNotIn("runtime_influence=true", source)
 
-    def test_no_phase7h3_or_later_behavior_in_foundation(self) -> None:
+    def test_no_phase7h4_or_later_behavior_in_foundation(self) -> None:
         dashboard = dashboard_module()
         source = read_text(HTML_DASHBOARD_PATH).lower()
         script = dashboard._build_dashboard_interactivity_javascript().lower()
@@ -197,10 +197,11 @@ class DashboardInteractivityFoundationTests(unittest.TestCase):
             "learning_state_engine",
             "candidate-selection",
             "data-learning-action",
-            "screen 2 diagnostic exploration",
             "screen 4 historical selector",
             "screen 5 recommendation selector",
             "screen 6 learning selector",
+            "screen 4 historical exploration",
+            "screen 5 recommendation/action exploration",
         )
         for phrase in forbidden_source_phrases:
             with self.subTest(phrase=phrase):

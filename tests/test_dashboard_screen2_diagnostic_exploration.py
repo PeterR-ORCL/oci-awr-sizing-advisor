@@ -22,52 +22,54 @@ def dashboard_module():
     return importlib.import_module("src.reporting.html_dashboard")
 
 
-class DashboardScreen3ControlCenterTests(unittest.TestCase):
+class DashboardScreen2DiagnosticExplorationTests(unittest.TestCase):
     def test_01_import_compile_safety(self) -> None:
         ast.parse(read_text(HTML_DASHBOARD_PATH), filename=str(HTML_DASHBOARD_PATH))
         ast.parse(read_text(AI_METADATA_PATH), filename=str(AI_METADATA_PATH))
         dashboard = dashboard_module()
 
-        self.assertTrue(hasattr(dashboard, "_render_screen_3_selector_page"))
-        self.assertTrue(hasattr(dashboard, "_build_screen3_control_center_model"))
+        self.assertTrue(hasattr(dashboard, "_render_screen2_diagnostic_exploration"))
+        self.assertTrue(hasattr(dashboard, "_build_screen2_diagnostic_exploration_model"))
 
-    def test_screen3_control_center_exists_with_summary_and_safety_labels(self) -> None:
-        dashboard = dashboard_module()
+    def test_screen2_diagnostic_exploration_exists_with_summary_and_safety_labels(self) -> None:
         source = read_text(HTML_DASHBOARD_PATH)
-        rendered = self.render_screen3()
+        rendered = self.render_screen2()
 
-        self.assertIn("Screen 3 Control Center", source)
-        self.assertIn("Screen 3 Control Center", rendered)
+        self.assertIn("Screen 2 Diagnostic Exploration", source)
+        self.assertIn("Screen 2 Diagnostic Exploration", rendered)
         self.assertIn("data-dashboard-selected-summary", rendered)
-        self.assertIn("Read-only selection state", rendered)
+        self.assertIn("Read-only diagnostic exploration", rendered)
         self.assertIn("Exploratory only", rendered)
         self.assertIn("No backend writes", rendered)
         self.assertIn("No approval controls", rendered)
         self.assertIn("No runtime activation", rendered)
-        self.assertIn("Does not change diagnostic truth", rendered)
-        self.assertIn("Does not change recommendation truth", rendered)
 
-    def test_selector_metadata_exists_for_domains_and_run_context(self) -> None:
-        rendered = self.render_screen3()
+    def test_selector_metadata_exists_for_domain_evidence_metric_wait_and_sql(self) -> None:
+        rendered = self.render_screen2()
 
         required = (
             'data-dashboard-selectable="true"',
-            'data-dashboard-select-type="domain"',
+            'data-dashboard-select-type="diagnostic-domain"',
             'data-dashboard-select-key="selectedDomain"',
             'data-dashboard-filter-key="selectedDomain"',
             'data-dashboard-filter-value="CPU"',
-            'data-dashboard-select-domain="CPU"',
-            'data-dashboard-select-type="awr"',
-            'data-dashboard-select-key="selectedAwr"',
-            'data-dashboard-select-type="run"',
-            'data-dashboard-select-key="selectedRun"',
+            'data-dashboard-select-type="evidence-group"',
+            'data-dashboard-select-key="selectedEvidenceGroup"',
+            'data-dashboard-select-type="metric-group"',
+            'data-dashboard-select-key="selectedMetricGroup"',
+            'data-dashboard-select-type="wait-event-group"',
+            'data-dashboard-select-key="selectedWaitEventGroup"',
+            'data-dashboard-select-type="sql-signal"',
+            'data-dashboard-select-key="selectedSqlSignal"',
+            'data-dashboard-select-type="diagnostic-section"',
+            'data-dashboard-select-key="selectedDiagnosticSection"',
         )
         for phrase in required:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, rendered)
 
     def test_authoritative_domain_controls_are_present(self) -> None:
-        rendered = self.render_screen3()
+        rendered = self.render_screen2()
 
         for domain in ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG"):
             with self.subTest(domain=domain):
@@ -75,16 +77,19 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
                 self.assertIn(f">{domain}</span>", rendered)
 
     def test_required_safety_wording_is_rendered(self) -> None:
-        rendered = self.render_screen3()
+        rendered = self.render_screen2()
 
         required_phrases = (
-            "Read-only selection state",
+            "Read-only diagnostic exploration",
             "Exploratory only",
             "No backend writes",
             "Does not change diagnostic truth",
+            "Does not change primary issue",
+            "Does not change severity",
+            "Does not change confidence",
             "Does not change recommendation truth",
-            "Selection does not change primary issue",
-            "Selection does not change severity",
+            "Semantic/learning context is not diagnostic evidence",
+            "Selection only highlights deterministic evidence",
             "Cross-screen propagation remains future Phase 7H.8",
         )
         for phrase in required_phrases:
@@ -93,7 +98,7 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
 
     def test_no_unsafe_controls_or_write_runtime_are_introduced(self) -> None:
         dashboard = dashboard_module()
-        rendered = self.render_screen3().lower()
+        rendered = self.render_screen2().lower()
         source = read_text(HTML_DASHBOARD_PATH).lower()
         script = dashboard._build_dashboard_interactivity_javascript().lower()
 
@@ -130,22 +135,41 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
                 self.assertNotIn(phrase, script)
                 self.assertNotIn(phrase, source)
 
-    def test_no_screen2_or_screen5_truth_drift(self) -> None:
+    def test_no_semantic_learning_or_governance_diagnostic_evidence(self) -> None:
         dashboard = dashboard_module()
         screen_2_source = inspect.getsource(dashboard._render_screen_2_page)
+        rendered = self.render_screen2()
+
+        forbidden = (
+            "semantic recall as diagnostic evidence",
+            "semantic candidate context as diagnostic evidence",
+            "learning candidates as diagnostic evidence",
+            "governance status as diagnostic evidence",
+            "selectedLearningCandidate",
+            "selectedSemanticItem",
+            "selectedGovernanceItem",
+        )
+        for phrase in forbidden:
+            with self.subTest(phrase=phrase):
+                self.assertNotIn(phrase, screen_2_source)
+                self.assertNotIn(phrase, rendered)
+
+        self.assertIn("Semantic/learning context is not diagnostic evidence", rendered)
+
+    def test_no_screen5_recommendation_truth_drift(self) -> None:
+        dashboard = dashboard_module()
         screen_5_source = inspect.getsource(dashboard._render_screen_5_page)
 
         forbidden = (
-            "selectedLearningCandidate",
-            "selectedSemanticItem",
-            "learning candidate selection",
-            "semantic selection",
-            "Screen 3 Control Center",
+            "selectedEvidenceGroup",
+            "selectedMetricGroup",
+            "selectedWaitEventGroup",
+            "selectedSqlSignal",
+            "Screen 2 Diagnostic Exploration",
+            "diagnostic exploration as recommendation truth",
         )
         for phrase in forbidden:
-            with self.subTest(screen="screen_2", phrase=phrase):
-                self.assertNotIn(phrase, screen_2_source)
-            with self.subTest(screen="screen_5", phrase=phrase):
+            with self.subTest(phrase=phrase):
                 self.assertNotIn(phrase, screen_5_source)
 
     def test_no_7h4_or_later_behavior_yet(self) -> None:
@@ -153,11 +177,13 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
 
         forbidden_phrases = (
             "screen 4 historical selector",
+            "screen 4 historical exploration",
             "screen 5 recommendation selector",
+            "screen 5 recommendation/action exploration",
             "screen 1 governance selector",
             "screen 6 learning selector",
             "cross-screen propagation engine",
-            "propagate selection to screen 2",
+            "propagate selection to screen 4",
             "propagate selection to screen 5",
             "activatelearningcandidate",
             "approvelearningcandidate",
@@ -181,11 +207,11 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assert_no_learning_imports(path)
                 text = read_text(path)
-                self.assertNotIn("Screen 3 Control Center", text)
+                self.assertNotIn("Screen 2 Diagnostic Exploration", text)
                 self.assertNotIn("DashboardInteractivityFoundation", text)
 
     def test_documentation_exists_and_contains_required_boundaries(self) -> None:
-        doc_path = DOCS / "phase7_screen3_control_center.md"
+        doc_path = DOCS / "phase7_screen2_diagnostic_exploration.md"
         self.assertTrue(doc_path.is_file())
         text = read_text(doc_path).lower()
 
@@ -196,97 +222,96 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
             "no approval controls",
             "no write controls",
             "does not change diagnostic truth",
-            "does not change recommendation truth",
             "does not change primary issue",
             "does not change severity",
+            "does not change confidence",
+            "does not change recommendation truth",
+            "semantic/learning context is not diagnostic evidence",
             "full cross-screen propagation remains future 7h.8",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
-    def render_screen3(self) -> str:
-        return dashboard_module()._render_screen_3_selector_page(
-            self.sample_screen3_model(),
+    def render_screen2(self) -> str:
+        return dashboard_module()._render_screen_2_page(
+            self.sample_screen2_model(),
+            ai_sections={},
+            decision_state={},
             report_data=self.sample_report_data(),
         )
 
     @staticmethod
-    def sample_screen3_model() -> dict[str, object]:
+    def sample_screen2_model() -> dict[str, object]:
         return {
-            "header": {
-                "db_name": "ORCL",
-                "dbid": "123456",
-                "instance_name": "ORCL1",
-                "host_name": "dbhost01",
-                "window": "4 snapshots / 2 hours",
+            "decision_summary": {
+                "overall_status": "WARNING",
+                "display_severity_label": "High",
+                "decision_posture": "TUNE FIRST",
+                "primary_issue": "CPU",
+                "confidence": 0.82,
+                "health_summary": "CPU pressure visible.",
+                "historical_posture": "TUNE FIRST",
             },
-            "selection_controls": {
-                "db_dbid": "ORCL / 123456",
-                "host_instance": "dbhost01 / ORCL1",
-                "snapshot_window": "4 snapshots / 2 hours",
-                "latest_interval": "Latest snapshot (10:00-11:00)",
-                "worst_interval": "Worst interval (09:00-10:00)",
-                "comparison_modes": ["history", "similar AWRs", "cluster", "fleet"],
-                "active_comparison_mode": "history",
-                "review_modes": ["diagnosis", "historical proof", "anomaly", "similarity", "fleet"],
-                "active_review_mode": "historical proof",
+            "normalized_decision": {
+                "primary_issue": "CPU",
+                "secondary_issues": ["COMMIT"],
+                "overall_status": "WARNING",
+                "display_severity_label": "High",
+                "confidence": 0.82,
+                "domain_scores": {"CPU": 72.0, "IO": 18.0, "COMMIT": 12.0},
             },
-            "scope_selection": {
-                "options": ["DBID", "DB name", "INSTANCE_NAME", "HOST_NAME", "fleet/global"],
-                "active_scope": "ORCL / 123456",
+            "health_check": {
+                "summary_status": "WARNING",
+                "rows": [
+                    {"check": "DATA COMPLETENESS", "status": "OK", "observed_value": "Signals present"},
+                    {"check": "CPU", "status": "OK", "observed_value": "72"},
+                ],
             },
-            "timeframe_selection": {
-                "comparison_window": "4 snapshots / 2 hours",
-                "start_end_period": "09:00 -> 11:00",
-                "window_a": "Latest snapshot (10:00-11:00)",
-                "window_b": "Worst interval (09:00-10:00)",
-                "comparison_mode": "Latest interval vs broader comparison window",
-                "latest_vs_prior": "Latest interval aligns with the broader window.",
+            "visual_summary": {
+                "cpu": {
+                    "card_title": "CPU",
+                    "selected_label": "DB CPU % DB Time",
+                    "status": "ok",
+                    "series": [40.0, 72.0],
+                    "labels": ["snap-1", "snap-2"],
+                    "reason": "Visible CPU pressure.",
+                },
+                "io": {
+                    "card_title": "IO",
+                    "selected_label": "User I/O % DB Time",
+                    "status": "weak",
+                    "series": [5.0, 8.0],
+                    "labels": ["snap-1", "snap-2"],
+                    "reason": "Weak I/O signal.",
+                },
             },
-            "review_mode": {
-                "options": ["diagnosis", "historical proof", "anomaly", "similarity", "fleet"],
-                "active_mode": "historical proof",
-            },
-            "current_selection_summary": {
-                "scope": "ORCL / 123456",
-                "timeframe": "4 snapshots / 2 hours",
-                "review_mode": "historical proof",
-            },
+            "technical_sections": [
+                {"title": "Trend Findings", "items": ["CPU remained visible."]},
+                {"title": "Latest Snapshot Assessment", "items": ["Latest interval reviewed."]},
+            ],
+            "root_cause_interpretation": {},
+            "trend_context": {},
+            "anomaly_context": {"anomaly_summary": {"count": 1}},
+            "explanation_panel": {},
         }
 
     @staticmethod
     def sample_report_data() -> dict[str, object]:
         return {
-            "metadata": {
-                "awr_id": 7001,
-                "db_name": "ORCL",
-                "dbid": "123456",
-                "instance_name": "ORCL1",
-                "host_name": "dbhost01",
+            "metadata": {"awr_id": 7001, "db_name": "ORCL", "dbid": "123456"},
+            "scores": {"domain_scores": {"CPU": 72.0, "IO": 18.0, "COMMIT": 12.0}},
+            "time_series_charts": {
+                "snapshot_labels": ["snap-1", "snap-2"],
+                "log_file_sync_trend": [1.5, 2.4],
             },
-            "run_history_id": 42,
-            "snapshot_labels": ["snap-1", "snap-2"],
-            "screen_models": {
-                "screen_2_analysis": {
-                    "normalized_decision": {
-                        "primary_issue": "CPU",
-                        "overall_status": "WARNING",
-                        "display_severity_label": "High",
-                    },
-                    "decision_summary": {
-                        "primary_issue": "CPU",
-                        "overall_status": "WARNING",
-                        "display_severity_label": "High",
-                    },
-                }
-            },
-            "comparison_context": {
-                "comparison_window": "4 snapshots / 2 hours",
-                "latest_snapshot_summary": "Latest snapshot (10:00-11:00)",
-                "worst_snapshot_summary": "Worst interval (09:00-10:00)",
-                "latest_vs_trend": "Latest interval aligns with the broader window.",
-            },
+            "wait_events": [
+                {"event_name": "DB CPU"},
+                {"event_name": "log file sync"},
+            ],
+            "top_sql": [
+                {"sql_id": "abc123", "sql_text": "select * from orders"},
+            ],
         }
 
     def assert_no_learning_imports(self, path: Path) -> None:
