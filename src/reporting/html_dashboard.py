@@ -9,7 +9,7 @@ import re
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, TypedDict, cast
 
 from src.reporting.ai_display_metadata import build_learning_visibility_metadata
 
@@ -87,6 +87,23 @@ SCREEN6_FLEET_GOVERNANCE_LEARNING_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "R
 
 class _TrustedHtml(str):
     """Small marker for dashboard HTML assembled from escaped values."""
+
+
+class _ViolinMetricDefinition(TypedDict):
+    payload_key: str
+    container_id: str
+    title: str
+    color: str
+
+
+class _ViolinMetricGroupDefinition(TypedDict):
+    group_key: str
+    group_title: str
+    group_note: str
+    metrics: list[_ViolinMetricDefinition]
+
+
+SelectorItems = list[dict[str, Any]]
 
 
 def generate_html_dashboard(
@@ -275,7 +292,7 @@ DEFAULT_CONFIDENCE_REASON = (
     "26.6%, and dominant wait classes, point clearly to tunable bottlenecks "
     "rather than infrastructure limits."
 )
-VIOLIN_METRIC_GROUP_DEFINITIONS = [
+VIOLIN_METRIC_GROUP_DEFINITIONS: list[_ViolinMetricGroupDefinition] = [
     {
         "group_key": "workload",
         "group_title": "Workload Distributions",
@@ -3076,8 +3093,10 @@ def _build_screen2_diagnostic_exploration_model(
 
     decision_summary = _to_dict(screen_model.get("decision_summary"))
     normalized_decision = _to_dict(screen_model.get("normalized_decision"))
-    health_check = _to_dict(screen_model.get("health_check"))
-    technical_sections = [_to_dict(section) for section in (screen_model.get("technical_sections") or [])]
+    technical_sections = [
+        _to_dict(section)
+        for section in (screen_model.get("technical_sections") or [])
+    ]
     metadata = _to_dict(report_data.get("metadata"))
     decision = _to_dict(report_data.get("decision"))
     agentic_decision = _to_dict(report_data.get("agentic_decision"))
@@ -3104,7 +3123,7 @@ def _build_screen2_diagnostic_exploration_model(
         for domain in SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS
     ]
 
-    evidence_groups = []
+    evidence_groups: SelectorItems = []
     for driver in _screen2_diagnostic_drivers(visual_summary, report_data):
         domain = _screen2_selector_domain(driver.get("domain"))
         label = _display_value(driver.get("domain"))
@@ -3124,7 +3143,7 @@ def _build_screen2_diagnostic_exploration_model(
             domain=domain,
         )
 
-    metric_groups = []
+    metric_groups: SelectorItems = []
     for domain in SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS:
         score = _screen2_domain_score(domain_scores, domain)
         if score is None:
@@ -3165,7 +3184,7 @@ def _build_screen2_diagnostic_exploration_model(
     wait_event_groups = _screen2_wait_event_selector_items(report_data, visual_summary)
     sql_signal_groups = _screen2_sql_signal_selector_items(report_data)
 
-    diagnostic_sections = []
+    diagnostic_sections: SelectorItems = []
     for title in (
         "Diagnostic Snapshot",
         "Current Diagnostic Drivers",
@@ -3185,20 +3204,20 @@ def _build_screen2_diagnostic_exploration_model(
             note="Read-only section focus only; deterministic text is unchanged.",
         )
     for section in technical_sections:
-        title = _first_display_value(section.get("title"))
-        if not title:
+        technical_title = _first_display_value(section.get("title"))
+        if not technical_title:
             continue
         _append_screen2_selector_item(
             diagnostic_sections,
-            label=title,
-            value=_screen2_state_id(title),
-            display_value=title,
+            label=technical_title,
+            value=_screen2_state_id(technical_title),
+            display_value=technical_title,
             select_type="diagnostic-section",
             state_key="selectedDiagnosticSection",
             note="Read-only technical section focus only.",
         )
 
-    run_context = []
+    run_context: SelectorItems = []
     _append_screen2_selector_item(
         run_context,
         label="Current AWR",
@@ -3750,8 +3769,6 @@ def _render_screen2_health_summary(health_check: dict[str, Any]) -> str:
         return _render_empty_item("No deterministic health-check rows are available.")
     summary_status = str(health_check.get("summary_status") or "N/A").upper()
     display_summary_status = _display_supporting_health_status(summary_status)
-    display_summary_status = _display_supporting_health_status(summary_status)
-    summary_reason = _screen2_clean_text(health_check.get("summary_reason"))
     domain_names = {"CPU", "I/O", "MEMORY", "COMMIT", "RAC", "ADG"}
     domain_rows = [row for row in rows if str(row.get("check") or "").upper() in domain_names]
     not_scored_domains = [
@@ -3777,7 +3794,6 @@ def _render_screen2_health_summary(health_check: dict[str, Any]) -> str:
     for row in focus_rows:
         status = str(row.get("status") or "N/A").upper()
         display_status = _display_supporting_health_status(status)
-        display_status = _display_supporting_health_status(status)
         cards.append(
             f"""
         <article class="health-check-card">
@@ -3789,7 +3805,7 @@ def _render_screen2_health_summary(health_check: dict[str, Any]) -> str:
         )
     if not_scored_domains:
         cards.append(
-            f"""
+            """
         <article class="health-check-card">
           <div class="meta"><span class="health-pill na">NOT SCORED</span></div>
           <h3>Per-domain Health Scores</h3>
@@ -4384,7 +4400,6 @@ def _render_screen_3_selector_page(
 ) -> str:
     header = _to_dict(screen_model.get("header"))
     selection_controls = _to_dict(screen_model.get("selection_controls"))
-    scope_selection = _to_dict(screen_model.get("scope_selection"))
     timeframe_selection = _to_dict(screen_model.get("timeframe_selection"))
     review_mode = _to_dict(screen_model.get("review_mode"))
     current_selection_summary = _to_dict(screen_model.get("current_selection_summary"))
@@ -4477,8 +4492,9 @@ def _render_screen_3_selector_page(
                     ("Instance", header.get("instance_name")),
                     ("Host", header.get("host_name")),
                     ("Window", header.get("window")),
-                ]
-            , extra_class="selector-header-grid")}
+                ],
+                extra_class="selector-header-grid",
+            )}
           </section>
           <section class="evidence-pane selector-pane">
             <h3>Canonical Static Selection Context</h3>
@@ -4496,8 +4512,9 @@ def _render_screen_3_selector_page(
                     ("Start / End Period", timeframe_selection.get("start_end_period")),
                     ("Window A", timeframe_selection.get("window_a")),
                     ("Window B", timeframe_selection.get("window_b")),
-                ]
-            , extra_class="selector-compact-grid")}
+                ],
+                extra_class="selector-compact-grid",
+            )}
           </section>
           <section class="half evidence-pane selector-pane">
             <h3>Review Mode / Intent</h3>
@@ -4516,8 +4533,9 @@ def _render_screen_3_selector_page(
                     ("Scope", current_selection_summary.get("scope")),
                     ("Timeframe", current_selection_summary.get("timeframe")),
                     ("Review Mode", current_selection_summary.get("review_mode")),
-                ]
-            , extra_class="selector-compact-grid")}
+                ],
+                extra_class="selector-compact-grid",
+            )}
           </section>
         </div>
       </section>
@@ -4546,7 +4564,7 @@ def _build_screen3_control_center_model(
     agentic_decision = _to_dict(report_data.get("agentic_decision"))
     decision = _to_dict(report_data.get("decision"))
 
-    awr_run = []
+    awr_run: SelectorItems = []
     _append_screen3_selector_item(
         awr_run,
         label="Current AWR",
@@ -4574,7 +4592,7 @@ def _build_screen3_control_center_model(
         note="Run selection is browser-side only and does not re-run analysis.",
     )
 
-    database_system = []
+    database_system: SelectorItems = []
     _append_screen3_selector_item(
         database_system,
         label="Database",
@@ -4607,7 +4625,7 @@ def _build_screen3_control_center_model(
         note="System selection is a local exploration marker only.",
     )
 
-    snapshot = []
+    snapshot: SelectorItems = []
     snapshot_labels = [
         _display_value(label)
         for label in list(report_data.get("snapshot_labels") or [])[:8]
@@ -4658,7 +4676,7 @@ def _build_screen3_control_center_model(
         for domain_name in SCREEN3_CONTROL_CENTER_DOMAINS
     ]
 
-    severity = []
+    severity: SelectorItems = []
     _append_screen3_selector_item(
         severity,
         label="Current status",
@@ -4690,7 +4708,7 @@ def _build_screen3_control_center_model(
         note="Severity selection is not an authoritative severity override.",
     )
 
-    comparison_baseline = []
+    comparison_baseline: SelectorItems = []
     for label, value in (
         ("Comparison window", timeframe_selection.get("comparison_window") or comparison_context.get("comparison_window")),
         ("Latest interval baseline", timeframe_selection.get("window_a") or comparison_context.get("latest_snapshot_summary")),
@@ -4707,7 +4725,7 @@ def _build_screen3_control_center_model(
             note="Baseline selection participates in browser-side only Phase 7H.8 propagation.",
         )
 
-    fleet_context = []
+    fleet_context: SelectorItems = []
     for option in list(scope_selection.get("options") or []) + list(selection_controls.get("comparison_modes") or []):
         option_text = _first_display_value(option)
         if not option_text:
@@ -4967,7 +4985,17 @@ def _render_screen_4_page(
         screen_model.get("engineering_view"),
         "Engineering View",
     )
-    similarity_support = _to_dict(screen_model.get("similarity_support"))
+    review_comparison_html = _render_review_comparison_screen(
+        screen_model,
+        normalized_decision=normalized_decision,
+    )
+    screen4_exploration_html = _render_screen4_historical_exploration(
+        screen_model,
+        chart_payload,
+        violin_metric_groups,
+        time_series_groups,
+        derived_scalar_metrics,
+    )
     return f"""
     <div class="grid">
       <!-- Screen 4 = historical review across scope + timeframe, with visuals. -->
@@ -5033,21 +5061,12 @@ def _render_screen_4_page(
           </section>
         </div>
       </section>
-      {_render_screen4_historical_exploration(
-          screen_model,
-          chart_payload,
-          violin_metric_groups,
-          time_series_groups,
-          derived_scalar_metrics,
-      )}
+      {screen4_exploration_html}
       {ordered_visual_sections}
       {topology_scalar_html}
       {_render_similarity_evidence_section(similarity_evidence)}
       <section class="card secondary">
-        {_render_review_comparison_screen(
-            screen_model,
-            normalized_decision=normalized_decision,
-        )}
+        {review_comparison_html}
       </section>
       {
           f'''
@@ -5251,14 +5270,14 @@ def _build_screen4_historical_exploration_model(
             title = _display_value(chart.get("title") or chart.get("label"))
             if not title:
                 continue
-            domain = _screen4_selector_domain(group.get("group_key") or title)
+            chart_domain = _screen4_selector_domain(group.get("group_key") or title)
             _append_screen4_selector_item(
                 trend_metrics,
                 label=title,
                 value=f"{_screen4_state_id(group.get('group_key'))}-{_screen4_state_id(chart.get('key') or title)}",
                 select_type="trend-metric",
                 state_key="selectedTrendMetric",
-                domain=domain,
+                domain=chart_domain,
                 display_value=group_title or title,
                 note="Rendered trend metric only. No metric recalculation.",
             )
@@ -7324,15 +7343,15 @@ def _screen6_domain_items(
             note="Domain selection only. Does not change primary issue, severity, score, or fleet posture.",
         )
     for item in _screen6_list(screen_model.get("repeated_issues")):
-        domain = _screen6_selector_domain(item)
-        if domain:
+        item_domain = _screen6_selector_domain(item)
+        if item_domain:
             _append_screen6_selector_item(
                 items,
-                label=domain,
-                value=domain,
+                label=item_domain,
+                value=item_domain,
                 select_type="domain",
                 state_key="selectedDomain",
-                domain=domain,
+                domain=item_domain,
                 display_value="Repeated issue domain",
                 note="Repeated issue domain context only. Does not change diagnostic truth.",
             )
@@ -7758,6 +7777,12 @@ def _render_screen_6_page(
     governance_display_payload = governance_payload or {}
     semantic_display_payload = semantic_recall_payload or {}
     learning_display_payload = learning_visibility_payload or build_learning_visibility_metadata()
+    screen6_exploration_html = _render_screen6_fleet_governance_learning_exploration(
+        screen_model,
+        governance_display_payload,
+        semantic_display_payload,
+        learning_display_payload,
+    )
     if not screen_model.get("similarity_enabled") and not similar_cases:
         return f"""
     <div class="grid">
@@ -7782,12 +7807,7 @@ def _render_screen_6_page(
           to enable AWR reuse, feature-vector lookup, similarity, and fleet intelligence.
         </p>
       </section>
-      {_render_screen6_fleet_governance_learning_exploration(
-          screen_model,
-          governance_display_payload,
-          semantic_display_payload,
-          learning_display_payload,
-      )}
+      {screen6_exploration_html}
       {_render_governance_visibility_section(governance_display_payload)}
       {_render_semantic_recall_visibility_section(semantic_display_payload)}
       {_render_learning_visibility_section(learning_display_payload)}
@@ -7846,12 +7866,7 @@ def _render_screen_6_page(
         )}
         {_render_similarity_cases(outliers) if outliers else _render_empty_item("No outlier case aggregation is established yet.")}
       </section>
-      {_render_screen6_fleet_governance_learning_exploration(
-          screen_model,
-          governance_display_payload,
-          semantic_display_payload,
-          learning_display_payload,
-      )}
+      {screen6_exploration_html}
       {_render_governance_visibility_section(governance_display_payload)}
       {_render_semantic_recall_visibility_section(semantic_display_payload)}
       {_render_learning_visibility_section(learning_display_payload)}
@@ -8206,7 +8221,7 @@ def _build_time_series_groups(report_data: dict[str, Any]) -> list[dict[str, Any
         groups_by_domain: dict[str, list[dict[str, Any]]] = {}
         for spec in db_scope_specs:
             spec_dict = _to_dict(spec)
-            key = spec_dict.get("key")
+            key = cast(str, spec_dict.get("key"))
             series = payload.get(key) or []
             if not _series_has_display_data(series):
                 continue
@@ -8362,7 +8377,7 @@ def _order_violin_metric_groups(
         group_rank = {
             group_key: index for index, group_key in enumerate(story_group_order)
         }
-        ordered_groups: list[dict[str, Any]] = []
+        story_ordered_groups: list[dict[str, Any]] = []
         for group in violin_metric_groups:
             group_key = str(group.get("group_key") or "").lower()
             if group_key in story_suppressed:
@@ -8393,10 +8408,10 @@ def _order_violin_metric_groups(
                     )
             if not metrics:
                 continue
-            ordered_groups.append({**group, "metrics": metrics})
+            story_ordered_groups.append({**group, "metrics": metrics})
 
         return sorted(
-            ordered_groups,
+            story_ordered_groups,
             key=lambda group: (
                 group_rank.get(str(group.get("group_key") or "").lower(), len(group_rank)),
                 str(group.get("group_title") or ""),
@@ -12443,7 +12458,6 @@ def _render_validation_note_summary(
         return _render_empty_item("No intake or validation notes are available.")
     raw_notes = validation_notes.get("notes") or validation_notes.get("items") or []
     groups = _group_validation_notes(raw_notes)
-    total_count = len(raw_notes)
     summary_text = _validation_note_dynamic_text(
         raw_notes,
         groups,
@@ -12745,7 +12759,6 @@ def _render_ingestion_screen(
     parse_confidence = _to_dict(screen_model.get("parse_confidence_adaptation"))
     report_rows = screen_model.get("report_rows") or []
     validation_notes = _to_dict(screen_model.get("validation_notes"))
-    supportive_explanation = _to_dict(screen_model.get("supportive_explanation"))
     validation_notes_html = _render_validation_note_summary(
         validation_notes,
         report_data,
@@ -12919,7 +12932,6 @@ def _render_analysis_screen(screen_model: dict[str, Any]) -> str:
     """Render deterministic Screen 2 detail blocks after the main narrative order."""
 
     evidence_panel = _to_dict(screen_model.get("evidence_panel"))
-    scores_panel = _to_dict(screen_model.get("scores_panel"))
     trend_context = _to_dict(screen_model.get("trend_context"))
     anomaly_context = _to_dict(screen_model.get("anomaly_context"))
     explanation_panel = _to_dict(screen_model.get("explanation_panel"))
@@ -12927,9 +12939,6 @@ def _render_analysis_screen(screen_model: dict[str, Any]) -> str:
     normalized_decision = _to_dict(screen_model.get("normalized_decision"))
     primary_evidence = evidence_panel.get("primary_evidence") or {}
     secondary_evidence = evidence_panel.get("secondary_evidence") or []
-    domain_scores = (
-        evidence_panel.get("domain_scores") or scores_panel.get("domain_scores")
-    )
     has_evidence_content = bool(primary_evidence or secondary_evidence)
     trend_context_html = _render_context_summary(
         trend_context.get("trend_summary") or {},
@@ -13029,8 +13038,6 @@ def _render_review_comparison_screen(
     anomaly_review = _to_dict(screen_model.get("anomaly_review"))
     comparison_review = _to_dict(screen_model.get("comparison_review"))
     topology_platform_review = _to_dict(screen_model.get("topology_platform_review"))
-    visual_analysis = _to_dict(screen_model.get("visual_analysis"))
-    visual_story = _to_dict(visual_analysis.get("story"))
     explanation_panel = _to_dict(screen_model.get("explanation_panel"))
     historical_scope_memory = _to_dict(screen_model.get("historical_scope_memory"))
     historical_summary_html = _render_context_summary(
@@ -13882,11 +13889,11 @@ def _screen5_vocalization_context(
     )
     context.update(
         {
-        "posture": posture_key,
-        "confidence": confidence,
-        "action_risk": action_risk,
-        "has_recommendations": canonical_recommendation_count > 0,
-        "memory_context": _get_screen5_memory_phrasing_context(),
+            "posture": posture_key,
+            "confidence": confidence,
+            "action_risk": action_risk,
+            "has_recommendations": canonical_recommendation_count > 0,
+            "memory_context": _get_screen5_memory_phrasing_context(),
         }
     )
     return context
@@ -14895,7 +14902,6 @@ def _render_visual_analysis_layer(visual_analysis: dict[str, Any]) -> str:
         return _render_empty_item(
             "No supporting visual analysis layers are available for this scope."
         )
-    parts = []
     story_sections = []
     for title, items in (
         ("Primary Visual Proof", story.get("primary_visual_proof") or []),
@@ -15085,11 +15091,6 @@ def _render_mini_trend_card(summary: dict[str, Any]) -> str:
         if status == "weak"
         else "Insufficient data for a reliable conclusion in this scope."
     )
-    status_note = (
-        '<div class="mini-trend-fallback">Signal present but below governing threshold.</div>'
-        if status == "weak"
-        else ""
-    )
     return f"""
       <section class="mini-trend-card">
         <div class="meta">{escape(title)}</div>
@@ -15164,13 +15165,16 @@ def _render_health_check(health_check: dict[str, Any]) -> str:
     if not rows:
         return _render_empty_item("No deterministic health-check rows are available.")
     summary_status = str(health_check.get("summary_status") or "N/A").upper()
+    display_summary_status = _display_supporting_health_status(summary_status)
     summary_reason = health_check.get("summary_reason")
     cards = []
     for row in rows:
         status = str(row.get("status") or "N/A").upper()
+        display_status = _display_supporting_health_status(status)
         observed_value = row.get("observed_value")
         if str(observed_value or "").strip().lower() == "not scored":
             status = "NOT SCORED"
+            display_status = _display_supporting_health_status(status)
         reason = row.get("reason")
         if status == "NOT SCORED":
             reason = "Signal present; deterministic per-domain health score unavailable."
@@ -15897,7 +15901,7 @@ def _render_recommendation_cards(recommendations: list[dict[str, Any]]) -> str:
               }
             </article>
             """
-    )
+        )
     return "".join(parts)
 
 
@@ -17609,10 +17613,11 @@ def _render_chart_container_with_message(
 
 def _render_performance_charts_section(
     chart_payload: dict[str, Any],
-    visual_story: dict[str, Any],
+    visual_story: dict[str, Any] | None = None,
 ) -> str:
     """Render supporting performance charts with clean fallbacks."""
 
+    visual_story = visual_story or {}
     performance_panels = _to_dict(visual_story.get("performance_panels"))
     db_time_state = _to_dict(performance_panels.get("db_time_breakdown"))
     db_time_data = chart_payload.get("db_time_breakdown") or {}
@@ -17868,8 +17873,8 @@ def _build_violin_metric_groups(
 
 def _flatten_violin_metric_groups(
     violin_metric_groups: list[dict[str, Any]],
-) -> list[dict[str, str]]:
-    configs: list[dict[str, str]] = []
+) -> list[dict[str, Any]]:
+    configs: list[dict[str, Any]] = []
     for group in violin_metric_groups:
         for metric in group["metrics"]:
             configs.append(
@@ -17941,7 +17946,8 @@ def _chart_has_values(chart_data: dict[str, Any]) -> bool:
         and any(str(label).strip() for label in labels)
         and isinstance(values, list)
         and any(
-        isinstance(value, (int, float)) and value > 0 for value in values
+            isinstance(value, (int, float)) and value > 0
+            for value in values
         )
     )
 
