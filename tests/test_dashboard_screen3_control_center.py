@@ -85,7 +85,8 @@ class DashboardScreen3ControlCenterTests(unittest.TestCase):
             "Does not change recommendation truth",
             "Selection does not change primary issue",
             "Selection does not change severity",
-            "Cross-screen propagation remains future Phase 7H.8",
+            "Cross-Screen Selection Propagation is browser-side only",
+            "URL hash/localStorage state is not authoritative truth",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):

@@ -835,10 +835,17 @@ def _render_dashboard_interactivity_boundary_comment() -> str:
     hooks = ", ".join(DASHBOARD_INTERACTIVITY_SELECTABLE_ATTRIBUTES)
     return f"""  <!--
     Dashboard Interactivity Foundation (Phase 7H.1).
+    Cross-Screen Selection Propagation (Phase 7H.8).
+    Browser-side selection state only. Read-only. Exploratory only.
     Read-only selection state. Exploratory only. No backend writes.
-    Does not change diagnostic truth. Does not change recommendation truth.
+    No API calls. URL hash/localStorage state is not authoritative truth.
+    Does not change diagnostic truth. Does not change historical truth.
+    Does not change recommendation truth. Does not change parser output.
+    Does not change governance state. Does not change candidate status.
     Does not approve or activate learning candidates.
-    Full screen-specific interactivity remains future Phase 7H subtasks.
+    Does not activate learning candidates. No approval controls. No runtime activation.
+    Semantic context remains reviewer-assist only.
+    Learning candidates remain proposal/review context only.
     Supported state keys: {state_keys}.
     Future selectable metadata hooks: {hooks}.
   -->"""
@@ -855,17 +862,28 @@ def _build_dashboard_interactivity_javascript() -> str:
       'use strict';
 
       // Dashboard Interactivity Foundation (Phase 7H.1).
-      // Read-only selection state. Exploratory only. No backend writes.
-      // Does not change diagnostic truth. Does not change recommendation truth.
-      // Does not approve or activate learning candidates.
-      // Full screen-specific interactivity remains future Phase 7H subtasks.
+      // Cross-Screen Selection Propagation (Phase 7H.8).
+      // Browser-side selection state only. Read-only. Exploratory only.
+      // URL hash/localStorage state is not authoritative truth.
+      // No backend writes. No API calls. No network calls.
+      // Does not change diagnostic truth. Does not change historical truth.
+      // Does not change recommendation truth. Does not change parser output.
+      // Does not change governance state. Does not change candidate status.
+      // Does not activate learning candidates.
+      // Semantic context remains reviewer-assist only.
+      // Learning candidates remain proposal/review context only.
+      // No approval controls. No runtime activation.
       const DASHBOARD_FOUNDATION_LABEL = 'Dashboard Interactivity Foundation';
+      const DASHBOARD_PROPAGATION_LABEL = 'Cross-Screen Selection Propagation';
       const DASHBOARD_STATE_KEYS = Object.freeze(__DASHBOARD_STATE_KEYS__);
       const DASHBOARD_STATE_KEY_SET = new Set(DASHBOARD_STATE_KEYS);
       const DASHBOARD_STORAGE_KEY = __DASHBOARD_STORAGE_KEY__;
       const SELECTABLE_SELECTOR = '[data-dashboard-selectable]';
       const SELECTED_SUMMARY_SELECTOR = '[data-dashboard-selected-summary]';
       const FILTER_PLACEHOLDER_SELECTOR = '[data-dashboard-filter-key][data-dashboard-filter-value]';
+      const NAVIGATION_LINK_SELECTOR = 'a[data-dashboard-propagate-state="true"]';
+      const HTTP_SCHEME_PREFIX = 'http:' + '//';
+      const HTTPS_SCHEME_PREFIX = 'https:' + '//';
       const MAX_STATE_VALUE_LENGTH = 256;
       const DASHBOARD_TYPE_TO_STATE_KEY = Object.freeze({
         awr: 'selectedAwr',
@@ -1098,6 +1116,7 @@ def _build_dashboard_interactivity_javascript() -> str:
       function markReadOnlyFilterPlaceholders(state, root) {
         const scope = root || document;
         const safeState = sanitizeDashboardState(state);
+        // Non-matching elements remain visible; deterministic truth is not hidden by default.
         const elements = scope.querySelectorAll(FILTER_PLACEHOLDER_SELECTOR);
         elements.forEach(function (element) {
           const key = safeStateValue(element.getAttribute('data-dashboard-filter-key'));
@@ -1119,12 +1138,70 @@ def _build_dashboard_interactivity_javascript() -> str:
         const parts = DASHBOARD_STATE_KEYS
           .filter(function (key) { return Boolean(safeState[key]); })
           .map(function (key) { return key + ': ' + safeState[key]; });
+        const safetyText = (
+          'Cross-Screen Selection Propagation. ' +
+          'Browser-side selection state only. Read-only. Exploratory only. ' +
+          'No backend writes. No API calls. ' +
+          'URL hash/localStorage state is not authoritative truth. ' +
+          'Does not change diagnostic truth. Does not change historical truth. ' +
+          'Does not change recommendation truth. Does not change parser output. ' +
+          'Does not change governance state. Does not change candidate status. ' +
+          'Does not activate learning candidates. ' +
+          'Semantic context remains reviewer-assist only. ' +
+          'Learning candidates remain proposal/review context only. '
+        );
         const summaryText = parts.length
-          ? 'Read-only selection state: ' + parts.join(' | ')
-          : 'Read-only selection state: no exploratory selection';
+          ? safetyText + 'Active selections: ' + parts.join(' | ')
+          : safetyText + 'No exploratory selection.';
         scope.querySelectorAll(SELECTED_SUMMARY_SELECTOR).forEach(function (element) {
           element.textContent = summaryText;
           element.setAttribute('data-dashboard-state-empty', parts.length ? 'false' : 'true');
+        });
+      }
+
+      function isStaticDashboardHref(rawHref) {
+        const href = String(rawHref || '').replace(/[<>]/g, '').trim();
+        const lowerHref = href.toLowerCase();
+        if (!href || href.charAt(0) === '#') {
+          return false;
+        }
+        if (
+          lowerHref.indexOf('javascript:') === 0 ||
+          lowerHref.indexOf('mailto:') === 0 ||
+          lowerHref.indexOf('tel:') === 0 ||
+          lowerHref.indexOf('//') === 0 ||
+          lowerHref.indexOf(HTTP_SCHEME_PREFIX) === 0 ||
+          lowerHref.indexOf(HTTPS_SCHEME_PREFIX) === 0
+        ) {
+          return false;
+        }
+        return true;
+      }
+
+      function hrefWithDashboardState(rawHref, state) {
+        const href = String(rawHref || '').replace(/[<>]/g, '').trim();
+        if (!isStaticDashboardHref(href)) {
+          return href;
+        }
+        const hashIndex = href.indexOf('#');
+        const baseHref = hashIndex >= 0 ? href.slice(0, hashIndex) : href;
+        const serializedState = serializeDashboardState(state);
+        return serializedState ? baseHref + '#' + serializedState : baseHref;
+      }
+
+      function preserveDashboardStateInNavigation(state, root) {
+        const scope = root || document;
+        const safeState = sanitizeDashboardState(state);
+        scope.querySelectorAll(NAVIGATION_LINK_SELECTOR).forEach(function (link) {
+          const currentHref = link.getAttribute('href') || '';
+          const originalHref = link.getAttribute('data-dashboard-original-href') || currentHref;
+          if (!link.getAttribute('data-dashboard-original-href')) {
+            link.setAttribute('data-dashboard-original-href', originalHref);
+          }
+          const nextHref = hrefWithDashboardState(originalHref, safeState);
+          if (nextHref) {
+            link.setAttribute('href', nextHref);
+          }
         });
       }
 
@@ -1133,7 +1210,22 @@ def _build_dashboard_interactivity_javascript() -> str:
         markSelectedElement(safeState, root);
         markReadOnlyFilterPlaceholders(safeState, root);
         updateSelectedSummary(safeState, root);
+        preserveDashboardStateInNavigation(safeState, root);
         return safeState;
+      }
+
+      function selectDashboardElement(element) {
+        if (!element || element.getAttribute('data-dashboard-selectable') === 'false') {
+          return {};
+        }
+        const key = stateKeyForSelectable(element);
+        const value = valueForSelectable(element);
+        if (!isDashboardStateKey(key) || !value) {
+          return {};
+        }
+        const nextState = readDashboardState();
+        nextState[key] = value;
+        return writeDashboardState(nextState);
       }
 
       function handleDashboardSelectableClick(event) {
@@ -1141,17 +1233,23 @@ def _build_dashboard_interactivity_javascript() -> str:
           return;
         }
         const element = event.target.closest(SELECTABLE_SELECTOR);
-        if (!element || element.getAttribute('data-dashboard-selectable') === 'false') {
+        selectDashboardElement(element);
+      }
+
+      function handleDashboardSelectableKeydown(event) {
+        if (!event || !(event.target instanceof Element)) {
           return;
         }
-        const key = stateKeyForSelectable(element);
-        const value = valueForSelectable(element);
-        if (!isDashboardStateKey(key) || !value) {
+        const keyName = event.key || '';
+        if (keyName !== 'Enter' && keyName !== ' ') {
           return;
         }
-        const nextState = readDashboardState();
-        nextState[key] = value;
-        writeDashboardState(nextState);
+        const element = event.target.closest(SELECTABLE_SELECTOR);
+        if (!element) {
+          return;
+        }
+        event.preventDefault();
+        selectDashboardElement(element);
       }
 
       function initializeDashboardInteractivity(root) {
@@ -1159,11 +1257,18 @@ def _build_dashboard_interactivity_javascript() -> str:
         const selectableElements = scope.querySelectorAll(SELECTABLE_SELECTOR);
         const summaryElements = scope.querySelectorAll(SELECTED_SUMMARY_SELECTOR);
         const filterPlaceholders = scope.querySelectorAll(FILTER_PLACEHOLDER_SELECTOR);
-        if (!selectableElements.length && !summaryElements.length && !filterPlaceholders.length) {
+        const navigationLinks = scope.querySelectorAll(NAVIGATION_LINK_SELECTOR);
+        if (
+          !selectableElements.length &&
+          !summaryElements.length &&
+          !filterPlaceholders.length &&
+          !navigationLinks.length
+        ) {
           return {};
         }
         if (!dashboardInteractivityInitialized) {
           document.addEventListener('click', handleDashboardSelectableClick);
+          document.addEventListener('keydown', handleDashboardSelectableKeydown);
           window.addEventListener('hashchange', function () {
             applyDashboardState(readDashboardState());
           });
@@ -1174,7 +1279,8 @@ def _build_dashboard_interactivity_javascript() -> str:
 
       window.DashboardInteractivityFoundation = Object.freeze({
         label: DASHBOARD_FOUNDATION_LABEL,
-        version: '7H.1',
+        propagationLabel: DASHBOARD_PROPAGATION_LABEL,
+        version: '7H.8',
         readOnly: true,
         stateKeys: DASHBOARD_STATE_KEYS.slice(),
         storageKey: DASHBOARD_STORAGE_KEY,
@@ -1183,9 +1289,12 @@ def _build_dashboard_interactivity_javascript() -> str:
         writeDashboardState: writeDashboardState,
         parseHashState: parseHashState,
         updateHashState: updateHashState,
+        serializeDashboardState: serializeDashboardState,
         applyDashboardState: applyDashboardState,
         markSelectedElement: markSelectedElement,
-        updateSelectedSummary: updateSelectedSummary
+        updateSelectedSummary: updateSelectedSummary,
+        preserveDashboardStateInNavigation: preserveDashboardStateInNavigation,
+        hrefWithDashboardState: hrefWithDashboardState
       });
 
       document.addEventListener('DOMContentLoaded', function () {
@@ -1769,7 +1878,10 @@ def _render_page_navigation(active_page_key: str) -> str:
     for page_key, label, filename in PAGE_DEFINITIONS:
         active_class = " active" if page_key == active_page_key else ""
         links.append(
-            f'<a class="nav-link{active_class}" href="{escape(filename)}">{escape(label)}</a>'
+            (
+                f'<a class="nav-link{active_class}" href="{escape(filename)}" '
+                f'data-dashboard-propagate-state="true">{escape(label)}</a>'
+            )
         )
     return f'<nav class="page-nav">{"".join(links)}</nav>'
 
@@ -2205,7 +2317,8 @@ def _render_screen1_governance_parser_exploration(
           Does not change governance state. Does not change diagnostic truth.
           Does not change recommendation truth. Semantic/learning context is not parser evidence.
           Selection only highlights existing parser/governance context.
-          Cross-screen propagation remains future Phase 7H.8.
+          Cross-Screen Selection Propagation is browser-side only.
+          URL hash/localStorage state is not authoritative truth.
           No approval controls. No runtime activation.
         </p>
         <div class="subgrid">
@@ -2879,7 +2992,7 @@ def _render_screen2_diagnostic_exploration(
           Read-only diagnostic exploration. Exploratory only. No backend writes. Does not change diagnostic truth. Does not change primary issue.
         </p>
         <p class="static-selection-note">
-          Does not change severity. Does not change confidence. Does not change recommendation truth. Semantic/learning context is not diagnostic evidence. Selection only highlights deterministic evidence. Cross-screen propagation remains future Phase 7H.8. No approval controls. No runtime activation.
+          Does not change severity. Does not change confidence. Does not change recommendation truth. Semantic/learning context is not diagnostic evidence. Selection only highlights deterministic evidence. Cross-Screen Selection Propagation is browser-side only. URL hash/localStorage state is not authoritative truth. No approval controls. No runtime activation.
         </p>
         <div class="subgrid selector-subgrid">
           <section class="evidence-pane selector-pane screen2-selected-diagnostic-panel">
@@ -4286,7 +4399,7 @@ def _render_screen_3_selector_page(
           Read-only selection state. Exploratory only. No backend writes. Does not change diagnostic truth. Does not change recommendation truth.
         </p>
         <p class="static-selection-note">
-          Selection does not change primary issue. Selection does not change severity. Cross-screen propagation remains future Phase 7H.8. No approval controls. No runtime activation.
+          Selection does not change primary issue. Selection does not change severity. Cross-Screen Selection Propagation is browser-side only. URL hash/localStorage state is not authoritative truth. No approval controls. No runtime activation.
         </p>
         <div class="subgrid selector-subgrid">
           <section class="evidence-pane selector-pane screen3-selected-state-panel">
@@ -4591,7 +4704,7 @@ def _build_screen3_control_center_model(
             value=_first_display_value(value),
             select_type="comparisonBaseline",
             state_key="selectedComparisonBaseline",
-            note="Baseline selection prepares read-only state for future Phase 7H.8 propagation.",
+            note="Baseline selection participates in browser-side only Phase 7H.8 propagation.",
         )
 
     fleet_context = []
@@ -4999,7 +5112,8 @@ def _render_screen4_historical_exploration(
           Does not change diagnostic truth. Does not change recommendation truth.
           Semantic/learning context is not historical evidence.
           Selection only highlights deterministic historical context.
-          Cross-screen propagation remains future Phase 7H.8.
+          Cross-Screen Selection Propagation is browser-side only.
+          URL hash/localStorage state is not authoritative truth.
           No approval controls. No runtime activation.
         </p>
         <div class="subgrid">
@@ -5464,7 +5578,8 @@ def _render_screen5_recommendation_action_exploration(
           Does not change diagnostic truth. Learning candidates are not recommendation evidence.
           Semantic context is not recommendation evidence.
           Selection only highlights existing recommendation/action context.
-          Cross-screen propagation remains future Phase 7H.8.
+          Cross-Screen Selection Propagation is browser-side only.
+          URL hash/localStorage state is not authoritative truth.
           No approval controls. No runtime activation.
         </p>
         <div class="subgrid">
@@ -6880,7 +6995,8 @@ def _render_screen6_fleet_governance_learning_exploration(
           Learning candidates are proposal/review context only. Learning candidates are not diagnostic evidence.
           Learning candidates are not recommendation truth. Pattern records are not candidates.
           Selection only highlights existing Screen 6 context. runtime_influence=false.
-          requires_human_review=true. Cross-screen propagation remains future Phase 7H.8.
+          requires_human_review=true. Cross-Screen Selection Propagation is browser-side only.
+          URL hash/localStorage state is not authoritative truth.
           No approval controls. No runtime activation.
         </p>
         <div class="subgrid">

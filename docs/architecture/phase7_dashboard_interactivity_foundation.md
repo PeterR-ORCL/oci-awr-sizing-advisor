@@ -2,9 +2,9 @@
 
 ## 1. Purpose
 
-Phase 7H.1 establishes a lightweight browser-side foundation for future static dashboard interactivity. The foundation provides read-only selection state, safe selector metadata conventions, optional URL hash state, optional local storage state, and small rendering hooks that later Phase 7H subtasks can reuse.
+Phase 7H.1 establishes a lightweight browser-side foundation for static dashboard interactivity. The foundation provides read-only selection state, safe selector metadata conventions, optional URL hash state, optional local storage state, and small rendering hooks that later Phase 7H subtasks can reuse. Phase 7H.8 uses this foundation for browser-side only Cross-Screen Selection Propagation.
 
-Dashboard interactivity is read-only and exploratory only. It does not change backend truth, deterministic runtime truth, diagnostic truth, recommendation truth, governed memory state, semantic context, or learning candidate state. It does not change diagnostic truth and does not change recommendation truth.
+Dashboard interactivity is read-only and exploratory only. It does not change backend truth, deterministic runtime truth, diagnostic truth, historical truth, recommendation truth, governed memory state, semantic context, or learning candidate state. It does not change diagnostic truth, does not change historical truth, and does not change recommendation truth.
 
 ## 2. Scope
 
@@ -14,7 +14,7 @@ The dashboard remains static HTML. The foundation has no server requirement, no 
 
 ## 3. Non-Goals
 
-Phase 7H.1 does not implement Phase 7H.2 Screen 3 Control Center, Phase 7H.3 Screen 2 diagnostic exploration, Phase 7H.4 Screen 4 historical review exploration, Phase 7H.5 Screen 5 recommendation/action exploration, Phase 7H.6 Screen 1 governance/parser exploration, Phase 7H.7 Screen 6 fleet/governance/semantic/learning exploration, Phase 7H.8 cross-screen propagation, or Phase 7I CLI learning commands.
+Phase 7H.1 did not implement Phase 7H.2 Screen 3 Control Center, Phase 7H.3 Screen 2 diagnostic exploration, Phase 7H.4 Screen 4 historical review exploration, Phase 7H.5 Screen 5 recommendation/action exploration, Phase 7H.6 Screen 1 governance/parser exploration, Phase 7H.7 Screen 6 fleet/governance/semantic/learning exploration, Phase 7H.8 cross-screen propagation, or Phase 7I CLI learning commands. Phase 7H.8 later implements cross-screen propagation as browser-side only, read-only, exploratory selection synchronization, not as backend persistence or runtime truth.
 
 It does not add approval controls, reject controls, implement controls, validate controls, close controls, activate controls, apply controls, form posts, API write endpoints, database writes, backend mutation, runtime activation, autonomous learning, parser changes, scoring changes, trend/anomaly changes, decision changes, recommendation changes, or Phase 4I output contract changes.
 
@@ -56,7 +56,7 @@ If no selectable metadata exists, the foundation safely does nothing. Static pag
 
 ## 10. Runtime Truth Boundary
 
-Phase 7H.1 does not change runtime truth. Parser output, feature vectors, scoring, trends, anomalies, decisions, recommendations, Phase 4I output, and deterministic dashboard truth remain authoritative and unchanged.
+Phase 7H.1 does not change runtime truth. Parser output, feature vectors, scoring, trends, anomalies, decisions, recommendations, Phase 4I output, and deterministic dashboard truth remain authoritative and unchanged. URL hash/localStorage state is not authoritative truth.
 
 No runtime learning was implemented. The deterministic runtime remains authoritative.
 
@@ -92,9 +92,9 @@ No backend writes are added.
 
 ## 16. Screen-Specific Deferral Boundary
 
-Screen-specific selection behavior is future work. Phase 7H.1 only creates the shared foundation so later subtasks can add controlled metadata and screen-specific read-only behavior.
+Screen-specific selection behavior was future work from the Phase 7H.1 foundation perspective. Later Phase 7H.2 through Phase 7H.7 subtasks add controlled metadata and screen-specific read-only behavior, and Phase 7H.8 adds browser-side only cross-screen selection propagation.
 
-It does not implement a full Screen 3 control center, diagnostic drilldown, historical comparison selector, recommendation/action selector, governance/parser selector, fleet selector, semantic selector, learning candidate selector experience, or full cross-screen propagation.
+The foundation and Phase 7H.8 propagation still do not implement backend writes, runtime activation, approval controls, write controls, parser changes, diagnostic truth changes, historical truth changes, recommendation truth changes, governance state changes, candidate status changes, or Phase 7I CLI learning commands.
 
 ## 17. Relationship to Phase 7G Dashboard Learning Visibility
 
@@ -108,9 +108,11 @@ Phase 7H.2 may use the foundation to build the Screen 3 Control Center in a cont
 
 Any future Screen 3 behavior must remain read-only unless a later approved phase explicitly changes the boundary.
 
-## 19. Relationship to Future Phase 7H.3-7H.8 Screen-Specific Work
+## 19. Relationship to Phase 7H.3-7H.8 Screen-Specific Work
 
-Future Phase 7H.3 through Phase 7H.7 subtasks may add screen-specific exploratory behavior by applying the metadata hooks to selected dashboard elements. Full cross-screen propagation is future 7H.8 work.
+Phase 7H.3 through Phase 7H.7 subtasks add screen-specific exploratory behavior by applying the metadata hooks to selected dashboard elements. Phase 7H.8 implements Cross-Screen Selection Propagation as browser-side only, read-only, exploratory synchronization through URL hash/localStorage state, selected summary panels, and visual selected-state behavior.
+
+Cross-screen selection propagation is browser-side only. URL hash/localStorage state is not authoritative truth. It adds no backend writes, no API calls, no approval controls, no write controls, no runtime activation, no Phase 7I CLI learning commands, and no parser/scoring/decision/recommendation behavior changes.
 
 Phase 7H.6 uses the foundation state keys for read-only Screen 1 governance/parser exploration, including `selectedParserSection`, `selectedParserDiagnostic`, `selectedUnknownSignal`, `selectedGovernanceItem`, `selectedKnowledgeRequest`, and `selectedArtifact`. These keys remain browser-side only and do not change parser output, classify unknown signals, approve mappings, materialize artifacts, create/update knowledge requests, or change governance state.
 
@@ -120,7 +122,7 @@ Phase 7H.1 only defines the reusable browser-side foundation and guardrails.
 
 ## 20. Validation Requirements
 
-Validation must prove import and compile safety, foundation script presence, state key presence, selectable metadata hook presence, read-only safety wording, absence of unsafe write controls, absence of runtime import drift, Phase 7G learning visibility preservation, absence of Phase 7H.2+ screen-specific behavior, static dashboard compatibility, and documentation boundary coverage.
+Validation must prove import and compile safety, foundation script presence, state key presence, selectable metadata hook presence, read-only safety wording, absence of unsafe write controls, absence of runtime import drift, Phase 7G learning visibility preservation, safe browser-side cross-screen selection propagation in Phase 7H.8, static dashboard compatibility, and documentation boundary coverage.
 
 Tests must be deterministic and local only. They must not require a database, OCI, ADB wallet, Oracle Agent Memory, environment variables, network, current date/time, or write access outside temporary directories.
 
@@ -128,4 +130,4 @@ Tests must be deterministic and local only. They must not require a database, OC
 
 Phase 7H.1 is accepted when the dashboard includes the Dashboard Interactivity Foundation, read-only selection state, supported state keys, URL hash state handling, optional local storage state handling, selectable metadata hooks, safe empty behavior, progressive enhancement behavior, and boundary wording.
 
-It is also accepted only if selections are exploratory only, no backend writes are added, no approval controls are added, no write controls are added, no runtime activation is added, diagnostic truth is unchanged, recommendation truth is unchanged, learning candidates remain review/proposal context only, semantic context remains reviewer-assist only, screen-specific selection behavior is future work, full cross-screen propagation is future 7H.8, no runtime learning is implemented, deterministic runtime remains authoritative, and parser/scoring/decision/recommendation behavior is unchanged.
+It is also accepted only if selections are exploratory only, no backend writes are added, no approval controls are added, no write controls are added, no runtime activation is added, diagnostic truth is unchanged, historical truth is unchanged, recommendation truth is unchanged, learning candidates remain review/proposal context only, semantic context remains reviewer-assist only, cross-screen selection propagation is browser-side only, URL hash/localStorage state is not authoritative truth, no runtime learning is implemented, deterministic runtime remains authoritative, and parser/scoring/decision/recommendation behavior is unchanged.

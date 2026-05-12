@@ -93,7 +93,8 @@ class DashboardScreen5RecommendationActionExplorationTests(unittest.TestCase):
             "Learning candidates are not recommendation evidence",
             "Semantic context is not recommendation evidence",
             "Selection only highlights existing recommendation/action context",
-            "Cross-screen propagation remains future Phase 7H.8",
+            "Cross-Screen Selection Propagation is browser-side only",
+            "URL hash/localStorage state is not authoritative truth",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):

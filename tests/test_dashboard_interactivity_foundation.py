@@ -92,10 +92,12 @@ class DashboardInteractivityFoundationTests(unittest.TestCase):
             "Read-only selection state",
             "Exploratory only",
             "No backend writes",
+            "No API calls",
             "Does not change diagnostic truth",
+            "Does not change historical truth",
             "Does not change recommendation truth",
             "Does not approve or activate learning candidates",
-            "Full screen-specific interactivity remains future Phase 7H subtasks",
+            "URL hash/localStorage state is not authoritative truth",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):
@@ -185,13 +187,12 @@ class DashboardInteractivityFoundationTests(unittest.TestCase):
         self.assertIn("runtime_influence=false", source)
         self.assertNotIn("runtime_influence=true", source)
 
-    def test_no_phase7h8_or_later_behavior_in_foundation(self) -> None:
+    def test_no_phase7i_or_write_behavior_in_foundation(self) -> None:
         dashboard = dashboard_module()
         source = read_text(HTML_DASHBOARD_PATH).lower()
         script = dashboard._build_dashboard_interactivity_javascript().lower()
 
         forbidden_source_phrases = (
-            "cross-screen propagation engine",
             "screen-specific diagnostic selection",
             "screen-specific recommendation selection",
             "learning_state_engine",
@@ -232,7 +233,8 @@ class DashboardInteractivityFoundationTests(unittest.TestCase):
         self.assertNotIn("npm", script)
         self.assertNotIn("import ", script)
         self.assertNotIn("require(", script)
-        self.assertIn("if (!selectableelements.length", script)
+        self.assertIn("!selectableelements.length", script)
+        self.assertIn("!navigationlinks.length", script)
         self.assertIn("return {}", script)
 
     def test_documentation_exists_and_contains_required_boundaries(self) -> None:
@@ -247,9 +249,11 @@ class DashboardInteractivityFoundationTests(unittest.TestCase):
             "no approval controls",
             "no write controls",
             "does not change diagnostic truth",
+            "does not change historical truth",
             "does not change recommendation truth",
-            "screen-specific selection behavior is future work",
-            "full cross-screen propagation is future 7h.8",
+            "cross-screen selection propagation is browser-side only",
+            "url hash/localstorage state is not authoritative truth",
+            "no api calls",
             "learning candidates remain review/proposal context only",
             "semantic context remains reviewer-assist only",
         )

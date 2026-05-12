@@ -88,7 +88,8 @@ class DashboardScreen1GovernanceParserExplorationTests(unittest.TestCase):
             "Does not change recommendation truth",
             "Semantic/learning context is not parser evidence",
             "Selection only highlights existing parser/governance context",
-            "Cross-screen propagation remains future Phase 7H.8",
+            "Cross-Screen Selection Propagation is browser-side only",
+            "URL hash/localStorage state is not authoritative truth",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):

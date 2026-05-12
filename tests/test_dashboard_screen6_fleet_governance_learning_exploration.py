@@ -109,7 +109,8 @@ class DashboardScreen6FleetGovernanceLearningExplorationTests(unittest.TestCase)
             "Pattern records are not candidates",
             "runtime_influence=false",
             "requires_human_review=true",
-            "Cross-screen propagation remains future Phase 7H.8",
+            "Cross-Screen Selection Propagation is browser-side only",
+            "URL hash/localStorage state is not authoritative truth",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):

@@ -90,7 +90,8 @@ class DashboardScreen2DiagnosticExplorationTests(unittest.TestCase):
             "Does not change recommendation truth",
             "Semantic/learning context is not diagnostic evidence",
             "Selection only highlights deterministic evidence",
-            "Cross-screen propagation remains future Phase 7H.8",
+            "Cross-Screen Selection Propagation is browser-side only",
+            "URL hash/localStorage state is not authoritative truth",
         )
         for phrase in required_phrases:
             with self.subTest(phrase=phrase):
