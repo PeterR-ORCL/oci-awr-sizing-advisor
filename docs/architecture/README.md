@@ -4,38 +4,45 @@ This directory contains architecture, governance, validation, and operational do
 
 ## Recommended Reading Order
 
-1. [Phase 7 Learning Boundary](phase7_learning_boundary.md)
-2. [Phase 7 Candidate Lifecycle](phase7_candidate_lifecycle.md)
-3. [Phase 7 Outcome Pattern Mining](phase7_outcome_pattern_mining.md)
-4. [Phase 7 Learning Candidate Model](phase7_learning_candidate_model.md)
-5. [Phase 7 Candidate Generation Engine](phase7_candidate_generation_engine.md)
-6. [Phase 7 Semantic Candidate Context](phase7_semantic_candidate_context.md)
-7. [Phase 7 Learning Governance Bridge](phase7_learning_governance_bridge.md)
-8. [Phase 7 Dashboard Learning Visibility](phase7_dashboard_learning_visibility.md)
-9. [Phase 7 Dashboard Interactivity Foundation](phase7_dashboard_interactivity_foundation.md)
-10. [Phase 7 Screen 3 Control Center](phase7_screen3_control_center.md)
-11. [Phase 7 Screen 2 Diagnostic Exploration](phase7_screen2_diagnostic_exploration.md)
-12. [Phase 7 Screen 4 Historical Review Exploration](phase7_screen4_historical_review_exploration.md)
-13. [Phase 7 Screen 5 Recommendation / Action Exploration](phase7_screen5_recommendation_action_exploration.md)
-14. [Phase 7 Screen 1 Governance / Parser Exploration](phase7_screen1_governance_parser_exploration.md)
-15. [Phase 7 Screen 6 Fleet / Governance / Semantic / Learning Exploration](phase7_screen6_fleet_governance_learning_exploration.md)
-16. [Phase 7 Cross-Screen Selection Propagation](phase7_cross_screen_selection_propagation.md)
-17. [Phase 7 Dashboard Interactivity Architecture](phase7_dashboard_interactivity_architecture.md)
-18. [Phase 7 Dashboard Interactivity Validation Matrix](phase7_dashboard_interactivity_validation_matrix.md)
-19. [Phase 7 Dashboard Interactivity Acceptance Criteria](phase7_dashboard_interactivity_acceptance_criteria.md)
-20. [Phase 7 Learning CLI Operations](phase7_learning_cli_operations.md)
-21. [Phase 7 Validation Matrix](phase7_validation_matrix.md)
-22. [Phase 7 Validation Harness](phase7_validation_harness.md)
-23. [Phase 7 Roadmap](phase7_roadmap.md)
-24. [Phase 6 Release Notes](phase6_release_notes.md)
-25. [Phase 6 Memory Architecture](phase6_memory_architecture.md)
-26. [Phase 6 Component Inventory](phase6_component_inventory.md)
-27. [Phase 6 Repository Map](phase6_repository_map.md)
-28. [Phase 6 Operational Model](phase6_operational_model.md)
-29. [Phase 6 CLI Operations](phase6_cli_operations.md)
-30. [Phase 6 Validation Matrix](phase6_validation_matrix.md)
-31. [Phase 6 Production Readiness](phase6_production_readiness.md)
-32. [Phase 6 Demo Walkthrough](phase6_demo_walkthrough.md)
+1. [Phase 7 Learning Architecture](phase7_learning_architecture.md)
+2. [Phase 7 Operational Model](phase7_operational_model.md)
+3. [Phase 7 Component Inventory](phase7_component_inventory.md)
+4. [Phase 7 Repository Map](phase7_repository_map.md)
+5. [Phase 7 Release Notes](phase7_release_notes.md)
+6. [Phase 7 Demo Walkthrough](phase7_demo_walkthrough.md)
+7. [Phase 7 Acceptance Criteria](phase7_acceptance_criteria.md)
+8. [Phase 7 Learning Boundary](phase7_learning_boundary.md)
+9. [Phase 7 Candidate Lifecycle](phase7_candidate_lifecycle.md)
+10. [Phase 7 Outcome Pattern Mining](phase7_outcome_pattern_mining.md)
+11. [Phase 7 Learning Candidate Model](phase7_learning_candidate_model.md)
+12. [Phase 7 Candidate Generation Engine](phase7_candidate_generation_engine.md)
+13. [Phase 7 Semantic Candidate Context](phase7_semantic_candidate_context.md)
+14. [Phase 7 Learning Governance Bridge](phase7_learning_governance_bridge.md)
+15. [Phase 7 Dashboard Learning Visibility](phase7_dashboard_learning_visibility.md)
+16. [Phase 7 Dashboard Interactivity Foundation](phase7_dashboard_interactivity_foundation.md)
+17. [Phase 7 Screen 3 Control Center](phase7_screen3_control_center.md)
+18. [Phase 7 Screen 2 Diagnostic Exploration](phase7_screen2_diagnostic_exploration.md)
+19. [Phase 7 Screen 4 Historical Review Exploration](phase7_screen4_historical_review_exploration.md)
+20. [Phase 7 Screen 5 Recommendation / Action Exploration](phase7_screen5_recommendation_action_exploration.md)
+21. [Phase 7 Screen 1 Governance / Parser Exploration](phase7_screen1_governance_parser_exploration.md)
+22. [Phase 7 Screen 6 Fleet / Governance / Semantic / Learning Exploration](phase7_screen6_fleet_governance_learning_exploration.md)
+23. [Phase 7 Cross-Screen Selection Propagation](phase7_cross_screen_selection_propagation.md)
+24. [Phase 7 Dashboard Interactivity Architecture](phase7_dashboard_interactivity_architecture.md)
+25. [Phase 7 Dashboard Interactivity Validation Matrix](phase7_dashboard_interactivity_validation_matrix.md)
+26. [Phase 7 Dashboard Interactivity Acceptance Criteria](phase7_dashboard_interactivity_acceptance_criteria.md)
+27. [Phase 7 Learning CLI Operations](phase7_learning_cli_operations.md)
+28. [Phase 7 Validation Matrix](phase7_validation_matrix.md)
+29. [Phase 7 Validation Harness](phase7_validation_harness.md)
+30. [Phase 7 Roadmap](phase7_roadmap.md)
+31. [Phase 6 Release Notes](phase6_release_notes.md)
+32. [Phase 6 Memory Architecture](phase6_memory_architecture.md)
+33. [Phase 6 Component Inventory](phase6_component_inventory.md)
+34. [Phase 6 Repository Map](phase6_repository_map.md)
+35. [Phase 6 Operational Model](phase6_operational_model.md)
+36. [Phase 6 CLI Operations](phase6_cli_operations.md)
+37. [Phase 6 Validation Matrix](phase6_validation_matrix.md)
+38. [Phase 6 Production Readiness](phase6_production_readiness.md)
+39. [Phase 6 Demo Walkthrough](phase6_demo_walkthrough.md)
 
 ## Runtime And Architecture
 
@@ -49,6 +56,13 @@ These documents define deterministic runtime truth, governed memory, structured 
 
 ## Phase 7 Learning Boundary
 
+- [Phase 7 Learning Architecture](phase7_learning_architecture.md)
+- [Phase 7 Operational Model](phase7_operational_model.md)
+- [Phase 7 Component Inventory](phase7_component_inventory.md)
+- [Phase 7 Repository Map](phase7_repository_map.md)
+- [Phase 7 Release Notes](phase7_release_notes.md)
+- [Phase 7 Demo Walkthrough](phase7_demo_walkthrough.md)
+- [Phase 7 Acceptance Criteria](phase7_acceptance_criteria.md)
 - [Phase 7 Learning Boundary](phase7_learning_boundary.md)
 - [Phase 7 Candidate Lifecycle](phase7_candidate_lifecycle.md)
 - [Phase 7 Outcome Pattern Mining](phase7_outcome_pattern_mining.md)
@@ -73,7 +87,7 @@ These documents define deterministic runtime truth, governed memory, structured 
 - [Phase 7 Validation Harness](phase7_validation_harness.md)
 - [Phase 7 Roadmap](phase7_roadmap.md)
 
-These documents define Phase 7A learning as boundary-only, Phase 7B outcome pattern mining as deterministic and observational only, Phase 7C learning candidates as proposal-only serializable records, Phase 7D candidate generation as deterministic proposal-only conversion from outcome patterns to candidate records, Phase 7E semantic candidate context as optional reviewer-assist context with `runtime_influence=false`, `requires_human_review=true`, and no runtime activation, Phase 7F learning governance bridge as local deterministic review transitions that are approved for implementation only and not runtime integration, Phase 7G dashboard learning visibility as read-only Screen 6 visibility only, Phase 7H.1 dashboard interactivity foundation as browser-side read-only selection state only, Phase 7H.2 Screen 3 Control Center as read-only exploratory selectors only, Phase 7H.3 Screen 2 Diagnostic Exploration as read-only deterministic evidence exploration only, Phase 7H.4 Screen 4 Historical Review Exploration as read-only deterministic historical context exploration only, Phase 7H.5 Screen 5 Recommendation / Action Exploration as read-only deterministic/governed recommendation/action context exploration only, Phase 7H.6 Screen 1 Governance / Parser Exploration as read-only parser/governance context exploration only, Phase 7H.7 Screen 6 Fleet / Governance / Semantic / Learning Exploration as read-only fleet/governance/semantic/learning context exploration only, Phase 7H.8 Cross-Screen Selection Propagation as browser-side read-only selection synchronization only, Phase 7H.9 Interactivity Validation / Docs as final documentation and validation only, and Phase 7I Learning CLI Operations as local deterministic CLI visibility and actor-gated review wrappers only.
+These documents define Phase 7K final documentation and navigation; Phase 7A learning as boundary-only; Phase 7B outcome pattern mining as deterministic and observational only; Phase 7C learning candidates as proposal-only serializable records; Phase 7D candidate generation as deterministic proposal-only conversion from outcome patterns to candidate records; Phase 7E semantic candidate context as optional reviewer-assist context with `runtime_influence=false`, `requires_human_review=true`, and no runtime activation; Phase 7F learning governance bridge as local deterministic review transitions that are approved for implementation only and not runtime integration; Phase 7G dashboard learning visibility as read-only Screen 6 visibility only; Phase 7H.1 dashboard interactivity foundation as browser-side read-only selection state only; Phase 7H.2 Screen 3 Control Center as read-only exploratory selectors only; Phase 7H.3 Screen 2 Diagnostic Exploration as read-only deterministic evidence exploration only; Phase 7H.4 Screen 4 Historical Review Exploration as read-only deterministic historical context exploration only; Phase 7H.5 Screen 5 Recommendation / Action Exploration as read-only deterministic/governed recommendation/action context exploration only; Phase 7H.6 Screen 1 Governance / Parser Exploration as read-only parser/governance context exploration only; Phase 7H.7 Screen 6 Fleet / Governance / Semantic / Learning Exploration as read-only fleet/governance/semantic/learning context exploration only; Phase 7H.8 Cross-Screen Selection Propagation as browser-side read-only selection synchronization only; Phase 7H.9 Interactivity Validation / Docs as final documentation and validation only; Phase 7I Learning CLI Operations as local deterministic CLI visibility and actor-gated review wrappers only; and Phase 7J Validation Harness as local deterministic validation only.
 
 ## Governance And Semantic Memory
 
@@ -92,6 +106,7 @@ These documents support operator onboarding, demo execution, read-only versus wr
 ## Validation And Readiness
 
 - [Phase 6 Validation Matrix](phase6_validation_matrix.md)
+- [Phase 7 Acceptance Criteria](phase7_acceptance_criteria.md)
 - [Phase 7 Validation Matrix](phase7_validation_matrix.md)
 - [Phase 7 Validation Harness](phase7_validation_harness.md)
 - [Phase 7 Dashboard Interactivity Validation Matrix](phase7_dashboard_interactivity_validation_matrix.md)
@@ -103,6 +118,8 @@ These documents certify isolation guarantees, validation coverage, operational r
 
 ## Release Package
 
+- [Phase 7 Release Notes](phase7_release_notes.md)
+- [Phase 7 Demo Walkthrough](phase7_demo_walkthrough.md)
 - [Phase 6 Release Notes](phase6_release_notes.md)
 - [Phase 6 Release Certification](phase6_release_certification.md)
 - [Phase 6 Production Readiness](phase6_production_readiness.md)
@@ -143,4 +160,5 @@ Phase 7A is boundary-only and introduces no runtime learning behavior. Phase 7B 
 - Phase 7H.9 Interactivity Validation / Docs adds consolidated architecture, validation matrix, acceptance criteria, and local validation tests only; it adds no new UI behavior, no new selectors, no backend writes, no API calls, no approval controls, no write controls, no runtime activation, and no parser/scoring/decision/recommendation behavior changes.
 - Phase 7I Learning CLI Operations adds local deterministic CLI commands only; approval remains approved for implementation only, `runtime_influence=false`, `requires_human_review=true`, no DB writes, no network dependency, no Oracle Agent Memory dependency, no semantic recall service dependency, no runtime activation, and no parser/scoring/decision/recommendation behavior changes.
 - Phase 7J Validation Harness adds local and deterministic validation only; it confirms no runtime activation, deterministic runtime remains authoritative, semantic context remains reviewer-assist only, learning candidates remain proposal/review context only, dashboard interactivity is read-only, CLI learning commands are local and deterministic, and no parser/scoring/decision/recommendation behavior change.
-- No autonomous learning behavior exists in Phase 7A, Phase 7B, Phase 7C, Phase 7D, Phase 7E, Phase 7F, Phase 7G, Phase 7H.1, Phase 7H.2, Phase 7H.3, Phase 7H.4, Phase 7H.5, Phase 7H.6, Phase 7H.7, Phase 7H.8, Phase 7H.9, Phase 7I, or Phase 7J.
+- Phase 7K Documentation Finalization adds final architecture, operational model, component inventory, repository map, release notes, demo walkthrough, acceptance criteria, architecture index links, and documentation-only validation tests; it adds no runtime behavior, no learning behavior, no dashboard behavior, no CLI behavior, no backend writes, no API calls, no runtime activation, and no parser/scoring/decision/recommendation behavior change.
+- No autonomous learning behavior exists in Phase 7A, Phase 7B, Phase 7C, Phase 7D, Phase 7E, Phase 7F, Phase 7G, Phase 7H.1, Phase 7H.2, Phase 7H.3, Phase 7H.4, Phase 7H.5, Phase 7H.6, Phase 7H.7, Phase 7H.8, Phase 7H.9, Phase 7I, Phase 7J, or Phase 7K.
