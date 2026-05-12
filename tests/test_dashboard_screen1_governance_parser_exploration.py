@@ -209,12 +209,10 @@ class DashboardScreen1GovernanceParserExplorationTests(unittest.TestCase):
             with self.subTest(screen="screen_5", phrase=phrase):
                 self.assertNotIn(phrase, screen_5_source)
 
-    def test_no_7h7_or_later_behavior_yet(self) -> None:
+    def test_no_7h8_behavior_yet(self) -> None:
         source = read_text(HTML_DASHBOARD_PATH).lower()
 
         forbidden_phrases = (
-            "screen 6 learning selector",
-            "screen 6 fleet/governance/semantic/learning exploration",
             "cross-screen propagation engine",
             "propagate selection to screen 6",
             "activatelearningcandidate",

@@ -58,6 +58,10 @@ DASHBOARD_INTERACTIVITY_STATE_KEYS = (
     "selectedArtifact",
     "selectedSemanticItem",
     "selectedLearningCandidate",
+    "selectedLearningCandidateStatus",
+    "selectedLearningCandidateType",
+    "selectedOutcomePattern",
+    "selectedActionEffectivenessPattern",
     "selectedFleetGroup",
     "selectedComparisonBaseline",
 )
@@ -78,6 +82,7 @@ SCREEN3_CONTROL_CENTER_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 SCREEN2_DIAGNOSTIC_EXPLORATION_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 SCREEN4_HISTORICAL_EXPLORATION_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 SCREEN5_RECOMMENDATION_ACTION_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
+SCREEN6_FLEET_GOVERNANCE_LEARNING_DOMAINS = ("CPU", "IO", "MEMORY", "COMMIT", "RAC", "ADG")
 
 
 class _TrustedHtml(str):
@@ -912,10 +917,21 @@ def _build_dashboard_interactivity_javascript() -> str:
         'knowledge-request': 'selectedKnowledgeRequest',
         knowledgeRequest: 'selectedKnowledgeRequest',
         artifact: 'selectedArtifact',
+        'semantic-item': 'selectedSemanticItem',
         semanticItem: 'selectedSemanticItem',
         semantic: 'selectedSemanticItem',
+        'learning-candidate': 'selectedLearningCandidate',
         learningCandidate: 'selectedLearningCandidate',
         learning: 'selectedLearningCandidate',
+        'learning-candidate-status': 'selectedLearningCandidateStatus',
+        learningCandidateStatus: 'selectedLearningCandidateStatus',
+        'learning-candidate-type': 'selectedLearningCandidateType',
+        learningCandidateType: 'selectedLearningCandidateType',
+        'outcome-pattern': 'selectedOutcomePattern',
+        outcomePattern: 'selectedOutcomePattern',
+        'action-effectiveness-pattern': 'selectedActionEffectivenessPattern',
+        actionEffectivenessPattern: 'selectedActionEffectivenessPattern',
+        'fleet-group': 'selectedFleetGroup',
         fleetGroup: 'selectedFleetGroup',
         fleet: 'selectedFleetGroup',
         comparisonBaseline: 'selectedComparisonBaseline',
@@ -6838,6 +6854,765 @@ def _truncate_memory_text(value: Any, max_chars: int = 120) -> str:
     return text[: max(0, max_chars - 3)].rstrip() + "..."
 
 
+def _render_screen6_fleet_governance_learning_exploration(
+    screen_model: dict[str, Any],
+    governance_payload: dict[str, Any],
+    semantic_recall_payload: dict[str, Any],
+    learning_visibility_payload: dict[str, Any],
+) -> str:
+    exploration = _build_screen6_fleet_governance_learning_exploration_model(
+        screen_model,
+        governance_payload,
+        semantic_recall_payload,
+        learning_visibility_payload,
+    )
+    return f"""
+      <section class="card secondary screen6-fleet-governance-learning-exploration">
+        <div class="section-kicker">Screen 6 Fleet / Governance / Semantic / Learning Exploration</div>
+        <h2>Screen 6 Fleet / Governance / Semantic / Learning Exploration</h2>
+        <p class="meta">
+          Read-only fleet/governance/semantic/learning exploration. Exploratory only.
+          No backend writes. Does not change fleet posture. Does not change governance state.
+          Does not classify unknown signals. Does not materialize artifacts.
+          Does not change diagnostic truth. Does not change recommendation truth.
+          Semantic context is reviewer-assist only. Semantic context is non-authoritative.
+          Semantic context is not diagnostic evidence. Semantic context is not recommendation truth.
+          Learning candidates are proposal/review context only. Learning candidates are not diagnostic evidence.
+          Learning candidates are not recommendation truth. Pattern records are not candidates.
+          Selection only highlights existing Screen 6 context. runtime_influence=false.
+          requires_human_review=true. Cross-screen propagation remains future Phase 7H.8.
+          No approval controls. No runtime activation.
+        </p>
+        <div class="subgrid">
+          <section class="evidence-pane selector-pane screen6-selected-panel">
+            <h3>Selected Screen 6 Summary</h3>
+            <p class="screen6-selected-summary" data-dashboard-selected-summary data-dashboard-state-empty="true">
+              Read-only fleet/governance/semantic/learning exploration: no local selection. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.
+            </p>
+            <div class="meta">
+              Selection does not change fleet posture, governance state, candidate status, unknown signal classification, artifact state, diagnostic truth, historical truth, recommendation truth, runtime_influence=false, or requires_human_review=true.
+            </div>
+          </section>
+          {_render_screen6_selector_group(
+              "Fleet Group Selector",
+              "Fleet selection highlights existing fleet context only. It does not change fleet posture or scoring.",
+              exploration["fleet_groups"],
+              "No fleet group selector available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Database / System Selector",
+              "Database and system selection highlights existing context only. It does not change fleet grouping or posture.",
+              exploration["systems"],
+              "No database or system selector available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "AWR / Run Selector",
+              "AWR and run selection is local to the browser and does not switch backend output.",
+              exploration["runs"],
+              "No AWR or run selector available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Issue Domain Selector",
+              "Domain selection is exploratory only and does not change primary issue, severity, score, or fleet posture.",
+              exploration["domains"],
+              "Domain controls are limited to fixed authoritative domains. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Governance Item Selector",
+              "Governance item selection highlights existing read-only governance context. No approval, rejection, or status changes occur.",
+              exploration["governance_items"],
+              "No governance item selector available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Parser Unknown Group Selector",
+              "Unknown signal selection highlights existing parser governance context only. It does not classify, approve, reject, or map unknown signals.",
+              exploration["unknown_signals"],
+              "No unknown signal groups available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Knowledge Request Selector",
+              "Knowledge request selection highlights existing governed request context only. It does not create or update knowledge requests.",
+              exploration["knowledge_requests"],
+              "No knowledge requests available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Knowledge Artifact Selector",
+              "Knowledge artifact selection highlights existing artifact context only. It does not materialize artifacts or activate them.",
+              exploration["artifacts"],
+              "No knowledge artifacts available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Semantic Reviewer-Assist Selector",
+              "Semantic context is reviewer-assist only, non-authoritative, not diagnostic evidence, and not recommendation truth. No semantic service calls occur.",
+              exploration["semantic_items"],
+              "No semantic reviewer-assist groups available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Learning Candidate Selector",
+              "Learning candidates are proposal/review context only with runtime_influence=false and requires_human_review=true. No approval or status mutation occurs.",
+              exploration["learning_candidates"],
+              "No learning candidates available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Learning Candidate Status / Type Selector",
+              "Candidate status and type grouping is read-only. It does not mutate candidate status.",
+              exploration["learning_groups"],
+              "No learning candidate status or type groups available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Outcome Pattern Selector",
+              "Outcome pattern selection is read-only. Pattern records are not candidates and no candidate generation is triggered.",
+              exploration["outcome_patterns"],
+              "No outcome pattern groups available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+          {_render_screen6_selector_group(
+              "Action Effectiveness Pattern Selector",
+              "Action effectiveness selection is read-only and performs no action or outcome writes.",
+              exploration["action_effectiveness_patterns"],
+              "No action effectiveness pattern groups available in this static export. Selection is local and read-only. Fleet, governance, semantic, and learning output remains unchanged.",
+          )}
+        </div>
+      </section>
+    """
+
+
+def _build_screen6_fleet_governance_learning_exploration_model(
+    screen_model: dict[str, Any],
+    governance_payload: dict[str, Any],
+    semantic_recall_payload: dict[str, Any],
+    learning_visibility_payload: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    header = _to_dict(screen_model.get("header"))
+    fleet_summary = _to_dict(screen_model.get("fleet_summary"))
+    clusters = _to_dict(screen_model.get("clusters"))
+    rare_patterns = _to_dict(screen_model.get("rare_patterns"))
+    anomaly_validation = _to_dict(screen_model.get("anomaly_validation"))
+    similar_cases = _screen6_list(clusters.get("similar_cases"))
+    outliers = _screen6_list(screen_model.get("outliers"))
+    return {
+        "fleet_groups": _dedupe_screen6_selector_items(
+            _screen6_fleet_group_items(
+                fleet_summary,
+                clusters,
+                rare_patterns,
+                anomaly_validation,
+                similar_cases,
+                _screen6_list(screen_model.get("repeated_issues")),
+                _screen6_list(screen_model.get("recommendation_backlog")),
+            )
+        ),
+        "systems": _dedupe_screen6_selector_items(
+            _screen6_system_items(header, similar_cases + outliers)
+        ),
+        "runs": _dedupe_screen6_selector_items(
+            _screen6_run_items(header, similar_cases + outliers)
+        ),
+        "domains": _dedupe_screen6_selector_items(
+            _screen6_domain_items(learning_visibility_payload, screen_model)
+        ),
+        "governance_items": _dedupe_screen6_selector_items(
+            _screen6_governance_items(governance_payload)
+        ),
+        "unknown_signals": _dedupe_screen6_selector_items(
+            _screen6_unknown_signal_items(governance_payload)
+        ),
+        "knowledge_requests": _dedupe_screen6_selector_items(
+            _screen6_knowledge_request_items(governance_payload)
+        ),
+        "artifacts": _dedupe_screen6_selector_items(
+            _screen6_artifact_items(governance_payload)
+        ),
+        "semantic_items": _dedupe_screen6_selector_items(
+            _screen6_semantic_items(semantic_recall_payload)
+        ),
+        "learning_candidates": _dedupe_screen6_selector_items(
+            _screen6_learning_candidate_items(learning_visibility_payload)
+        ),
+        "learning_groups": _dedupe_screen6_selector_items(
+            _screen6_learning_group_items(learning_visibility_payload)
+        ),
+        "outcome_patterns": _dedupe_screen6_selector_items(
+            _screen6_pattern_items(
+                _screen6_first_context_collection(
+                    screen_model,
+                    learning_visibility_payload,
+                    ("outcome_patterns", "outcome_pattern_groups", "patterns"),
+                ),
+                select_type="outcome-pattern",
+                state_key="selectedOutcomePattern",
+                default_label="Outcome Pattern",
+                note="Outcome pattern record only. Pattern records are not candidates and no candidate generation is triggered.",
+            )
+        ),
+        "action_effectiveness_patterns": _dedupe_screen6_selector_items(
+            _screen6_pattern_items(
+                _screen6_first_context_collection(
+                    screen_model,
+                    learning_visibility_payload,
+                    (
+                        "action_effectiveness_patterns",
+                        "action_patterns",
+                        "effectiveness_patterns",
+                    ),
+                ),
+                select_type="action-effectiveness-pattern",
+                state_key="selectedActionEffectivenessPattern",
+                default_label="Action Effectiveness Pattern",
+                note="Action effectiveness pattern only. No action or outcome writes.",
+            )
+        ),
+    }
+
+
+def _screen6_fleet_group_items(
+    fleet_summary: dict[str, Any],
+    clusters: dict[str, Any],
+    rare_patterns: dict[str, Any],
+    anomaly_validation: dict[str, Any],
+    similar_cases: list[Any],
+    repeated_issues: list[Any],
+    recommendation_backlog: list[Any],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    cluster_label = fleet_summary.get("cluster_label") or clusters.get("cluster_label")
+    if _has_display_value(cluster_label):
+        _append_screen6_selector_item(
+            items,
+            label=_display_cluster_summary_label(cluster_label),
+            value=f"cluster-{_screen6_state_id(cluster_label)}",
+            select_type="fleet-group",
+            state_key="selectedFleetGroup",
+            display_value=fleet_summary.get("cluster_confidence") or "Similarity cluster context",
+            note="Fleet group context only. Does not change fleet posture or scoring.",
+        )
+    for label, value in (
+        ("Similar AWRs", fleet_summary.get("similar_awrs") or len(similar_cases)),
+        ("Repeated Issues", _repeated_issue_compact_label(repeated_issues)),
+        ("Recommendation Backlog", _recommendation_backlog_compact_label(recommendation_backlog)),
+        ("Rare Pattern", rare_patterns.get("is_rare_pattern")),
+        ("Anomaly Support", anomaly_validation.get("supports_anomaly")),
+    ):
+        if not _has_display_value(value):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=label,
+            value=f"fleet-{_screen6_state_id(label)}",
+            select_type="fleet-group",
+            state_key="selectedFleetGroup",
+            display_value=value,
+            note="Existing fleet signal only. Fleet posture remains unchanged.",
+        )
+    return items
+
+
+def _screen6_system_items(header: dict[str, Any], cases: list[Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    db_value = _join_compact_values([header.get("db_name"), header.get("dbid")])
+    if _has_display_value(db_value):
+        _append_screen6_selector_item(
+            items,
+            label=db_value,
+            value=_screen6_state_id(db_value),
+            select_type="db",
+            state_key="selectedDb",
+            display_value=header.get("scope_label") or "Current database context",
+            note="Database context only. Does not change fleet grouping or posture.",
+        )
+    system_value = _join_compact_values([header.get("instance_name"), header.get("host_name")])
+    if _has_display_value(system_value):
+        _append_screen6_selector_item(
+            items,
+            label=system_value,
+            value=_screen6_state_id(system_value),
+            select_type="system",
+            state_key="selectedSystem",
+            display_value="Current system context",
+            note="System context only. Does not change fleet grouping or posture.",
+        )
+    for index, raw_case in enumerate(cases[:6]):
+        case = _to_dict(raw_case)
+        label = _join_compact_values(
+            [
+                case.get("db_name") or case.get("database_name"),
+                case.get("dbid"),
+                case.get("system_name") or case.get("host_name") or case.get("instance_name"),
+            ]
+        )
+        if not _has_display_value(label):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=label,
+            value=f"system-{index + 1}-{_screen6_state_id(label)}",
+            select_type="system",
+            state_key="selectedSystem",
+            display_value=case.get("cluster_label") or case.get("distance") or "Similar case system",
+            note="Similar case system context only. Does not change fleet grouping.",
+        )
+    return items
+
+
+def _screen6_run_items(header: dict[str, Any], cases: list[Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for select_type, state_key, label_prefix, value in (
+        ("awr", "selectedAwr", "AWR", header.get("awr_id")),
+        ("run", "selectedRun", "Run", header.get("run_history_id") or header.get("run_label")),
+    ):
+        if not _has_display_value(value):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"{label_prefix} {value}",
+            value=value,
+            select_type=select_type,
+            state_key=state_key,
+            display_value=header.get("scope_label") or "Current Screen 6 context",
+            note="Current run context only. Does not switch backend output.",
+        )
+    for index, raw_case in enumerate(cases[:6]):
+        case = _to_dict(raw_case)
+        awr_value = case.get("awr_id") or case.get("snap_id") or case.get("run_history_id")
+        if not _has_display_value(awr_value):
+            continue
+        select_type = "run" if _has_display_value(case.get("run_history_id")) else "awr"
+        state_key = "selectedRun" if select_type == "run" else "selectedAwr"
+        _append_screen6_selector_item(
+            items,
+            label=f"{select_type.upper()} {awr_value}",
+            value=f"{select_type}-{_screen6_state_id(awr_value)}",
+            select_type=select_type,
+            state_key=state_key,
+            display_value=case.get("distance") or case.get("similarity_score") or "Similar case context",
+            note="Similar case AWR/run context only. Does not switch backend output.",
+        )
+    return items
+
+
+def _screen6_domain_items(
+    learning_visibility_payload: dict[str, Any],
+    screen_model: dict[str, Any],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    domain_counts = _to_dict(learning_visibility_payload.get("affected_domain_counts"))
+    for domain in SCREEN6_FLEET_GOVERNANCE_LEARNING_DOMAINS:
+        display_value = domain_counts.get(domain) if domain in domain_counts else "Exploration domain"
+        _append_screen6_selector_item(
+            items,
+            label=domain,
+            value=domain,
+            select_type="domain",
+            state_key="selectedDomain",
+            domain=domain,
+            display_value=display_value,
+            note="Domain selection only. Does not change primary issue, severity, score, or fleet posture.",
+        )
+    for item in _screen6_list(screen_model.get("repeated_issues")):
+        domain = _screen6_selector_domain(item)
+        if domain:
+            _append_screen6_selector_item(
+                items,
+                label=domain,
+                value=domain,
+                select_type="domain",
+                state_key="selectedDomain",
+                domain=domain,
+                display_value="Repeated issue domain",
+                note="Repeated issue domain context only. Does not change diagnostic truth.",
+            )
+    return items
+
+
+def _screen6_governance_items(governance_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    workflow_summary = _to_dict(governance_payload.get("workflow_summary"))
+    for status, count in workflow_summary.items():
+        if not _has_display_value(count):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"Governance {status}",
+            value=f"governance-{_screen6_state_id(status)}",
+            select_type="governance-item",
+            state_key="selectedGovernanceItem",
+            display_value=f"{count} record(s)",
+            note="Governance summary only. No approval, rejection, or status changes.",
+        )
+    for index, row in enumerate(_screen6_list(governance_payload.get("linkage"))[:10]):
+        item = _to_dict(row)
+        request_id = item.get("request_id") or f"Linkage {index + 1}"
+        _append_screen6_selector_item(
+            items,
+            label=f"Governance linkage {request_id}",
+            value=f"governance-linkage-{index + 1}-{_screen6_state_id(request_id)}",
+            select_type="governance-item",
+            state_key="selectedGovernanceItem",
+            display_value=item.get("approval_status") or "Governance linkage",
+            note="Read-only governance linkage only. Governance state is unchanged.",
+        )
+    return items
+
+
+def _screen6_unknown_signal_items(governance_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    unknown_summary = _to_dict(governance_payload.get("unknown_signal_summary"))
+    for label, count in unknown_summary.items():
+        if not _has_display_value(count):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"Unknown Signal {label}",
+            value=f"unknown-{_screen6_state_id(label)}",
+            select_type="unknown-signal",
+            state_key="selectedUnknownSignal",
+            display_value=f"{count} record(s)",
+            note="Unknown signal summary only. No unknown-signal classification or mapping.",
+        )
+    return items
+
+
+def _screen6_knowledge_request_items(governance_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    approval_summary = _to_dict(governance_payload.get("approval_summary"))
+    for status, count in approval_summary.items():
+        if not _has_display_value(count):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"Knowledge Request {status}",
+            value=f"knowledge-request-{_screen6_state_id(status)}",
+            select_type="knowledge-request",
+            state_key="selectedKnowledgeRequest",
+            display_value=f"{count} request(s)",
+            note="Knowledge request summary only. No request creation or update.",
+        )
+    for index, row in enumerate(_screen6_list(governance_payload.get("linkage"))[:10]):
+        item = _to_dict(row)
+        request_id = item.get("request_id")
+        if not _has_display_value(request_id):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"Request {request_id}",
+            value=f"request-{_screen6_state_id(request_id)}",
+            select_type="knowledge-request",
+            state_key="selectedKnowledgeRequest",
+            display_value=item.get("approval_status") or "Knowledge request linkage",
+            note="Existing knowledge request context only. No request creation or update.",
+        )
+    return items
+
+
+def _screen6_artifact_items(governance_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    artifact_summary = _to_dict(governance_payload.get("artifact_summary"))
+    for status, count in artifact_summary.items():
+        if not _has_display_value(count):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"Artifact {status}",
+            value=f"artifact-{_screen6_state_id(status)}",
+            select_type="artifact",
+            state_key="selectedArtifact",
+            display_value=f"{count} artifact(s)",
+            note="Artifact summary only. No materialization or activation.",
+        )
+    for index, row in enumerate(_screen6_list(governance_payload.get("linkage"))[:10]):
+        item = _to_dict(row)
+        artifact_id = item.get("artifact_id")
+        if not _has_display_value(artifact_id):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=f"Artifact {artifact_id}",
+            value=f"artifact-{_screen6_state_id(artifact_id)}",
+            select_type="artifact",
+            state_key="selectedArtifact",
+            display_value=item.get("activation_status") or "Knowledge artifact linkage",
+            note="Existing artifact context only. No materialization or activation.",
+        )
+    return items
+
+
+def _screen6_semantic_items(semantic_recall_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    status_label = "enabled" if semantic_recall_payload.get("enabled") else "disabled"
+    _append_screen6_selector_item(
+        items,
+        label="Semantic Recall Status",
+        value=f"semantic-status-{status_label}",
+        select_type="semantic-item",
+        state_key="selectedSemanticItem",
+        display_value=status_label,
+        note="Semantic context is reviewer-assist only, non-authoritative, not diagnostic evidence, and not recommendation truth.",
+    )
+    for index, scope in enumerate(_screen6_list(semantic_recall_payload.get("assist_scope"))):
+        _append_screen6_selector_item(
+            items,
+            label=scope,
+            value=f"semantic-scope-{index + 1}-{_screen6_state_id(scope)}",
+            select_type="semantic-item",
+            state_key="selectedSemanticItem",
+            display_value="Reviewer-assist scope",
+            note="Semantic context is reviewer-assist only. No semantic service calls occur.",
+        )
+    for index, raw_context in enumerate(_screen6_list(semantic_recall_payload.get("latest_context"))):
+        context = _to_dict(raw_context)
+        label = context.get("query") or context.get("summary") or f"Semantic Context {index + 1}"
+        _append_screen6_selector_item(
+            items,
+            label=label,
+            value=f"semantic-context-{index + 1}-{_screen6_state_id(label)}",
+            select_type="semantic-item",
+            state_key="selectedSemanticItem",
+            display_value=context.get("summary") or context.get("count") or "Reviewer-assist context",
+            note="Semantic recall summary only. Non-authoritative and not diagnostic or recommendation truth.",
+        )
+    return items
+
+
+def _screen6_learning_candidate_items(learning_visibility_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for index, raw_candidate in enumerate(_screen6_list(learning_visibility_payload.get("candidates"))):
+        candidate = _to_dict(raw_candidate)
+        candidate_id = candidate.get("candidate_id") or candidate.get("id") or f"Candidate {index + 1}"
+        _append_screen6_selector_item(
+            items,
+            label=candidate_id,
+            value=f"learning-{index + 1}-{_screen6_state_id(candidate_id)}",
+            select_type="learning-candidate",
+            state_key="selectedLearningCandidate",
+            domain=_screen6_selector_domain(candidate.get("affected_domain")),
+            display_value=candidate.get("title") or candidate.get("candidate_type") or "Learning candidate",
+            note="Proposal/review context only. runtime_influence=false. requires_human_review=true. No approval or status mutation.",
+        )
+    return items
+
+
+def _screen6_learning_group_items(learning_visibility_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for status, count in _to_dict(learning_visibility_payload.get("status_counts")).items():
+        _append_screen6_selector_item(
+            items,
+            label=f"Candidate Status {status}",
+            value=f"status-{_screen6_state_id(status)}",
+            select_type="learning-candidate-status",
+            state_key="selectedLearningCandidateStatus",
+            display_value=f"{count} candidate(s)",
+            note="Candidate status grouping only. Candidate status is unchanged.",
+        )
+    for candidate_type, count in _to_dict(learning_visibility_payload.get("type_counts")).items():
+        _append_screen6_selector_item(
+            items,
+            label=f"Candidate Type {candidate_type}",
+            value=f"type-{_screen6_state_id(candidate_type)}",
+            select_type="learning-candidate-type",
+            state_key="selectedLearningCandidateType",
+            display_value=f"{count} candidate(s)",
+            note="Candidate type grouping only. Candidate status is unchanged.",
+        )
+    return items
+
+
+def _screen6_pattern_items(
+    raw_items: Any,
+    *,
+    select_type: str,
+    state_key: str,
+    default_label: str,
+    note: str,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for index, raw_item in enumerate(_screen6_list(raw_items)):
+        item = _to_dict(raw_item) if isinstance(raw_item, dict) else {}
+        label = (
+            item.get("pattern_id")
+            or item.get("id")
+            or item.get("title")
+            or item.get("label")
+            or item.get("pattern_type")
+            or raw_item
+            or f"{default_label} {index + 1}"
+        )
+        if not _has_display_value(label):
+            continue
+        _append_screen6_selector_item(
+            items,
+            label=label,
+            value=f"{_screen6_state_id(select_type)}-{index + 1}-{_screen6_state_id(label)}",
+            select_type=select_type,
+            state_key=state_key,
+            domain=_screen6_selector_domain(item.get("domain") or item.get("affected_domain") or label),
+            display_value=item.get("summary") or item.get("description") or item.get("count") or raw_item,
+            note=note,
+        )
+    return items
+
+
+def _screen6_first_context_collection(
+    screen_model: dict[str, Any],
+    learning_visibility_payload: dict[str, Any],
+    keys: tuple[str, ...],
+) -> Any:
+    for source in (screen_model, learning_visibility_payload):
+        for key in keys:
+            value = source.get(key)
+            if value:
+                return value
+    return []
+
+
+def _screen6_list(value: Any) -> list[Any]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    if isinstance(value, set):
+        return sorted(value)
+    if isinstance(value, dict):
+        for key in ("items", "records", "contexts", "patterns", "values"):
+            if isinstance(value.get(key), list):
+                return list(value.get(key) or [])
+        return [value]
+    return [value]
+
+
+def _append_screen6_selector_item(
+    items: list[dict[str, Any]],
+    *,
+    label: Any,
+    value: Any,
+    select_type: str,
+    state_key: str,
+    display_value: Any = None,
+    note: Any = None,
+    domain: Any = None,
+) -> None:
+    if not _has_display_value(label) or not _has_display_value(value):
+        return
+    domain_text = _screen6_selector_domain(domain)
+    items.append(
+        {
+            "label": _display_value(label),
+            "value": _display_value(value),
+            "select_type": select_type,
+            "state_key": state_key,
+            "display_value": _display_value(display_value) if _has_display_value(display_value) else "",
+            "note": _display_value(note) if _has_display_value(note) else "",
+            "domain": domain_text or "",
+        }
+    )
+
+
+def _render_screen6_selector_group(
+    title: str,
+    description: str,
+    items: list[dict[str, Any]],
+    empty_message: str,
+) -> str:
+    if not items:
+        return f"""
+          <section class="evidence-pane selector-pane">
+            <h3>{escape(title)}</h3>
+            <p class="meta">{escape(description)}</p>
+            <div class="item">
+              <p>{escape(empty_message)}</p>
+            </div>
+          </section>
+        """
+    cards = "".join(_render_screen6_selector_card(item) for item in items)
+    return f"""
+          <section class="evidence-pane selector-pane">
+            <h3>{escape(title)}</h3>
+            <p class="meta">{escape(description)}</p>
+            <div class="screen6-selector-grid">{cards}</div>
+          </section>
+    """
+
+
+def _render_screen6_selector_card(item: dict[str, Any]) -> str:
+    select_type = _display_value(item.get("select_type"))
+    state_key = _display_value(item.get("state_key"))
+    value = _display_value(item.get("value"))
+    domain = _display_value(item.get("domain")) if _has_display_value(item.get("domain")) else ""
+    domain_attribute = (
+        f' data-dashboard-select-domain="{escape(domain, quote=True)}"'
+        if domain
+        else ""
+    )
+    return f"""
+              <article
+                class="screen6-selector-card"
+                data-dashboard-selectable="true"
+                data-dashboard-select-type="{escape(select_type, quote=True)}"
+                data-dashboard-select-key="{escape(state_key, quote=True)}"
+                data-dashboard-select-id="{escape(value, quote=True)}"
+                data-dashboard-filter-key="{escape(state_key, quote=True)}"
+                data-dashboard-filter-value="{escape(value, quote=True)}"{domain_attribute}
+                data-selected="false"
+                aria-selected="false"
+                tabindex="0"
+              >
+                <strong>{escape(select_type.replace("-", " ").title())}</strong>
+                <span>{escape(_display_value(item.get("label")))}</span>
+                {
+                    f'<p>{escape(_display_value(item.get("display_value")))}</p>'
+                    if _has_display_value(item.get("display_value"))
+                    else ""
+                }
+                {
+                    f'<p>{escape(_display_value(item.get("note")))}</p>'
+                    if _has_display_value(item.get("note"))
+                    else ""
+                }
+              </article>
+    """
+
+
+def _screen6_selector_domain(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    if not text:
+        return None
+    if "USER I/O" in text or "USER IO" in text:
+        return "IO"
+    if "LOG FILE" in text or "COMMIT" in text or "TRANSACTION" in text:
+        return "COMMIT"
+    if "CLUSTER" in text or "GC " in text or "RAC" in text:
+        return "RAC"
+    if "DATA GUARD" in text or "TRANSPORT" in text or "APPLY LAG" in text or "ADG" in text:
+        return "ADG"
+    if "PGA" in text or "MEMORY" in text or "TEMP" in text:
+        return "MEMORY"
+    if "CPU" in text or "SQL" in text:
+        return "CPU"
+    if "IO" in text or "I/O" in text:
+        return "IO"
+    for domain in SCREEN6_FLEET_GOVERNANCE_LEARNING_DOMAINS:
+        if domain in text:
+            return domain
+    return None
+
+
+def _screen6_state_id(value: Any) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", _display_value(value).strip().lower())
+    return text.strip("-")[:80] or "selection"
+
+
+def _dedupe_screen6_selector_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in items:
+        key = (_display_value(item.get("state_key")), _display_value(item.get("value")))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
 def _render_screen_6_page(
     screen_model: dict[str, Any],
     governance_payload: dict[str, Any] | None = None,
@@ -6864,6 +7639,9 @@ def _render_screen_6_page(
         if cluster_established
         else "Nearest Similar AWRs"
     )
+    governance_display_payload = governance_payload or {}
+    semantic_display_payload = semantic_recall_payload or {}
+    learning_display_payload = learning_visibility_payload or build_learning_visibility_metadata()
     if not screen_model.get("similarity_enabled") and not similar_cases:
         return f"""
     <div class="grid">
@@ -6888,9 +7666,15 @@ def _render_screen_6_page(
           to enable AWR reuse, feature-vector lookup, similarity, and fleet intelligence.
         </p>
       </section>
-      {_render_governance_visibility_section(governance_payload or {})}
-      {_render_semantic_recall_visibility_section(semantic_recall_payload or {})}
-      {_render_learning_visibility_section(learning_visibility_payload or build_learning_visibility_metadata())}
+      {_render_screen6_fleet_governance_learning_exploration(
+          screen_model,
+          governance_display_payload,
+          semantic_display_payload,
+          learning_display_payload,
+      )}
+      {_render_governance_visibility_section(governance_display_payload)}
+      {_render_semantic_recall_visibility_section(semantic_display_payload)}
+      {_render_learning_visibility_section(learning_display_payload)}
     </div>
     """
     return f"""
@@ -6946,9 +7730,15 @@ def _render_screen_6_page(
         )}
         {_render_similarity_cases(outliers) if outliers else _render_empty_item("No outlier case aggregation is established yet.")}
       </section>
-      {_render_governance_visibility_section(governance_payload or {})}
-      {_render_semantic_recall_visibility_section(semantic_recall_payload or {})}
-      {_render_learning_visibility_section(learning_visibility_payload or build_learning_visibility_metadata())}
+      {_render_screen6_fleet_governance_learning_exploration(
+          screen_model,
+          governance_display_payload,
+          semantic_display_payload,
+          learning_display_payload,
+      )}
+      {_render_governance_visibility_section(governance_display_payload)}
+      {_render_semantic_recall_visibility_section(semantic_display_payload)}
+      {_render_learning_visibility_section(learning_display_payload)}
     </div>
     """
 
@@ -8811,6 +9601,55 @@ def _shared_page_styles() -> str:
       border-color: rgba(90, 209, 255, 0.62);
       background: rgba(90, 209, 255, 0.12);
     }
+    .screen6-fleet-governance-learning-exploration {
+      border-color: rgba(90, 209, 255, 0.32);
+    }
+    .screen6-selected-panel {
+      border-color: rgba(90, 209, 255, 0.34);
+      background: rgba(90, 209, 255, 0.08);
+    }
+    .screen6-selected-summary {
+      margin: 0 0 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .screen6-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .screen6-selector-card {
+      display: grid;
+      gap: 6px;
+      min-height: 104px;
+      border: 1px solid rgba(159, 176, 199, 0.24);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(16, 28, 45, 0.72);
+      color: inherit;
+    }
+    .screen6-selector-card strong {
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .screen6-selector-card span {
+      color: var(--text);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .screen6-selector-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .screen6-selector-card.active {
+      border-color: rgba(90, 209, 255, 0.62);
+      background: rgba(90, 209, 255, 0.12);
+    }
     .screen4-compact-pane {
       padding: 14px;
     }
@@ -10018,6 +10857,7 @@ def _shared_page_styles() -> str:
       .screen3-selector-grid,
       .screen4-selector-grid,
       .screen5-selector-grid,
+      .screen6-selector-grid,
       .fleet-detail-list {
         grid-template-columns: 1fr;
       }

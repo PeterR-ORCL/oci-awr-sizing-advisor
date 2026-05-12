@@ -26,7 +26,7 @@ Selections are exploratory only. They may affect browser-visible selection styli
 
 ## 5. Supported State Keys
 
-The Phase 7H.1 foundation supports these state keys for future use: `selectedAwr`, `selectedRun`, `selectedDb`, `selectedSystem`, `selectedSnapshot`, `selectedDomain`, `selectedSeverity`, `selectedRecommendation`, `selectedRecommendationCategory`, `selectedRecommendationEvidence`, `selectedEvidenceGroup`, `selectedMetricGroup`, `selectedWaitEventGroup`, `selectedSqlSignal`, `selectedDiagnosticSection`, `selectedHistoricalWindow`, `selectedTrendMetric`, `selectedAnomalyGroup`, `selectedDistribution`, `selectedSimilarCase`, `selectedActionContext`, `selectedOutcomeContext`, `selectedFeedbackContext`, `selectedParserSection`, `selectedParserDiagnostic`, `selectedUnknownSignal`, `selectedGovernanceItem`, `selectedKnowledgeRequest`, `selectedArtifact`, `selectedSemanticItem`, `selectedLearningCandidate`, `selectedFleetGroup`, and `selectedComparisonBaseline`.
+The Phase 7H.1 foundation supports these state keys for future use: `selectedAwr`, `selectedRun`, `selectedDb`, `selectedSystem`, `selectedSnapshot`, `selectedDomain`, `selectedSeverity`, `selectedRecommendation`, `selectedRecommendationCategory`, `selectedRecommendationEvidence`, `selectedEvidenceGroup`, `selectedMetricGroup`, `selectedWaitEventGroup`, `selectedSqlSignal`, `selectedDiagnosticSection`, `selectedHistoricalWindow`, `selectedTrendMetric`, `selectedAnomalyGroup`, `selectedDistribution`, `selectedSimilarCase`, `selectedActionContext`, `selectedOutcomeContext`, `selectedFeedbackContext`, `selectedParserSection`, `selectedParserDiagnostic`, `selectedUnknownSignal`, `selectedGovernanceItem`, `selectedKnowledgeRequest`, `selectedArtifact`, `selectedSemanticItem`, `selectedLearningCandidate`, `selectedLearningCandidateStatus`, `selectedLearningCandidateType`, `selectedOutcomePattern`, `selectedActionEffectivenessPattern`, `selectedFleetGroup`, and `selectedComparisonBaseline`.
 
 For Phase 7H.1 these keys are defined and safely handled only. They do not drive full screen-specific behavior.
 
@@ -113,6 +113,8 @@ Any future Screen 3 behavior must remain read-only unless a later approved phase
 Future Phase 7H.3 through Phase 7H.7 subtasks may add screen-specific exploratory behavior by applying the metadata hooks to selected dashboard elements. Full cross-screen propagation is future 7H.8 work.
 
 Phase 7H.6 uses the foundation state keys for read-only Screen 1 governance/parser exploration, including `selectedParserSection`, `selectedParserDiagnostic`, `selectedUnknownSignal`, `selectedGovernanceItem`, `selectedKnowledgeRequest`, and `selectedArtifact`. These keys remain browser-side only and do not change parser output, classify unknown signals, approve mappings, materialize artifacts, create/update knowledge requests, or change governance state.
+
+Phase 7H.7 uses the foundation state keys for read-only Screen 6 fleet/governance/semantic/learning exploration, including `selectedFleetGroup`, `selectedSemanticItem`, `selectedLearningCandidate`, `selectedLearningCandidateStatus`, `selectedLearningCandidateType`, `selectedOutcomePattern`, and `selectedActionEffectivenessPattern`. These keys remain browser-side only and do not change fleet posture, governance state, semantic authority, candidate status, diagnostic truth, recommendation truth, or runtime activation.
 
 Phase 7H.1 only defines the reusable browser-side foundation and guardrails.
 

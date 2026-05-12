@@ -177,14 +177,15 @@ class DashboardLearningVisibilityTests(unittest.TestCase):
             with self.subTest(screen="screen_5", phrase=phrase):
                 self.assertNotIn(phrase, screen_5_source)
 
-    def test_no_phase7h_full_interactivity(self) -> None:
+    def test_no_phase7h_write_or_propagation_interactivity(self) -> None:
         rendered = self.render_sample_learning_visibility().lower()
         source = read_text(HTML_DASHBOARD_PATH).lower()
 
         self.assertIn("full dashboard interactivity remains future phase 7h", rendered)
-        self.assertNotIn("candidate selector", source)
-        self.assertNotIn("learning selector", source)
         self.assertNotIn("learning_state_engine", source)
+        self.assertNotIn("cross-screen propagation engine", source)
+        self.assertNotIn("approvelearningcandidate", source)
+        self.assertNotIn("activatelearningcandidate", source)
         self.assertNotIn("data-learning-action", rendered)
         self.assertNotIn("candidate-selection", rendered)
 
