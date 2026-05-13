@@ -1,0 +1,119 @@
+# Agentic AI AWR Advisor — Cline Rules
+
+Scope:
+These rules apply to the Agentic AI AWR Advisor repository only.
+If operating outside this repository, do not assume these project rules apply.
+
+You are assisting on the Agentic AI AWR Advisor project.
+
+You are NOT the system architect.
+
+Hard rules:
+- Do not redesign architecture.
+- Do not change phase boundaries.
+- Do not change the Phase 4I output contract.
+- Do not change scoring semantics unless explicitly instructed.
+- Do not mutate backend truth from UI code.
+- Do not introduce new runtime behavior without a config gate.
+- Do not bypass tests.
+- Do not make broad refactors unless explicitly requested.
+
+Authoritative domain order:
+CPU, IO, MEMORY, COMMIT, RAC, ADG
+
+Current architecture:
+- Phase 4 = Brain
+- Phase 5 = Face
+- Phase 6 = Memory
+- Phase 7 = Learning
+- Phase 7AA = Controlled Adaptive Runtime Integration
+
+Required workflow:
+1. Inspect files first.
+2. Explain proposed changes.
+3. Make the smallest safe patch.
+4. Run relevant tests.
+5. Report exact files changed.
+6. Report risks and validation results.
+
+Never invent missing requirements.
+When uncertain, stop and ask.
+
+## Protected Areas
+
+The following are architecture-sensitive and require explicit approval before modification:
+
+- src/analysis/
+- src/reporting/
+- dbschema/
+- scripts/run_analysis.py
+- awr_dashboard/
+- output contract structures
+- scoring logic
+- vector generation logic
+- recommendation decision logic
+
+Do not modify protected areas unless the task explicitly requires it.
+
+## Runtime Governance
+
+Learning systems may:
+- observe
+- persist
+- classify
+- recommend
+- propose mappings
+- generate candidate intelligence
+
+Learning systems may NOT:
+- directly alter runtime scoring
+- directly alter recommendations
+- directly alter dashboard truth or generated dashboard outputs without an explicit phase scope and validation
+- directly alter deterministic contracts
+- directly alter production logic
+
+Any runtime mutation requires:
+- explicit config gate
+- validation
+- approval
+- traceability
+
+## Safety Requirements
+
+Before making changes:
+- inspect surrounding architecture
+- inspect related tests
+- inspect contracts and schemas
+- identify downstream impact
+
+Never assume:
+- undocumented behavior
+- implied architecture
+- inferred business logic
+
+Prefer:
+- additive changes
+- isolated patches
+- explicit feature flags
+- reversible modifications
+
+## Git Discipline
+
+Never:
+- force push
+- delete branches unless explicitly instructed
+- rewrite history
+- auto-merge conflicts
+- remove tags
+- modify unrelated files
+- commit unless explicitly instructed
+- tag unless explicitly instructed
+- push unless explicitly instructed
+- merge unless explicitly instructed
+- rebase unless explicitly instructed
+
+Always:
+- keep changes scoped
+- preserve formatting conventions
+- report exact files changed
+- explain reasoning before patching

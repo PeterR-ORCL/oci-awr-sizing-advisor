@@ -68,16 +68,18 @@ This directory contains architecture, governance, validation, and operational do
 62. [Phase 7 ML Readiness](phase7_ml_readiness.md)
 63. [Phase 7 ML Release Certification](phase7_ml_release_certification.md)
 64. [Phase 7 ML Operational Checklist](phase7_ml_operational_checklist.md)
-65. [Phase 7 Roadmap](phase7_roadmap.md)
-66. [Phase 6 Release Notes](phase6_release_notes.md)
-67. [Phase 6 Memory Architecture](phase6_memory_architecture.md)
-68. [Phase 6 Component Inventory](phase6_component_inventory.md)
-69. [Phase 6 Repository Map](phase6_repository_map.md)
-70. [Phase 6 Operational Model](phase6_operational_model.md)
-71. [Phase 6 CLI Operations](phase6_cli_operations.md)
-72. [Phase 6 Validation Matrix](phase6_validation_matrix.md)
-73. [Phase 6 Production Readiness](phase6_production_readiness.md)
-74. [Phase 6 Demo Walkthrough](phase6_demo_walkthrough.md)
+65. [Phase 7AA.1 Runtime Integration Boundary](phase7aa_runtime_integration_boundary.md)
+66. [Phase 7AA.1 Runtime Config Gate](phase7aa_runtime_config_gate.md)
+67. [Phase 7 Roadmap](phase7_roadmap.md)
+68. [Phase 6 Release Notes](phase6_release_notes.md)
+69. [Phase 6 Memory Architecture](phase6_memory_architecture.md)
+70. [Phase 6 Component Inventory](phase6_component_inventory.md)
+71. [Phase 6 Repository Map](phase6_repository_map.md)
+72. [Phase 6 Operational Model](phase6_operational_model.md)
+73. [Phase 6 CLI Operations](phase6_cli_operations.md)
+74. [Phase 6 Validation Matrix](phase6_validation_matrix.md)
+75. [Phase 6 Production Readiness](phase6_production_readiness.md)
+76. [Phase 6 Demo Walkthrough](phase6_demo_walkthrough.md)
 
 ## Runtime And Architecture
 
@@ -155,9 +157,13 @@ These documents define deterministic runtime truth, governed memory, structured 
 - [Phase 7 ML Readiness](phase7_ml_readiness.md)
 - [Phase 7 ML Release Certification](phase7_ml_release_certification.md)
 - [Phase 7 ML Operational Checklist](phase7_ml_operational_checklist.md)
+- [Phase 7AA.1 Runtime Integration Boundary](phase7aa_runtime_integration_boundary.md)
+- [Phase 7AA.1 Runtime Config Gate](phase7aa_runtime_config_gate.md)
 - [Phase 7 Roadmap](phase7_roadmap.md)
 
 These documents define Phase 7K final documentation and navigation; Phase 7L readiness/certification as local readiness documentation, release certification, operational checklist, and readiness validation only; Phase 7M learning materialization boundary as documentation, validation, and inert boundary scaffolding only; Phase 7N approved candidate materialization as local deterministic artifact records only with `runtime_influence_granted=false` and no runtime activation; Phase 7O adaptive scoring review as proposal-only scoring review artifacts and inactive proposed scoring configs only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime scoring changes applied; Phase 7P recommendation rule evolution as proposal-only recommendation rule evolution artifacts and inactive proposed recommendation rules only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime recommendation changes applied; Phase 7Q parser mapping evolution as proposal-only parser evolution artifacts and inactive parser backlog items only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime parser changes applied; Phase 7R controlled materialization validation/certification as consolidated validation, readiness checks, release certification, and operational checklist only with `materialization_ready=true` only when all checks pass; Phase 7S ML / adaptive scoring boundary as documentation, lifecycle definition, inert boundary scaffolding, and validation only with ML shadow mode, `runtime_active=false`, `runtime_influence_granted=false`, no learned model, no Score_ml(x), no Score(x, t), no training, no model registry, and no runtime scoring changes; Phase 7T feature / label dataset model as governed local X/y dataset records, schema metadata, validation, and serialization only with `runtime_influence=false`, `runtime_active=false`, no learned model, no Score_ml(x), no Score(x, t), no training, no model registry, and no runtime scoring changes; Phase 7U trend-aware scoring as deterministic advisory Score(x, t) records, validation, serialization, and shadow score comparison only with `runtime_influence=false`, `runtime_active=false`, deterministic scoring remaining authoritative, no learned model, no Score_ml(x), no training, and no runtime scoring changes; Phase 7V shadow ML model interface as local deterministic Score_ml(x) interface/result records, validation, serialization, comparison, and placeholder shadow scoring only with `runtime_influence=false`, `runtime_active=false`, `runtime_influence_granted=false`, deterministic scoring remaining authoritative, no real ML model, no learned_model(x), no training, no model registry, and no runtime scoring changes; Phase 7W ML training/backtesting harness as local deterministic evaluation records, dataset splits, training plans, baseline/mock training results, backtest results, validation, serialization, and metrics only with `runtime_active=false`, `runtime_influence_granted=false`, deterministic scoring remaining authoritative, no real ML framework required, no model registry, no runtime activation, and no runtime scoring changes; Phase 7X ML explainability as local deterministic explanation records, feature contribution records, score comparison explanations, confidence explanations, evidence references, validation, and serialization only with `runtime_influence=false`, `runtime_active=false`, `runtime_influence_granted=false`, deterministic scoring remaining authoritative, no model registry, no runtime activation, and no runtime scoring changes; Phase 7Y ML governance/model registry as local deterministic governance metadata, model registry entries, governance decisions, eligibility records, validation, and serialization only with `runtime_eligibility_granted=false`, `runtime_active=false`, `runtime_influence_granted=false`, no model deployment, no runtime activation, and no runtime scoring changes; Phase 7Z ML validation/certification as consolidated validation, readiness checks, release certification documentation, and operational checklist only with `ml_ready=true` only when all checks pass, `runtime_eligibility_granted=false`, `runtime_active=false`, `runtime_influence=false`, `runtime_influence_granted=false`, no model deployment, no runtime scoring replacement, deterministic runtime remaining authoritative, and Phase 8 not implemented; Phase 7A learning as boundary-only; Phase 7B outcome pattern mining as deterministic and observational only; Phase 7C learning candidates as proposal-only serializable records; Phase 7D candidate generation as deterministic proposal-only conversion from outcome patterns to candidate records; Phase 7E semantic candidate context as optional reviewer-assist context with `runtime_influence=false`, `requires_human_review=true`, and no runtime activation; Phase 7F learning governance bridge as local deterministic review transitions that are approved for implementation only and not runtime integration; Phase 7G dashboard learning visibility as read-only Screen 6 visibility only; Phase 7H.1 dashboard interactivity foundation as browser-side read-only selection state only; Phase 7H.2 Screen 3 Control Center as read-only exploratory selectors only; Phase 7H.3 Screen 2 Diagnostic Exploration as read-only deterministic evidence exploration only; Phase 7H.4 Screen 4 Historical Review Exploration as read-only deterministic historical context exploration only; Phase 7H.5 Screen 5 Recommendation / Action Exploration as read-only deterministic/governed recommendation/action context exploration only; Phase 7H.6 Screen 1 Governance / Parser Exploration as read-only parser/governance context exploration only; Phase 7H.7 Screen 6 Fleet / Governance / Semantic / Learning Exploration as read-only fleet/governance/semantic/learning context exploration only; Phase 7H.8 Cross-Screen Selection Propagation as browser-side read-only selection synchronization only; Phase 7H.9 Interactivity Validation / Docs as final documentation and validation only; Phase 7I Learning CLI Operations as local deterministic CLI visibility and actor-gated review wrappers only; and Phase 7J Validation Harness as local deterministic validation only.
+
+Phase 7AA.1 adds the controlled adaptive runtime integration boundary and config gate only. Adaptive runtime is opt-in only; default config denies integration; deterministic runtime remains authoritative; fallback to deterministic runtime, rollback reference, and Phase 4I contract preservation are required; and allowed means allowed for consideration, not runtime activation.
 
 ## Governance And Semantic Memory
 
@@ -216,6 +222,8 @@ These documents support operator onboarding, demo execution, read-only versus wr
 - [Phase 7 ML Readiness](phase7_ml_readiness.md)
 - [Phase 7 ML Release Certification](phase7_ml_release_certification.md)
 - [Phase 7 ML Operational Checklist](phase7_ml_operational_checklist.md)
+- [Phase 7AA.1 Runtime Integration Boundary](phase7aa_runtime_integration_boundary.md)
+- [Phase 7AA.1 Runtime Config Gate](phase7aa_runtime_config_gate.md)
 - [Phase 6 Production Readiness](phase6_production_readiness.md)
 - [Phase 6 Release Certification](phase6_release_certification.md)
 
