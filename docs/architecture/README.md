@@ -44,16 +44,18 @@ This directory contains architecture, governance, validation, and operational do
 38. [Phase 7 Scoring Review Model](phase7_scoring_review_model.md)
 39. [Phase 7P Recommendation Rule Evolution](phase7_recommendation_rule_evolution.md)
 40. [Phase 7 Recommendation Rule Model](phase7_recommendation_rule_model.md)
-41. [Phase 7 Roadmap](phase7_roadmap.md)
-42. [Phase 6 Release Notes](phase6_release_notes.md)
-43. [Phase 6 Memory Architecture](phase6_memory_architecture.md)
-44. [Phase 6 Component Inventory](phase6_component_inventory.md)
-45. [Phase 6 Repository Map](phase6_repository_map.md)
-46. [Phase 6 Operational Model](phase6_operational_model.md)
-47. [Phase 6 CLI Operations](phase6_cli_operations.md)
-48. [Phase 6 Validation Matrix](phase6_validation_matrix.md)
-49. [Phase 6 Production Readiness](phase6_production_readiness.md)
-50. [Phase 6 Demo Walkthrough](phase6_demo_walkthrough.md)
+41. [Phase 7Q Parser Mapping Evolution](phase7_parser_mapping_evolution.md)
+42. [Phase 7 Parser Evolution Model](phase7_parser_evolution_model.md)
+43. [Phase 7 Roadmap](phase7_roadmap.md)
+44. [Phase 6 Release Notes](phase6_release_notes.md)
+45. [Phase 6 Memory Architecture](phase6_memory_architecture.md)
+46. [Phase 6 Component Inventory](phase6_component_inventory.md)
+47. [Phase 6 Repository Map](phase6_repository_map.md)
+48. [Phase 6 Operational Model](phase6_operational_model.md)
+49. [Phase 6 CLI Operations](phase6_cli_operations.md)
+50. [Phase 6 Validation Matrix](phase6_validation_matrix.md)
+51. [Phase 6 Production Readiness](phase6_production_readiness.md)
+52. [Phase 6 Demo Walkthrough](phase6_demo_walkthrough.md)
 
 ## Runtime And Architecture
 
@@ -107,9 +109,11 @@ These documents define deterministic runtime truth, governed memory, structured 
 - [Phase 7 Scoring Review Model](phase7_scoring_review_model.md)
 - [Phase 7P Recommendation Rule Evolution](phase7_recommendation_rule_evolution.md)
 - [Phase 7 Recommendation Rule Model](phase7_recommendation_rule_model.md)
+- [Phase 7Q Parser Mapping Evolution](phase7_parser_mapping_evolution.md)
+- [Phase 7 Parser Evolution Model](phase7_parser_evolution_model.md)
 - [Phase 7 Roadmap](phase7_roadmap.md)
 
-These documents define Phase 7K final documentation and navigation; Phase 7L readiness/certification as local readiness documentation, release certification, operational checklist, and readiness validation only; Phase 7M learning materialization boundary as documentation, validation, and inert boundary scaffolding only; Phase 7N approved candidate materialization as local deterministic artifact records only with `runtime_influence_granted=false` and no runtime activation; Phase 7O adaptive scoring review as proposal-only scoring review artifacts and inactive proposed scoring configs only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime scoring changes applied; Phase 7P recommendation rule evolution as proposal-only recommendation rule evolution artifacts and inactive proposed recommendation rules only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime recommendation changes applied; Phase 7A learning as boundary-only; Phase 7B outcome pattern mining as deterministic and observational only; Phase 7C learning candidates as proposal-only serializable records; Phase 7D candidate generation as deterministic proposal-only conversion from outcome patterns to candidate records; Phase 7E semantic candidate context as optional reviewer-assist context with `runtime_influence=false`, `requires_human_review=true`, and no runtime activation; Phase 7F learning governance bridge as local deterministic review transitions that are approved for implementation only and not runtime integration; Phase 7G dashboard learning visibility as read-only Screen 6 visibility only; Phase 7H.1 dashboard interactivity foundation as browser-side read-only selection state only; Phase 7H.2 Screen 3 Control Center as read-only exploratory selectors only; Phase 7H.3 Screen 2 Diagnostic Exploration as read-only deterministic evidence exploration only; Phase 7H.4 Screen 4 Historical Review Exploration as read-only deterministic historical context exploration only; Phase 7H.5 Screen 5 Recommendation / Action Exploration as read-only deterministic/governed recommendation/action context exploration only; Phase 7H.6 Screen 1 Governance / Parser Exploration as read-only parser/governance context exploration only; Phase 7H.7 Screen 6 Fleet / Governance / Semantic / Learning Exploration as read-only fleet/governance/semantic/learning context exploration only; Phase 7H.8 Cross-Screen Selection Propagation as browser-side read-only selection synchronization only; Phase 7H.9 Interactivity Validation / Docs as final documentation and validation only; Phase 7I Learning CLI Operations as local deterministic CLI visibility and actor-gated review wrappers only; and Phase 7J Validation Harness as local deterministic validation only.
+These documents define Phase 7K final documentation and navigation; Phase 7L readiness/certification as local readiness documentation, release certification, operational checklist, and readiness validation only; Phase 7M learning materialization boundary as documentation, validation, and inert boundary scaffolding only; Phase 7N approved candidate materialization as local deterministic artifact records only with `runtime_influence_granted=false` and no runtime activation; Phase 7O adaptive scoring review as proposal-only scoring review artifacts and inactive proposed scoring configs only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime scoring changes applied; Phase 7P recommendation rule evolution as proposal-only recommendation rule evolution artifacts and inactive proposed recommendation rules only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime recommendation changes applied; Phase 7Q parser mapping evolution as proposal-only parser evolution artifacts and inactive parser backlog items only with `runtime_active=false`, `runtime_influence_granted=false`, and no runtime parser changes applied; Phase 7A learning as boundary-only; Phase 7B outcome pattern mining as deterministic and observational only; Phase 7C learning candidates as proposal-only serializable records; Phase 7D candidate generation as deterministic proposal-only conversion from outcome patterns to candidate records; Phase 7E semantic candidate context as optional reviewer-assist context with `runtime_influence=false`, `requires_human_review=true`, and no runtime activation; Phase 7F learning governance bridge as local deterministic review transitions that are approved for implementation only and not runtime integration; Phase 7G dashboard learning visibility as read-only Screen 6 visibility only; Phase 7H.1 dashboard interactivity foundation as browser-side read-only selection state only; Phase 7H.2 Screen 3 Control Center as read-only exploratory selectors only; Phase 7H.3 Screen 2 Diagnostic Exploration as read-only deterministic evidence exploration only; Phase 7H.4 Screen 4 Historical Review Exploration as read-only deterministic historical context exploration only; Phase 7H.5 Screen 5 Recommendation / Action Exploration as read-only deterministic/governed recommendation/action context exploration only; Phase 7H.6 Screen 1 Governance / Parser Exploration as read-only parser/governance context exploration only; Phase 7H.7 Screen 6 Fleet / Governance / Semantic / Learning Exploration as read-only fleet/governance/semantic/learning context exploration only; Phase 7H.8 Cross-Screen Selection Propagation as browser-side read-only selection synchronization only; Phase 7H.9 Interactivity Validation / Docs as final documentation and validation only; Phase 7I Learning CLI Operations as local deterministic CLI visibility and actor-gated review wrappers only; and Phase 7J Validation Harness as local deterministic validation only.
 
 ## Governance And Semantic Memory
 
@@ -144,6 +148,8 @@ These documents support operator onboarding, demo execution, read-only versus wr
 - [Phase 7 Scoring Review Model](phase7_scoring_review_model.md)
 - [Phase 7P Recommendation Rule Evolution](phase7_recommendation_rule_evolution.md)
 - [Phase 7 Recommendation Rule Model](phase7_recommendation_rule_model.md)
+- [Phase 7Q Parser Mapping Evolution](phase7_parser_mapping_evolution.md)
+- [Phase 7 Parser Evolution Model](phase7_parser_evolution_model.md)
 - [Phase 6 Production Readiness](phase6_production_readiness.md)
 - [Phase 6 Release Certification](phase6_release_certification.md)
 
@@ -204,4 +210,5 @@ Phase 7A is boundary-only and introduces no runtime learning behavior. Phase 7B 
 - Phase 7N Approved Candidate Materialization adds local deterministic materialization artifact records only; `runtime_influence_granted=false` is enforced, materialized is not runtime active, validated is not runtime active by itself, and no parser/scoring/decision/recommendation behavior change is introduced.
 - Phase 7O Adaptive Scoring Review adds proposal-only scoring review artifacts and inactive proposed scoring configs only; no runtime scoring changes are applied, `runtime_active=false`, `runtime_influence_granted=false`, proposed scoring configs are inactive, existing scoring engine remains authoritative, this is not ML, learned_model(x) is not implemented, and no parser/scoring/decision/recommendation/dashboard/CLI behavior change is introduced.
 - Phase 7P Recommendation Rule Evolution adds proposal-only recommendation rule evolution artifacts and inactive proposed recommendation rules only; no runtime recommendation changes are applied, `runtime_active=false`, `runtime_influence_granted=false`, proposed recommendation rules are inactive, existing recommendation engine remains authoritative, this is not ML, learned_model(x) is not implemented, and no parser/scoring/decision/recommendation/dashboard/CLI behavior change is introduced.
-- No autonomous learning behavior exists in Phase 7A, Phase 7B, Phase 7C, Phase 7D, Phase 7E, Phase 7F, Phase 7G, Phase 7H.1, Phase 7H.2, Phase 7H.3, Phase 7H.4, Phase 7H.5, Phase 7H.6, Phase 7H.7, Phase 7H.8, Phase 7H.9, Phase 7I, Phase 7J, Phase 7K, Phase 7L, Phase 7M, Phase 7N, Phase 7O, or Phase 7P.
+- Phase 7Q Parser Mapping Evolution adds proposal-only parser evolution artifacts and inactive parser backlog items only; no runtime parser changes are applied, `runtime_active=false`, `runtime_influence_granted=false`, parser backlog items are inactive, existing parser remains authoritative, semantic context is not parser truth, dashboard and CLI are not parser mutation paths, and no parser/scoring/decision/recommendation/dashboard/CLI behavior change is introduced.
+- No autonomous learning behavior exists in Phase 7A, Phase 7B, Phase 7C, Phase 7D, Phase 7E, Phase 7F, Phase 7G, Phase 7H.1, Phase 7H.2, Phase 7H.3, Phase 7H.4, Phase 7H.5, Phase 7H.6, Phase 7H.7, Phase 7H.8, Phase 7H.9, Phase 7I, Phase 7J, Phase 7K, Phase 7L, Phase 7M, Phase 7N, Phase 7O, Phase 7P, or Phase 7Q.
