@@ -11,7 +11,10 @@ from html import escape
 from pathlib import Path
 from typing import Any, Iterable, TypedDict, cast
 
-from src.reporting.ai_display_metadata import build_learning_visibility_metadata
+from src.reporting.ai_display_metadata import (
+    build_learning_visibility_metadata,
+    build_ml_explainability_visibility_metadata,
+)
 
 AI_SECTION_ORDER = [
     "Executive Summary",
@@ -590,6 +593,10 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
         report_data,
         screen_6_model,
     )
+    ml_explainability_visibility_payload = _build_ml_explainability_visibility_payload(
+        report_data,
+        screen_6_model,
+    )
 
     pages = {
         "index.html": _build_page_html(
@@ -674,6 +681,7 @@ def _build_dashboard_pages(report_data: dict[str, Any]) -> dict[str, str]:
                 governance_payload=governance_visibility_payload,
                 semantic_recall_payload=semantic_recall_visibility_payload,
                 learning_visibility_payload=learning_visibility_payload,
+                ml_explainability_visibility_payload=ml_explainability_visibility_payload,
             ),
             generated_at=generated_at,
         ),
@@ -1812,6 +1820,104 @@ def _build_learning_visibility_payload(
         learning_source,
         candidates=candidates,
         governance_records=governance_records,
+    )
+
+
+def _build_ml_explainability_visibility_payload(
+    report_data: dict[str, Any],
+    screen_6_model: dict[str, Any],
+) -> dict[str, Any]:
+    """Build optional Phase 7AB display metadata without runtime wiring."""
+
+    report_ml = _to_dict(report_data.get("ml_explainability_visibility"))
+    screen_ml = _to_dict(screen_6_model.get("ml_explainability_visibility"))
+    ml_source = report_ml or screen_ml
+    return build_ml_explainability_visibility_metadata(
+        explanations=_first_learning_value(
+            report_data.get("ml_explanations"),
+            report_data.get("explanations"),
+            screen_6_model.get("ml_explanations"),
+            screen_6_model.get("explanations"),
+            ml_source.get("explanations"),
+            ml_source.get("ml_explanations"),
+        ),
+        model_registry_entries=_first_learning_value(
+            report_data.get("model_registry_entries"),
+            report_data.get("models"),
+            screen_6_model.get("model_registry_entries"),
+            screen_6_model.get("models"),
+            ml_source.get("model_registry_entries"),
+            ml_source.get("models"),
+        ),
+        shadow_ml_outputs=_first_learning_value(
+            report_data.get("shadow_ml_outputs"),
+            screen_6_model.get("shadow_ml_outputs"),
+            ml_source.get("shadow_ml_outputs"),
+        ),
+        trend_aware_results=_first_learning_value(
+            report_data.get("trend_aware_results"),
+            report_data.get("trend_aware_scores"),
+            screen_6_model.get("trend_aware_results"),
+            screen_6_model.get("trend_aware_scores"),
+            ml_source.get("trend_aware_results"),
+            ml_source.get("trend_aware_scores"),
+        ),
+        adaptive_runtime_context=_first_learning_value(
+            report_data.get("adaptive_runtime_context"),
+            report_data.get("runtime_context"),
+            screen_6_model.get("adaptive_runtime_context"),
+            screen_6_model.get("runtime_context"),
+            ml_source.get("adaptive_runtime_context"),
+            ml_source.get("runtime_context"),
+        ),
+        gate_results=_first_learning_value(
+            report_data.get("gate_results"),
+            report_data.get("runtime_gate_results"),
+            screen_6_model.get("gate_results"),
+            screen_6_model.get("runtime_gate_results"),
+            ml_source.get("gate_results"),
+            ml_source.get("runtime_gate_results"),
+        ),
+        scoring_integration_results=_first_learning_value(
+            report_data.get("scoring_integration_results"),
+            report_data.get("scoring_result"),
+            screen_6_model.get("scoring_integration_results"),
+            screen_6_model.get("scoring_result"),
+            ml_source.get("scoring_integration_results"),
+            ml_source.get("scoring_result"),
+        ),
+        recommendation_integration_results=_first_learning_value(
+            report_data.get("recommendation_integration_results"),
+            report_data.get("recommendation_result"),
+            screen_6_model.get("recommendation_integration_results"),
+            screen_6_model.get("recommendation_result"),
+            ml_source.get("recommendation_integration_results"),
+            ml_source.get("recommendation_result"),
+        ),
+        parser_integration_results=_first_learning_value(
+            report_data.get("parser_integration_results"),
+            report_data.get("parser_result"),
+            screen_6_model.get("parser_integration_results"),
+            screen_6_model.get("parser_result"),
+            ml_source.get("parser_integration_results"),
+            ml_source.get("parser_result"),
+        ),
+        fallback_decisions=_first_learning_value(
+            report_data.get("fallback_decisions"),
+            report_data.get("fallback_decision"),
+            screen_6_model.get("fallback_decisions"),
+            screen_6_model.get("fallback_decision"),
+            ml_source.get("fallback_decisions"),
+            ml_source.get("fallback_decision"),
+        ),
+        readiness_summary=_first_learning_value(
+            report_data.get("readiness_summary"),
+            report_data.get("runtime_integration_readiness"),
+            screen_6_model.get("readiness_summary"),
+            screen_6_model.get("runtime_integration_readiness"),
+            ml_source.get("readiness_summary"),
+            ml_source.get("runtime_integration_readiness"),
+        ),
     )
 
 
@@ -6707,6 +6813,272 @@ def _render_learning_governance_rows(records: list[Any]) -> str:
     """
 
 
+def _render_ml_explainability_visibility_section(payload: dict[str, Any]) -> str:
+    display_payload = payload or build_ml_explainability_visibility_metadata()
+    summary = _to_dict(display_payload.get("summary"))
+    empty_state_html = ""
+    if bool(display_payload.get("empty_state")):
+        empty_state_html = _render_learning_empty_state(
+            display_payload.get("empty_state_messages") or []
+        )
+
+    return f"""
+      <section class="card secondary ml-explainability-visibility-card">
+        <div class="section-kicker">Phase 7AB ML / Adaptive Explainability Visibility</div>
+        <h2>ML / Adaptive Explainability Visibility</h2>
+        <p class="meta">
+          Dashboard visibility is Read-only. Advisory / shadow only. Not diagnostic evidence.
+          Not recommendation truth. Deterministic runtime remains authoritative.
+          No runtime activation. No backend writes. No approval controls. No rollback execution.
+        </p>
+        <div class="governance-section-block">
+          <h3>Safety Labels</h3>
+          {_render_learning_safety_labels(display_payload.get("safety_labels") or [])}
+        </div>
+        {empty_state_html}
+        <div class="governance-section-block">
+          <h3>ML / Adaptive Visibility Summary</h3>
+          {_render_ml_visibility_summary(display_payload, summary)}
+        </div>
+        <div class="governance-section-block">
+          <h3>Score Delta Visibility</h3>
+          {_render_ml_score_delta_rows(display_payload.get("score_deltas") or [])}
+        </div>
+        <div class="governance-section-block">
+          <h3>Explanation Summary</h3>
+          {_render_ml_explanation_rows(display_payload.get("explanation_rows") or [])}
+        </div>
+        <div class="governance-section-block">
+          <h3>Top Contributing Features</h3>
+          {_render_ml_feature_rows(display_payload.get("feature_contribution_rows") or [])}
+        </div>
+        <div class="governance-section-block">
+          <h3>Model Registry Status</h3>
+          {_render_ml_model_registry_rows(display_payload.get("model_registry_rows") or [])}
+        </div>
+        <div class="governance-section-block">
+          <h3>Runtime Gate / Adapter / Fallback Posture</h3>
+          {_render_ml_runtime_posture_rows(display_payload)}
+        </div>
+        <p class="meta learning-boundary-notice">
+          ML explanations are not diagnostic evidence and not recommendation truth. Model registry visibility does not deploy models. Runtime gate visibility does not activate runtime. Fallback visibility does not execute rollback. Phase 4I remains protected.
+        </p>
+      </section>
+    """
+
+
+def _render_ml_visibility_summary(
+    payload: dict[str, Any],
+    summary: dict[str, Any],
+) -> str:
+    cards = [
+        _render_memory_count_card("Explanations", summary.get("explanation_count"), "neutral"),
+        _render_memory_count_card("Feature contributions", summary.get("feature_contribution_count"), "neutral"),
+        _render_memory_count_card("Models", summary.get("model_registry_count"), "neutral"),
+        _render_memory_count_card("Score deltas", summary.get("score_delta_count"), "neutral"),
+        _render_memory_count_card("Runtime gates", summary.get("runtime_gate_count"), "neutral"),
+        _render_memory_count_card("Adapter results", summary.get("adapter_result_count"), "neutral"),
+        _render_memory_count_card("Fallback decisions", summary.get("fallback_decision_count"), "neutral"),
+        _render_memory_count_card("runtime_active=false", 1, "success"),
+        _render_memory_count_card("runtime_influence=false", 1, "success"),
+        _render_memory_count_card("runtime_influence_granted=false", 1, "success"),
+        _render_memory_count_card("runtime_eligibility_granted=false", 1, "success"),
+        _render_memory_count_card("Read-only", 1 if payload.get("read_only") else 0, "success"),
+    ]
+    return '<div class="governance-summary-grid learning-summary-grid">' + "".join(cards) + "</div>"
+
+
+def _render_ml_score_delta_rows(rows: list[Any]) -> str:
+    normalized = [_to_dict(row) for row in rows]
+    if not normalized:
+        return _render_empty_item("No deterministic/trend-aware/shadow ML score deltas supplied.")
+    rendered = []
+    for row in normalized[:6]:
+        rendered.append(
+            f"""
+            <article class="learning-candidate-row">
+              <div><strong>{escape(_memory_cell_text(row.get("domain")))}</strong></div>
+              <div>{escape(_memory_cell_text(row.get("source")))}</div>
+              <div>{escape(_memory_cell_text(row.get("deterministic_score")))}</div>
+              <div>{escape(_memory_cell_text(row.get("advisory_score")))}</div>
+              <div>{escape(_memory_cell_text(row.get("score_delta")))}</div>
+              <div>advisory_only=true runtime_active=false</div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="learning-candidate-list">
+          <div class="learning-candidate-row learning-candidate-header">
+            <div>domain</div>
+            <div>source</div>
+            <div>deterministic_score</div>
+            <div>advisory_score</div>
+            <div>score_delta</div>
+            <div>safety</div>
+          </div>
+          {"".join(rendered)}
+        </div>
+    """
+
+
+def _render_ml_explanation_rows(rows: list[Any]) -> str:
+    normalized = [_to_dict(row) for row in rows]
+    if not normalized:
+        return _render_empty_item("No ML explanation records supplied. Explanations are advisory/shadow only.")
+    rendered = []
+    for row in normalized[:5]:
+        rendered.append(
+            f"""
+            <article class="learning-candidate-row">
+              <div><strong>{escape(_memory_cell_text(row.get("explanation_id")))}</strong></div>
+              <div>{escape(_memory_cell_text(row.get("model_id")))}</div>
+              <div>{escape(_memory_cell_text(row.get("domain")))}</div>
+              <div>{escape(_truncate_memory_text(row.get("summary"), 120))}</div>
+              <div>{escape(_memory_cell_text(row.get("confidence")))}</div>
+              <div>{escape(_memory_cell_text(row.get("uncertainty")))}</div>
+              <div>not diagnostic evidence; not recommendation truth</div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="learning-candidate-list">
+          <div class="learning-candidate-row learning-candidate-header">
+            <div>explanation_id</div>
+            <div>model_id</div>
+            <div>domain</div>
+            <div>summary</div>
+            <div>confidence</div>
+            <div>uncertainty</div>
+            <div>boundary</div>
+          </div>
+          {"".join(rendered)}
+        </div>
+    """
+
+
+def _render_ml_feature_rows(rows: list[Any]) -> str:
+    normalized = [_to_dict(row) for row in rows]
+    if not normalized:
+        return _render_empty_item("No feature contribution rows supplied.")
+    rendered = []
+    for row in normalized[:8]:
+        rendered.append(
+            f"""
+            <article class="learning-governance-row">
+              <div><strong>{escape(_memory_cell_text(row.get("feature")))}</strong></div>
+              <div>{escape(_memory_cell_text(row.get("contribution")))}</div>
+              <div>{escape(_memory_cell_text(row.get("direction")))}</div>
+              <div>{escape(_memory_cell_text(row.get("evidence_reference")))}</div>
+              <div>advisory_only=true</div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="learning-governance-list">
+          <div class="learning-governance-row learning-governance-header">
+            <div>feature</div>
+            <div>contribution</div>
+            <div>direction</div>
+            <div>evidence_reference</div>
+            <div>boundary</div>
+          </div>
+          {"".join(rendered)}
+        </div>
+    """
+
+
+def _render_ml_model_registry_rows(rows: list[Any]) -> str:
+    normalized = [_to_dict(row) for row in rows]
+    if not normalized:
+        return _render_empty_item("No model registry entries supplied. Model registry visibility does not deploy models.")
+    rendered = []
+    for row in normalized[:6]:
+        rendered.append(
+            f"""
+            <article class="learning-governance-row">
+              <div><strong>{escape(_memory_cell_text(row.get("model_id")))}</strong></div>
+              <div>{escape(_memory_cell_text(row.get("model_family")))}</div>
+              <div>{escape(_memory_cell_text(row.get("governance_status")))}</div>
+              <div>{escape(_learning_bool_text("shadow_eligible", row.get("shadow_eligible")))}</div>
+              <div>{escape(_learning_bool_text("runtime_eligibility_requested", row.get("runtime_eligibility_requested")))}</div>
+              <div>{escape(_learning_bool_text("runtime_eligibility_granted", row.get("runtime_eligibility_granted")))}</div>
+              <div>{escape(_learning_bool_text("runtime_active", row.get("runtime_active")))}</div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="learning-governance-list">
+          <div class="learning-governance-row learning-governance-header">
+            <div>model_id</div>
+            <div>model_family</div>
+            <div>governance_status</div>
+            <div>shadow</div>
+            <div>requested</div>
+            <div>granted</div>
+            <div>active</div>
+          </div>
+          {"".join(rendered)}
+        </div>
+    """
+
+
+def _render_ml_runtime_posture_rows(payload: dict[str, Any]) -> str:
+    gate_rows = [_to_dict(row) for row in payload.get("runtime_gate_rows") or []]
+    adapter_rows = [_to_dict(row) for row in payload.get("adapter_rows") or []]
+    fallback_rows = [_to_dict(row) for row in payload.get("fallback_rows") or []]
+    if not gate_rows and not adapter_rows and not fallback_rows:
+        return _render_empty_item("No runtime gate, adapter, or fallback posture supplied. Deterministic fallback remains the safe posture.")
+    rendered = []
+    for row in gate_rows[:4]:
+        rendered.append(
+            f"""
+            <article class="learning-governance-row">
+              <div><strong>gate</strong></div>
+              <div>{escape(_memory_cell_text(row.get("gate_id")))}</div>
+              <div>{escape(_memory_cell_text(row.get("component_type")))}</div>
+              <div>{escape(_learning_bool_text("allowed_for_consideration", row.get("allowed_for_consideration")))}</div>
+              <div>runtime_active=false runtime_influence_granted=false</div>
+            </article>
+            """
+        )
+    for row in adapter_rows[:6]:
+        rendered.append(
+            f"""
+            <article class="learning-governance-row">
+              <div><strong>{escape(_memory_cell_text(row.get("adapter_type")))}</strong></div>
+              <div>{escape(_memory_cell_text(row.get("result_id")))}</div>
+              <div>{escape(_memory_cell_text(row.get("selected_source") or row.get("selected_action")))}</div>
+              <div>{escape(_learning_bool_text("gate_allowed_for_consideration", row.get("gate_allowed_for_consideration")))}</div>
+              <div>runtime_active=false runtime_mutation_performed=false</div>
+            </article>
+            """
+        )
+    for row in fallback_rows[:4]:
+        rendered.append(
+            f"""
+            <article class="learning-governance-row">
+              <div><strong>fallback</strong></div>
+              <div>{escape(_memory_cell_text(row.get("decision_id")))}</div>
+              <div>{escape(_memory_cell_text(row.get("final_runtime_posture")))}</div>
+              <div>{escape(_learning_bool_text("rollback_available", row.get("rollback_available")))}</div>
+              <div>fallback visibility does not execute rollback</div>
+            </article>
+            """
+        )
+    return f"""
+        <div class="learning-governance-list">
+          <div class="learning-governance-row learning-governance-header">
+            <div>type</div>
+            <div>reference</div>
+            <div>source / posture</div>
+            <div>gate / rollback</div>
+            <div>safety</div>
+          </div>
+          {"".join(rendered)}
+        </div>
+    """
+
+
 def _learning_confidence_text(value: Any) -> str:
     if not _has_display_value(value):
         return "—"
@@ -7753,6 +8125,7 @@ def _render_screen_6_page(
     governance_payload: dict[str, Any] | None = None,
     semantic_recall_payload: dict[str, Any] | None = None,
     learning_visibility_payload: dict[str, Any] | None = None,
+    ml_explainability_visibility_payload: dict[str, Any] | None = None,
 ) -> str:
     header = _to_dict(screen_model.get("header"))
     fleet_summary = _to_dict(screen_model.get("fleet_summary"))
@@ -7777,6 +8150,10 @@ def _render_screen_6_page(
     governance_display_payload = governance_payload or {}
     semantic_display_payload = semantic_recall_payload or {}
     learning_display_payload = learning_visibility_payload or build_learning_visibility_metadata()
+    ml_display_payload = (
+        ml_explainability_visibility_payload
+        or build_ml_explainability_visibility_metadata()
+    )
     screen6_exploration_html = _render_screen6_fleet_governance_learning_exploration(
         screen_model,
         governance_display_payload,
@@ -7811,6 +8188,7 @@ def _render_screen_6_page(
       {_render_governance_visibility_section(governance_display_payload)}
       {_render_semantic_recall_visibility_section(semantic_display_payload)}
       {_render_learning_visibility_section(learning_display_payload)}
+      {_render_ml_explainability_visibility_section(ml_display_payload)}
     </div>
     """
     return f"""
@@ -7870,6 +8248,7 @@ def _render_screen_6_page(
       {_render_governance_visibility_section(governance_display_payload)}
       {_render_semantic_recall_visibility_section(semantic_display_payload)}
       {_render_learning_visibility_section(learning_display_payload)}
+      {_render_ml_explainability_visibility_section(ml_display_payload)}
     </div>
     """
 

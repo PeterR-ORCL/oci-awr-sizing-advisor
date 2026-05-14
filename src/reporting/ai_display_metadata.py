@@ -26,6 +26,29 @@ LEARNING_EMPTY_STATE_MESSAGES = (
     "No runtime influence",
 )
 
+ML_EXPLAINABILITY_VISIBILITY_SAFETY_LABELS = (
+    "Read-only",
+    "Advisory / shadow only",
+    "Not diagnostic evidence",
+    "Not recommendation truth",
+    "Deterministic runtime remains authoritative",
+    "runtime_active=false",
+    "runtime_influence=false",
+    "runtime_influence_granted=false",
+    "runtime_eligibility_granted=false",
+    "No runtime activation",
+    "No backend writes",
+    "No approval controls",
+    "No rollback execution",
+)
+
+ML_EXPLAINABILITY_EMPTY_STATE_MESSAGES = (
+    "No ML/adaptive visibility payload supplied",
+    "ML/adaptive visibility is read-only",
+    "Deterministic runtime remains authoritative",
+    "No runtime activation",
+)
+
 _CANDIDATE_STATUS_ORDER = {
     "PROPOSED": 0,
     "UNDER_REVIEW": 1,
@@ -139,6 +162,105 @@ def build_learning_visibility_metadata(
     }
 
 
+def build_ml_explainability_visibility_metadata(
+    *,
+    explanations: Iterable[Any] | None = None,
+    model_registry_entries: Iterable[Any] | None = None,
+    shadow_ml_outputs: Iterable[Any] | None = None,
+    trend_aware_results: Iterable[Any] | None = None,
+    adaptive_runtime_context: Any | None = None,
+    gate_results: Iterable[Any] | None = None,
+    scoring_integration_results: Iterable[Any] | None = None,
+    recommendation_integration_results: Iterable[Any] | None = None,
+    parser_integration_results: Iterable[Any] | None = None,
+    fallback_decisions: Iterable[Any] | None = None,
+    readiness_summary: Any | None = None,
+) -> dict[str, Any]:
+    """Build read-only Phase 7AB ML/adaptive dashboard metadata.
+
+    This helper accepts local dictionaries, dataclasses, and simple objects. It
+    prepares display metadata only; it does not import runtime parser/scoring
+    modules, call services, approve models, execute rollback, or mutate state.
+    """
+
+    explanation_rows = [_normalize_ml_explanation(record) for record in _record_list(explanations)]
+    feature_rows = _feature_contribution_rows(explanation_rows)
+    model_rows = [
+        _normalize_model_registry_entry(record)
+        for record in _record_list(model_registry_entries)
+    ]
+    score_delta_rows = _score_delta_rows(
+        trend_aware_results=trend_aware_results,
+        shadow_ml_outputs=shadow_ml_outputs,
+        scoring_integration_results=scoring_integration_results,
+    )
+    gate_rows = [_normalize_runtime_gate_row(record) for record in _record_list(gate_results)]
+    adapter_rows = _adapter_rows(
+        scoring_integration_results=scoring_integration_results,
+        recommendation_integration_results=recommendation_integration_results,
+        parser_integration_results=parser_integration_results,
+    )
+    fallback_rows = [
+        _normalize_fallback_row(record)
+        for record in _record_list(fallback_decisions)
+    ]
+    runtime_context = _object_to_mapping(adaptive_runtime_context)
+    readiness = _object_to_mapping(readiness_summary)
+    empty_state = not any(
+        (
+            explanation_rows,
+            feature_rows,
+            model_rows,
+            score_delta_rows,
+            gate_rows,
+            adapter_rows,
+            fallback_rows,
+            runtime_context,
+            readiness,
+        )
+    )
+    summary = {
+        "explanation_count": len(explanation_rows),
+        "feature_contribution_count": len(feature_rows),
+        "model_registry_count": len(model_rows),
+        "score_delta_count": len(score_delta_rows),
+        "runtime_gate_count": len(gate_rows),
+        "adapter_result_count": len(adapter_rows),
+        "fallback_decision_count": len(fallback_rows),
+        "runtime_context_available": bool(runtime_context),
+        "readiness_available": bool(readiness),
+        "readiness_success": bool(
+            readiness.get("success")
+            or readiness.get("runtime_integration_ready")
+            or readiness.get("ml_ready")
+        ),
+    }
+
+    return {
+        "enabled": True,
+        "read_only": True,
+        "advisory_only": True,
+        "deterministic_runtime_authoritative": True,
+        "runtime_active": False,
+        "runtime_influence": False,
+        "runtime_influence_granted": False,
+        "runtime_eligibility_granted": False,
+        "summary": summary,
+        "score_deltas": score_delta_rows,
+        "explanation_rows": explanation_rows,
+        "feature_contribution_rows": feature_rows,
+        "model_registry_rows": model_rows,
+        "runtime_gate_rows": gate_rows,
+        "adapter_rows": adapter_rows,
+        "fallback_rows": fallback_rows,
+        "runtime_context": deepcopy(runtime_context),
+        "readiness_summary": deepcopy(readiness),
+        "safety_labels": list(ML_EXPLAINABILITY_VISIBILITY_SAFETY_LABELS),
+        "empty_state_messages": list(ML_EXPLAINABILITY_EMPTY_STATE_MESSAGES),
+        "empty_state": empty_state,
+    }
+
+
 def _runtime_model_config_value(provider: Any, raw_model: Any) -> str:
     normalized_provider = str(provider or os.getenv("AI_PROVIDER") or "").strip().lower()
     if normalized_provider == "oci":
@@ -218,6 +340,247 @@ def _normalize_learning_governance_record(record: Any) -> dict[str, Any]:
             else status
         ),
     }
+
+
+def _normalize_ml_explanation(record: Any) -> dict[str, Any]:
+    data = _object_to_mapping(record)
+    feature_values = _first_present(
+        data.get("feature_contributions"),
+        data.get("features"),
+        data.get("contributions"),
+    )
+    return {
+        "explanation_id": _display_text(
+            _first_present(data.get("explanation_id"), data.get("id")),
+            "unknown-explanation",
+        ),
+        "model_id": _optional_display_text(data.get("model_id")),
+        "domain": _optional_display_text(data.get("domain")),
+        "summary": _display_text(
+            _first_present(data.get("summary"), data.get("rationale"), data.get("explanation")),
+            "No explanation summary supplied",
+        ),
+        "confidence": _safe_confidence(_first_present(data.get("confidence"), data.get("score_confidence"))),
+        "uncertainty": _safe_confidence(_first_present(data.get("uncertainty"), data.get("uncertainty_score"))),
+        "feature_contributions": [
+            _normalize_feature_contribution(item)
+            for item in _record_list(feature_values)
+        ],
+        "diagnostic_evidence": False,
+        "recommendation_truth": False,
+        "advisory_only": True,
+    }
+
+
+def _normalize_feature_contribution(record: Any) -> dict[str, Any]:
+    data = _object_to_mapping(record)
+    return {
+        "feature": _display_text(
+            _first_present(data.get("feature"), data.get("feature_name"), data.get("name")),
+            "unknown-feature",
+        ),
+        "contribution": _optional_display_text(
+            _first_present(data.get("contribution"), data.get("contribution_value"), data.get("value"))
+        ),
+        "direction": _optional_display_text(data.get("direction")),
+        "evidence_reference": _optional_display_text(data.get("evidence_reference")),
+        "advisory_only": True,
+    }
+
+
+def _feature_contribution_rows(explanation_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for explanation in explanation_rows:
+        explanation_id = explanation.get("explanation_id")
+        for contribution in explanation.get("feature_contributions", []):
+            row = dict(contribution)
+            row["explanation_id"] = explanation_id
+            row["model_id"] = explanation.get("model_id")
+            row["domain"] = explanation.get("domain")
+            rows.append(row)
+    return rows
+
+
+def _normalize_model_registry_entry(record: Any) -> dict[str, Any]:
+    data = _object_to_mapping(record)
+    return {
+        "model_id": _display_text(data.get("model_id"), "unknown-model"),
+        "model_family": _display_text(
+            _first_present(data.get("model_family"), data.get("family")),
+            "unknown-family",
+        ),
+        "governance_status": _display_text(
+            _first_present(data.get("governance_status"), data.get("status")),
+            "UNKNOWN",
+        ),
+        "shadow_eligible": bool(data.get("shadow_eligible")),
+        "runtime_eligibility_requested": bool(data.get("runtime_eligibility_requested")),
+        "runtime_eligibility_granted": False,
+        "runtime_active": False,
+        "runtime_influence_granted": False,
+    }
+
+
+def _score_delta_rows(
+    *,
+    trend_aware_results: Iterable[Any] | None,
+    shadow_ml_outputs: Iterable[Any] | None,
+    scoring_integration_results: Iterable[Any] | None,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for record in _record_list(scoring_integration_results):
+        data = _object_to_mapping(record)
+        rows.append(
+            _score_delta_row(
+                data,
+                source=_display_text(data.get("selected_score_source"), "scoring_integration"),
+                advisory_score=_first_present(
+                    data.get("selected_advisory_score"),
+                    data.get("proposed_score"),
+                    data.get("shadow_ml_score"),
+                    data.get("trend_aware_score"),
+                ),
+            )
+        )
+    for record in _record_list(shadow_ml_outputs):
+        data = _object_to_mapping(record)
+        rows.append(
+            _score_delta_row(
+                data,
+                source="shadow_ml",
+                advisory_score=_first_present(data.get("shadow_ml_score"), data.get("score")),
+            )
+        )
+    for record in _record_list(trend_aware_results):
+        data = _object_to_mapping(record)
+        rows.append(
+            _score_delta_row(
+                data,
+                source="trend_aware",
+                advisory_score=_first_present(data.get("trend_aware_score"), data.get("score")),
+            )
+        )
+    return rows
+
+
+def _score_delta_row(
+    data: Mapping[str, Any],
+    *,
+    source: str,
+    advisory_score: Any,
+) -> dict[str, Any]:
+    deterministic_score = _safe_score(
+        _first_present(data.get("deterministic_score"), data.get("baseline_score"))
+    )
+    selected_score = _safe_score(advisory_score)
+    delta = None
+    if deterministic_score is not None and selected_score is not None:
+        delta = round(selected_score - deterministic_score, 3)
+    return {
+        "domain": _optional_display_text(data.get("domain")),
+        "source": source,
+        "deterministic_score": deterministic_score,
+        "advisory_score": selected_score,
+        "score_delta": delta,
+        "advisory_only": True,
+        "runtime_active": False,
+    }
+
+
+def _normalize_runtime_gate_row(record: Any) -> dict[str, Any]:
+    data = _object_to_mapping(record)
+    denied = _record_list(data.get("denied_reasons"))
+    return {
+        "gate_id": _display_text(data.get("gate_id"), "unknown-gate"),
+        "component_type": _optional_display_text(data.get("component_type")),
+        "allowed_for_consideration": bool(data.get("allowed") or data.get("allowed_for_consideration")),
+        "denied_reasons": [
+            str(reason).strip()
+            for reason in denied
+            if str(reason).strip()
+        ],
+        "runtime_active": False,
+        "runtime_influence_granted": False,
+    }
+
+
+def _adapter_rows(
+    *,
+    scoring_integration_results: Iterable[Any] | None,
+    recommendation_integration_results: Iterable[Any] | None,
+    parser_integration_results: Iterable[Any] | None,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for record in _record_list(scoring_integration_results):
+        data = _object_to_mapping(record)
+        rows.append(
+            {
+                "adapter_type": "scoring",
+                "result_id": _optional_display_text(data.get("result_id")),
+                "selected_source": _optional_display_text(data.get("selected_score_source")),
+                "gate_allowed_for_consideration": bool(data.get("gate_allowed_for_consideration")),
+                "fallback_required": bool(data.get("fallback_to_deterministic")),
+                "runtime_active": False,
+                "runtime_mutation_performed": False,
+            }
+        )
+    for record in _record_list(recommendation_integration_results):
+        data = _object_to_mapping(record)
+        rows.append(
+            {
+                "adapter_type": "recommendation",
+                "result_id": _optional_display_text(data.get("result_id")),
+                "selected_source": _optional_display_text(data.get("selected_recommendation_source")),
+                "gate_allowed_for_consideration": bool(data.get("gate_allowed_for_consideration")),
+                "fallback_required": bool(data.get("fallback_to_deterministic")),
+                "runtime_active": False,
+                "runtime_mutation_performed": False,
+            }
+        )
+    for record in _record_list(parser_integration_results):
+        data = _object_to_mapping(record)
+        rows.append(
+            {
+                "adapter_type": "parser",
+                "result_id": _optional_display_text(data.get("result_id")),
+                "selected_source": _optional_display_text(data.get("selected_parser_source")),
+                "selected_action": _optional_display_text(data.get("selected_parser_action")),
+                "gate_allowed_for_consideration": bool(data.get("gate_allowed_for_consideration")),
+                "fallback_required": bool(data.get("fallback_to_current_parser")),
+                "runtime_active": False,
+                "runtime_mutation_performed": False,
+            }
+        )
+    return rows
+
+
+def _normalize_fallback_row(record: Any) -> dict[str, Any]:
+    data = _object_to_mapping(record)
+    return {
+        "decision_id": _optional_display_text(data.get("decision_id")),
+        "final_runtime_posture": _display_text(
+            data.get("final_runtime_posture"),
+            "deterministic_fallback",
+        ),
+        "fallback_required": bool(_first_present(data.get("fallback_required"), True)),
+        "rollback_required": bool(data.get("rollback_required")),
+        "rollback_available": bool(data.get("rollback_available")),
+        "rollback_reference": _optional_display_text(data.get("rollback_reference")),
+        "runtime_mutation_detected": False,
+        "runtime_influence_detected": False,
+    }
+
+
+def _safe_score(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return None
+    if score < 0.0 or score > 100.0:
+        return None
+    return round(score, 3)
 
 
 def _learning_candidate_sort_key(candidate: Mapping[str, Any]) -> tuple[int, float, str]:

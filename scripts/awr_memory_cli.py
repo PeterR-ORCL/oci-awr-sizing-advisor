@@ -27,6 +27,7 @@ from src.learning import (
     outcome_pattern_miner,
     semantic_candidate_context,
 )
+from src.reporting.ai_display_metadata import build_ml_explainability_visibility_metadata
 
 
 MEMORY_RECORD_KEYS = (
@@ -232,6 +233,36 @@ def _add_learning_commands(subparsers: argparse._SubParsersAction[argparse.Argum
 
     status = learning_sub.add_parser("status", help="Show Phase 7 learning subsystem status.")
     status.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    ml_status = learning_sub.add_parser(
+        "ml-status",
+        help="Show read-only Phase 7 ML/adaptive subsystem status.",
+    )
+    ml_status.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    ml_explain = learning_sub.add_parser(
+        "ml-explain",
+        help="Render local ML explanation records from JSON input.",
+    )
+    ml_explain.add_argument("--input", help="Optional local JSON explanation input file.")
+    ml_explain.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    ml_models = learning_sub.add_parser(
+        "ml-models",
+        help="Render local model registry entries from JSON input.",
+    )
+    ml_models.add_argument("--input", help="Optional local JSON model registry input file.")
+    ml_models.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    adaptive_runtime_status = learning_sub.add_parser(
+        "adaptive-runtime-status",
+        help="Show read-only adaptive runtime gate/context/adapter/fallback status.",
+    )
+    adaptive_runtime_status.add_argument(
+        "--input",
+        help="Optional local JSON adaptive runtime status input file.",
+    )
+    adaptive_runtime_status.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     patterns = learning_sub.add_parser("patterns", help="Mine local outcome patterns.")
     patterns.add_argument("--input", help="Optional local JSON memory input file.")
@@ -504,6 +535,14 @@ def _dispatch_learning(args: argparse.Namespace) -> dict[str, Any]:
     try:
         if args.learning_command == "status":
             return _learning_status_result()
+        if args.learning_command == "ml-status":
+            return _learning_ml_status_result()
+        if args.learning_command == "ml-explain":
+            return _learning_ml_explain_result(args)
+        if args.learning_command == "ml-models":
+            return _learning_ml_models_result(args)
+        if args.learning_command == "adaptive-runtime-status":
+            return _learning_adaptive_runtime_status_result(args)
         if args.learning_command == "patterns":
             return _learning_patterns_result(args)
         if args.learning_command == "candidates":
@@ -566,6 +605,183 @@ def _learning_status_result() -> dict[str, Any]:
             )
         ),
     )
+
+
+def _learning_ml_status_result() -> dict[str, Any]:
+    module_names = {
+        "ml_boundary_present": "src.learning.ml_boundary",
+        "dataset_model_present": "src.learning.feature_label_dataset",
+        "trend_aware_scoring_present": "src.learning.trend_aware_scoring",
+        "shadow_ml_interface_present": "src.learning.shadow_ml_model_interface",
+        "training_backtesting_present": "src.learning.ml_training_backtesting",
+        "explainability_present": "src.learning.ml_explainability",
+        "model_registry_present": "src.learning.ml_model_registry",
+        "runtime_integration_gate_present": "src.learning.adaptive_runtime_gate",
+        "runtime_context_present": "src.learning.adaptive_runtime_context",
+        "scoring_adapter_present": "src.learning.adaptive_scoring_adapter",
+        "recommendation_adapter_present": "src.learning.adaptive_recommendation_adapter",
+        "parser_adapter_present": "src.learning.adaptive_parser_adapter",
+        "fallback_layer_present": "src.learning.adaptive_runtime_fallback",
+    }
+    status = {field: _local_module_available(module) for field, module in module_names.items()}
+    result = _learning_success(
+        command="learning ml-status",
+        read_only=True,
+        advisory_only=True,
+        deterministic_runtime_remains_authoritative=True,
+        runtime_active=False,
+        runtime_influence=False,
+        runtime_influence_granted=False,
+        runtime_eligibility_granted=False,
+        no_runtime_activation=True,
+        no_backend_writes=True,
+        network_dependency=False,
+        oracle_agent_memory_dependency=False,
+        database_dependency=False,
+        **status,
+    )
+    lines = [
+        "Phase 7 ML/adaptive status",
+        "read-only",
+        "deterministic runtime remains authoritative",
+        "no runtime activation",
+        "runtime_active=false",
+        "runtime_influence=false",
+        "runtime_influence_granted=false",
+        "runtime_eligibility_granted=false",
+    ]
+    lines.extend(f"{field}: {str(value).lower()}" for field, value in status.items())
+    return _with_human(result, "\n".join(lines))
+
+
+def _learning_ml_explain_result(args: argparse.Namespace) -> dict[str, Any]:
+    data = _load_optional_json(args.input)
+    explanations = _ml_explanation_records_from_data(data)
+    visibility = build_ml_explainability_visibility_metadata(explanations=explanations)
+    result = _learning_success(
+        command="learning ml-explain",
+        read_only=True,
+        advisory_only=True,
+        explanations=visibility["explanation_rows"],
+        feature_contributions=visibility["feature_contribution_rows"],
+        count=len(visibility["explanation_rows"]),
+        visibility=visibility,
+        deterministic_runtime_remains_authoritative=True,
+        no_runtime_activation=True,
+        no_backend_writes=True,
+        network_dependency=False,
+        oracle_agent_memory_dependency=False,
+        database_dependency=False,
+    )
+    lines = [
+        "Phase 7 ML explanations",
+        "read-only",
+        f"explanations: {len(visibility['explanation_rows'])}",
+        f"feature contributions: {len(visibility['feature_contribution_rows'])}",
+        "ML explanations are not diagnostic evidence",
+        "ML explanations are not recommendation truth",
+        "deterministic runtime remains authoritative",
+        "no runtime activation",
+    ]
+    return _with_human(result, "\n".join(lines))
+
+
+def _learning_ml_models_result(args: argparse.Namespace) -> dict[str, Any]:
+    data = _load_optional_json(args.input)
+    models = _ml_model_records_from_data(data)
+    visibility = build_ml_explainability_visibility_metadata(model_registry_entries=models)
+    result = _learning_success(
+        command="learning ml-models",
+        read_only=True,
+        advisory_only=True,
+        models=visibility["model_registry_rows"],
+        count=len(visibility["model_registry_rows"]),
+        visibility=visibility,
+        deterministic_runtime_remains_authoritative=True,
+        runtime_active=False,
+        runtime_eligibility_granted=False,
+        runtime_influence_granted=False,
+        no_runtime_activation=True,
+        no_backend_writes=True,
+        network_dependency=False,
+        oracle_agent_memory_dependency=False,
+        database_dependency=False,
+    )
+    lines = [
+        "Phase 7 ML model registry visibility",
+        "read-only",
+        f"models: {len(visibility['model_registry_rows'])}",
+        "model registry visibility does not deploy models",
+        "runtime_active=false",
+        "runtime_eligibility_granted=false",
+        "runtime_influence_granted=false",
+        "deterministic runtime remains authoritative",
+        "no runtime activation",
+    ]
+    for model in visibility["model_registry_rows"][:5]:
+        lines.append(
+            "- "
+            f"{model.get('model_id')}: {model.get('model_family')} "
+            f"governance_status={model.get('governance_status')} "
+            f"runtime_active={str(model.get('runtime_active')).lower()}"
+        )
+    return _with_human(result, "\n".join(lines))
+
+
+def _learning_adaptive_runtime_status_result(args: argparse.Namespace) -> dict[str, Any]:
+    data = _load_optional_json(args.input)
+    status = _adaptive_runtime_status_from_data(data)
+    visibility = build_ml_explainability_visibility_metadata(
+        adaptive_runtime_context=status.get("runtime_context"),
+        gate_results=status.get("gate_results"),
+        scoring_integration_results=status.get("scoring_results"),
+        recommendation_integration_results=status.get("recommendation_results"),
+        parser_integration_results=status.get("parser_results"),
+        fallback_decisions=status.get("fallback_decisions"),
+        readiness_summary=status.get("readiness_summary"),
+    )
+    fallback_rows = visibility["fallback_rows"]
+    gate_rows = visibility["runtime_gate_rows"]
+    result = _learning_success(
+        command="learning adaptive-runtime-status",
+        read_only=True,
+        advisory_only=True,
+        runtime_context=visibility["runtime_context"],
+        gate_results=gate_rows,
+        scoring_results=visibility["adapter_rows"],
+        fallback_decisions=fallback_rows,
+        visibility=visibility,
+        deterministic_runtime_remains_authoritative=True,
+        runtime_active=False,
+        runtime_influence=False,
+        runtime_influence_granted=False,
+        runtime_eligibility_granted=False,
+        fallback_to_deterministic=True,
+        no_runtime_activation=True,
+        no_backend_writes=True,
+        network_dependency=False,
+        oracle_agent_memory_dependency=False,
+        database_dependency=False,
+    )
+    posture = (
+        fallback_rows[0].get("final_runtime_posture")
+        if fallback_rows
+        else "deterministic_fallback"
+    )
+    lines = [
+        "Phase 7 adaptive runtime status",
+        "read-only",
+        f"runtime gate rows: {len(gate_rows)}",
+        f"fallback posture: {posture}",
+        "runtime gate visibility does not activate runtime",
+        "fallback visibility does not execute rollback",
+        "runtime_active=false",
+        "runtime_influence=false",
+        "runtime_influence_granted=false",
+        "deterministic runtime remains authoritative",
+        "no runtime activation",
+    ]
+    return _with_human(result, "\n".join(lines))
 
 
 def _learning_patterns_result(args: argparse.Namespace) -> dict[str, Any]:
@@ -1004,6 +1220,142 @@ def _load_json(input_path: str) -> Any:
     path = Path(input_path)
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _load_optional_json(input_path: str | None) -> Any:
+    if input_path is None:
+        return {}
+    return _load_json(input_path)
+
+
+def _ml_explanation_records_from_data(data: Any) -> list[dict[str, Any]]:
+    return _records_from_flexible_json(
+        data,
+        container_keys=("explanations", "ml_explanations"),
+        object_keys=("explanation_id", "summary", "feature_contributions"),
+        field_name="explanations",
+    )
+
+
+def _ml_model_records_from_data(data: Any) -> list[dict[str, Any]]:
+    return _records_from_flexible_json(
+        data,
+        container_keys=("models", "model_registry_entries", "entries"),
+        object_keys=("model_id", "model_family", "governance_status"),
+        field_name="models",
+    )
+
+
+def _adaptive_runtime_status_from_data(data: Any) -> dict[str, Any]:
+    if data is None or data == {}:
+        return {
+            "runtime_context": {},
+            "gate_results": [],
+            "scoring_results": [],
+            "recommendation_results": [],
+            "parser_results": [],
+            "fallback_decisions": [],
+            "readiness_summary": {},
+        }
+    if not isinstance(data, Mapping):
+        raise ValueError("adaptive runtime status input must be a JSON object.")
+
+    return {
+        "runtime_context": deepcopy(
+            data.get("runtime_context")
+            or data.get("adaptive_runtime_context")
+            or {}
+        ),
+        "gate_results": _records_from_flexible_json(
+            data.get("gate_results") or data.get("runtime_gate_results") or [],
+            container_keys=("gate_results", "runtime_gate_results"),
+            object_keys=("gate_id", "component_type"),
+            field_name="gate_results",
+        ),
+        "scoring_results": _records_from_flexible_json(
+            data.get("scoring_result")
+            or data.get("scoring_results")
+            or data.get("scoring_integration_results")
+            or [],
+            container_keys=("scoring_results", "scoring_integration_results"),
+            object_keys=("result_id", "selected_score_source", "deterministic_score"),
+            field_name="scoring_results",
+        ),
+        "recommendation_results": _records_from_flexible_json(
+            data.get("recommendation_result")
+            or data.get("recommendation_results")
+            or data.get("recommendation_integration_results")
+            or [],
+            container_keys=("recommendation_results", "recommendation_integration_results"),
+            object_keys=("result_id", "selected_recommendation_source"),
+            field_name="recommendation_results",
+        ),
+        "parser_results": _records_from_flexible_json(
+            data.get("parser_result")
+            or data.get("parser_results")
+            or data.get("parser_integration_results")
+            or [],
+            container_keys=("parser_results", "parser_integration_results"),
+            object_keys=("result_id", "selected_parser_source", "selected_parser_action"),
+            field_name="parser_results",
+        ),
+        "fallback_decisions": _records_from_flexible_json(
+            data.get("fallback_decision")
+            or data.get("fallback_decisions")
+            or [],
+            container_keys=("fallback_decisions",),
+            object_keys=("decision_id", "final_runtime_posture"),
+            field_name="fallback_decisions",
+        ),
+        "readiness_summary": deepcopy(
+            data.get("readiness_summary")
+            or data.get("runtime_integration_readiness")
+            or {}
+        ),
+    }
+
+
+def _records_from_flexible_json(
+    data: Any,
+    *,
+    container_keys: tuple[str, ...],
+    object_keys: tuple[str, ...],
+    field_name: str,
+) -> list[dict[str, Any]]:
+    if data is None or data == {}:
+        return []
+    if isinstance(data, Mapping):
+        for key in container_keys:
+            if key in data:
+                return _records_from_flexible_json(
+                    data[key],
+                    container_keys=container_keys,
+                    object_keys=object_keys,
+                    field_name=field_name,
+                )
+        if any(key in data for key in object_keys):
+            return [deepcopy(dict(data))]
+        return []
+    if isinstance(data, list):
+        records: list[dict[str, Any]] = []
+        for record in data:
+            if not isinstance(record, Mapping):
+                raise ValueError(f"each {field_name} record must be a JSON object.")
+            records.append(deepcopy(dict(record)))
+        return records
+    raise ValueError(
+        f"{field_name} input must be a list, a container object, or one record object."
+    )
+
+
+def _local_module_available(module_name: str) -> bool:
+    try:
+        importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name == module_name:
+            return False
+        raise
+    return True
 
 
 def _write_json_file(output_path: str, data: Mapping[str, Any], *, force: bool) -> str:
