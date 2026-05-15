@@ -2411,6 +2411,11 @@ def _render_screen_1_page(
           parser_governance_payload or {},
           report_data or {},
       )}
+      {_render_screen1_parser_unknown_review_preview_panel(
+          screen_model,
+          parser_review_payload or {},
+          report_data or {},
+      )}
       {_render_parser_review_section(parser_review_payload or {})}
       {_render_parser_governance_review_section(parser_governance_payload or {})}
     </div>
@@ -2937,6 +2942,162 @@ def _dedupe_screen1_selector_items(items: list[dict[str, Any]]) -> list[dict[str
         seen.add(key)
         deduped.append(item)
     return deduped
+
+
+def _render_screen1_parser_unknown_review_preview_panel(
+    screen_model: dict[str, Any],
+    parser_review_payload: dict[str, Any],
+    report_data: dict[str, Any],
+) -> str:
+    preview = _build_screen1_parser_unknown_review_preview(
+        screen_model,
+        parser_review_payload,
+        report_data,
+    )
+    control_cards = "".join(
+        f"""
+              <div class="screen1-parser-unknown-review-card disabled-preview-only" aria-disabled="true" data-preview-only="true">
+                <strong>{escape(label)}</strong>
+                <span>Preview only</span>
+                <p>{escape(description)}</p>
+              </div>
+        """
+        for label, description in (
+            ("Mark Parser Gap", "Future parser-gap review is disabled in this phase."),
+            ("Mark Source Gap", "Future source-gap review is metadata preview only."),
+            ("Mark False Positive", "False-positive classification is not persisted here."),
+            ("Mark Not Applicable", "Not-applicable classification is not persisted here."),
+            ("Request Parser Mapping", "Parser mapping intent is preview only; no parser mapping is created."),
+            ("Route to Parser Backlog", "Parser backlog intent is preview only; no backlog item is created."),
+            ("Add Review Note", "Review notes are preview-only and are not persisted here."),
+        )
+    )
+    summary_rows = "".join(
+        f"<div><dt>{escape(label)}</dt><dd>{escape(value)}</dd></div>"
+        for label, value in (
+            ("selected unknown signal state", preview["selected_unknown_signal_state"]),
+            ("unknown_signal_id", preview["unknown_signal_id"]),
+            ("parser_section", preview["parser_section"]),
+            ("signal_name", preview["signal_name"]),
+            ("review_decision", preview["review_decision"]),
+            ("review_status", preview["review_status"]),
+            ("mapping_intent_type", preview["mapping_intent_type"]),
+            ("backlog_action", preview["backlog_action"]),
+            ("actor required", preview["actor_required"]),
+            ("audit required", preview["audit_required"]),
+            ("governed write path required", preview["governed_write_path_required"]),
+            ("write_performed=false", "write_performed=false"),
+            ("classification_persisted=false", "classification_persisted=false"),
+            ("parser_mapping_created=false", "parser_mapping_created=false"),
+            ("candidate_created=false", "candidate_created=false"),
+            ("backlog_item_created=false", "backlog_item_created=false"),
+            ("parser_output_mutation_requested=false", "parser_output_mutation_requested=false"),
+            ("phase4i_mutation_requested=false", "phase4i_mutation_requested=false"),
+            ("runtime_influence=false", "runtime_influence=false"),
+        )
+    )
+    return f"""
+      <section class="card secondary screen1-parser-unknown-review-preview-panel" id="screen1-parser-unknown-review-preview-panel" data-phase="7AW" data-preview-only="true">
+        <div class="section-kicker">Phase 7AW Preview</div>
+        <h2>Screen 1 Parser Unknown Review Preview</h2>
+        <p class="meta">
+          Preview only. Parser unknown review disabled in this phase.
+          No parser classification performed. No parser mapping created.
+          No candidate created automatically. No backlog item created.
+          No parser output changed. No Phase 4I mutation.
+          No backend write. No governed write path invoked.
+          Deterministic runtime remains authoritative.
+        </p>
+        <div class="screen1-parser-unknown-review-grid">
+          {control_cards}
+        </div>
+        <section class="evidence-pane screen1-parser-unknown-review-preview-summary">
+          <h3>Read-Only Parser Unknown Review Request Preview</h3>
+          <p class="meta">
+            No selected unknown signal exists in this static export. The preview below
+            shows future parser unknown review fields only and does not claim a
+            parser unknown was classified, routed, mapped, or persisted.
+          </p>
+          <dl class="screen1-parser-unknown-review-preview-list">
+            {summary_rows}
+          </dl>
+        </section>
+      </section>
+    """
+
+
+def _build_screen1_parser_unknown_review_preview(
+    screen_model: dict[str, Any],
+    parser_review_payload: dict[str, Any],
+    report_data: dict[str, Any],
+) -> dict[str, str]:
+    unknown = _screen1_first_parser_unknown_for_review_preview(
+        parser_review_payload,
+    )
+    parse_confidence = _to_dict(screen_model.get("parse_confidence_adaptation"))
+    metadata = _to_dict(report_data.get("metadata"))
+    unknown_signal_id = (
+        unknown.get("unknown_signal_id")
+        or unknown.get("id")
+        or unknown.get("signal_id")
+    )
+    parser_section = (
+        unknown.get("section_name")
+        or unknown.get("parser_section")
+        or parse_confidence.get("selected_parser_section")
+    )
+    signal_name = (
+        unknown.get("signal_name")
+        or unknown.get("unknown_type")
+        or unknown.get("metric_name")
+    )
+    awr_id = metadata.get("awr_id") or unknown.get("source_awr_id")
+    run_id = report_data.get("run_history_id") or unknown.get("source_run_id")
+    source_hint = _join_compact_values([run_id, awr_id])
+    return {
+        "selected_unknown_signal_state": (
+            "preview unknown signal available"
+            if unknown
+            else "no selected unknown signal exists"
+        ),
+        "unknown_signal_id": (
+            _display_value(unknown_signal_id)
+            if _has_display_value(unknown_signal_id)
+            else "no unknown signal selected"
+        ),
+        "parser_section": (
+            _display_value(parser_section)
+            if _has_display_value(parser_section)
+            else "no parser section selected"
+        ),
+        "signal_name": (
+            _display_value(signal_name)
+            if _has_display_value(signal_name)
+            else "no signal selected"
+        ),
+        "review_decision": "future review decision only",
+        "review_status": "proposed",
+        "mapping_intent_type": "unknown_signal_mapping preview only",
+        "backlog_action": "create_backlog_item preview only",
+        "actor_required": "actor required before future review",
+        "audit_required": "audit required before future review",
+        "governed_write_path_required": "governed write path required before future write",
+        "source_context": source_hint or "current static export context only",
+    }
+
+
+def _screen1_first_parser_unknown_for_review_preview(
+    parser_review_payload: dict[str, Any],
+) -> dict[str, Any]:
+    for raw_unknown in _screen1_list(parser_review_payload.get("recent_unknowns")):
+        unknown = _to_dict(raw_unknown)
+        if unknown:
+            return unknown
+    for raw_pattern in _screen1_list(parser_review_payload.get("pattern_summary")):
+        pattern = _to_dict(raw_pattern)
+        if pattern:
+            return pattern
+    return {}
 
 
 def _render_screen_2_page(
